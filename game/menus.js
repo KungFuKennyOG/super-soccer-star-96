@@ -12,9 +12,9 @@ import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.
 const W = 256, H = 192;
 const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK' };
 const MODES = [
-  { id: 'attack', name: 'SCORE ATTACK', sub: 'AGAINST THE CLOCK - BEAT YOUR HIGH SCORE' },
-  { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS - GROUPS THEN KNOCKOUTS' },
-  { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS - STRAIGHT KNOCKOUTS' },
+  { id: 'attack', name: 'SCORE ATTACK', sub: 'BEAT YOUR HIGH SCORE' },
+  { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS: GROUPS + KNOCKOUTS' },
+  { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS: STRAIGHT KNOCKOUTS' },
 ];
 
 // Options on the mode screen, changed with left/right.
@@ -81,7 +81,9 @@ export function createMenus(scene, camera) {
       const y = 58 + i * 30, on = i === sel;
       ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 27);
       drawText(ctx, m.name, 38, y + 3, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
-      drawText(ctx, m.sub, 38, y + 18, on ? '#05072a' : '#9aa8e0');
+      let sub = m.sub;
+      while (textWidth(sub) > W - 56 - 14 && sub.includes(' ')) sub = sub.slice(0, sub.lastIndexOf(' '));
+      drawText(ctx, sub, 38, y + 18, on ? '#05072a' : '#9aa8e0');
     });
     // settings rows: < value > when selected
     const st = data.settings;
