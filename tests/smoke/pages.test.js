@@ -46,7 +46,7 @@ test('game boots, kicks off and plays without errors', async t => {
   await page.waitForTimeout(800);
   await page.screenshot({ path: new URL('team-select.png', OUT).pathname });
   await page.keyboard.press('Enter');            // first team
-  await page.waitForFunction(() => window.__sss.game && window.__sss.menus.screen === null, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__sss.game && window.__sss.menus.screen === null, null, { timeout: 40000 }); // building a ground is slow in software rendering
   await page.waitForTimeout(500);
   await page.evaluate(() => { for (const id of ['d1', 'd2', 'd3']) window.__sss.world.byId[id].stun = 999; }); // keep it ours
   await page.keyboard.down('KeyW'); await page.waitForTimeout(1500); await page.keyboard.up('KeyW');
