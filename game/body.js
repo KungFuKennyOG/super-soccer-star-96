@@ -43,6 +43,53 @@ BONES.forEach(([name], i) => { B[name] = i; });
 /* ---------- geometry ---------- */
 
 const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+
+// Muscle shapes for a tube: each { a: angle round the limb (0 = front, +pi/2 = +x), aw: angular half
+// width, y: height, yw: half height, d: how far it pushes out (negative pulls in) }.
+function muscles(list) {
+  return (i, a, r) => {
+    let d = 0;
+    for (const m of list) d += m.d * Math.max(0, 1 - (angDiff(a, m.a) / m.aw) ** 2) * Math.max(0, 1 - ((r.c[1] - m.y) / m.yw) ** 2);
+    return d ? [Math.sin(a) * d, 0, Math.cos(a) * d] : null;
+  };
+}
+
+// Ambient occlusion baked into vertex colors: every triangle shades the vertices it faces, by its
+// area and how close and square-on it is (disc approximation). Armpits, under the shirt, between the
+// legs and under the chin go darker, which is what makes the low-poly body read as solid.
+function bakeAO(g) {
+  const p = g.attributes.position.array, n = g.attributes.normal.array, idx = g.index.array;
+  const tc = [], tn = [], ta = [];
+  const v = (i, k) => p[i * 3 + k];
+  for (let f = 0; f < idx.length; f += 3) {
+    const a = idx[f], b = idx[f + 1], c = idx[f + 2];
+    const ux = v(b, 0) - v(a, 0), uy = v(b, 1) - v(a, 1), uz = v(b, 2) - v(a, 2);
+    const wx = v(c, 0) - v(a, 0), wy = v(c, 1) - v(a, 1), wz = v(c, 2) - v(a, 2);
+    let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    const l = Math.hypot(nx, ny, nz); if (l < 1e-9) continue;
+    nx /= l; ny /= l; nz /= l;
+    tc.push((v(a, 0) + v(b, 0) + v(c, 0)) / 3, (v(a, 1) + v(b, 1) + v(c, 1)) / 3, (v(a, 2) + v(b, 2) + v(c, 2)) / 3);
+    tn.push(nx, ny, nz); ta.push(l / 2);
+  }
+  const count = p.length / 3, col = new Float32Array(count * 3), R2 = 0.2 * 0.2;
+  for (let i = 0; i < count; i++) {
+    const px = p[i * 3], py = p[i * 3 + 1], pz = p[i * 3 + 2], nx = n[i * 3], ny = n[i * 3 + 1], nz = n[i * 3 + 2];
+    let occ = 0;
+    for (let t = 0; t < ta.length; t++) {
+      const dx = tc[t * 3] - px, dy = tc[t * 3 + 1] - py, dz = tc[t * 3 + 2] - pz, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 > R2 || d2 < 1e-6) continue;
+      const d = Math.sqrt(d2), ci = (nx * dx + ny * dy + nz * dz) / d;
+      if (ci <= 0.05) continue;
+      const cj = -(tn[t * 3] * dx + tn[t * 3 + 1] * dy + tn[t * 3 + 2] * dz) / d;
+      if (cj <= 0) continue;
+      occ += ta[t] * ci * cj / (Math.PI * d2 + ta[t]);
+    }
+    const ao = Math.max(0.55, 1 - 0.9 * occ);
+    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = ao;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+}
 
 class Builder {
   constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; this.size = SIZE; }
@@ -114,6 +161,7 @@ class Builder {
       const l = Math.hypot(x, y, z) || 1;
       for (const i of ids) { n[i * 3] = x / l; n[i * 3 + 1] = y / l; n[i * 3 + 2] = z / l; }
     }
+    bakeAO(g);
     return g;
   }
 }
@@ -145,14 +193,13 @@ export function bodyGeometry(style = 0) {
     [0.8, 0.09, 0.06, 0, 2, { hips: 1 }],
   ];
   b.tube(T.map(([y, rx, rz, z, n, w]) => ({ c: [0, y, z], rx, rz, n, v: tv(y), w })), REGIONS.torso, {
-    seg: 12, capBottom: true,
-    shape: (i, a, r) => {
-      const y = r.c[1], front = Math.cos(a);
-      let dz = 0;
-      if (front > 0.3) dz += 0.012 * Math.max(0, 1 - Math.abs(y - 1.37) / 0.09) * front;              // chest
-      if (front < -0.3) dz -= 0.01 * Math.max(0, 1 - Math.abs(y - 1.41) / 0.08) * -front;              // shoulder blades
-      return [0, 0, dz];
-    },
+    seg: 16, capBottom: true,
+    shape: muscles([                                    // under a baggy shirt, so only a hint
+      { a: 0.45, aw: 0.55, y: 1.37, yw: 0.07, d: 0.012 }, { a: -0.45, aw: 0.55, y: 1.37, yw: 0.07, d: 0.012 },   // pecs
+      { a: 2.0, aw: 0.6, y: 1.3, yw: 0.1, d: 0.008 }, { a: -2.0, aw: 0.6, y: 1.3, yw: 0.1, d: 0.008 },           // lats
+      { a: 2.6, aw: 0.45, y: 1.41, yw: 0.07, d: 0.008 }, { a: -2.6, aw: 0.45, y: 1.41, yw: 0.07, d: 0.008 },     // shoulder blades
+      { a: Math.PI, aw: 0.3, y: 1.25, yw: 0.2, d: -0.006 },                                                     // spine
+    ]),
   });
   // polo collar: a band standing round the neck with a folded lip
   b.tube([
@@ -163,13 +210,13 @@ export function bodyGeometry(style = 0) {
 
   // head: an egg, a little big for the body, with brow, nose, cheekbones, ears and a square jaw
   const H = { cx: 0, cy: (P.crown + P.chin) / 2, cz: 0.018, rx: 0.122, ry: (P.crown - P.chin) / 2, rz: 0.132 };
-  const rows = 10, headRings = [];
+  const rows = 12, headRings = [];
   for (let j = 0; j <= rows; j++) {
     const t = j / rows * Math.PI, s = Math.sin(t);
     headRings.push({ c: [H.cx, H.cy + Math.cos(t) * H.ry, H.cz], rx: Math.max(1e-4, s * H.rx), rz: Math.max(1e-4, s * H.rz), v: j / rows, w: { head: 1 }, t });
   }
   b.tube(headRings, REGIONS.head, {
-    seg: 12, a0: Math.PI, uOf: headU,
+    seg: 16, a0: Math.PI, uOf: headU,
     shape: (i, a, r) => {
       const fx = Math.sin(a) * r.rx, front = Math.cos(a), side = Math.abs(Math.sin(a)), t = r.t / Math.PI;
       let dx = 0, dy = 0, dz = 0;
@@ -196,19 +243,32 @@ export function bodyGeometry(style = 0) {
       [0.86, 0.118, 0, { hips: 0.2, [up]: 0.8 }],
       [SHORTS_Y, 0.124, 0.004, { [up]: 1 }],
       [SHORTS_Y - 0.006, 0.09, 0.008, { [up]: 1 }],
-      [0.6, 0.085, 0.012, { [up]: 1 }],
+      [0.62, 0.087, 0.012, { [up]: 1 }],
+      [0.55, 0.077, 0.014, { [up]: 1 }],
       [P.kneeY, 0.064, 0.014, { [up]: 0.5, [lo]: 0.5 }],
       [0.445, 0.066, 0.004, { [lo]: 1 }],
       [0.438, 0.073, 0.002, { [lo]: 1 }],                              // sock turned over at the top
       [0.405, 0.072, -0.004, { [lo]: 1 }],
-      [0.33, 0.079, -0.017, { [lo]: 1 }],                              // calf
-      [0.2, 0.057, -0.006, { [lo]: 1 }],
+      [0.36, 0.074, -0.012, { [lo]: 1 }],
+      [0.31, 0.074, -0.014, { [lo]: 1 }],                              // calf
+      [0.25, 0.062, -0.01, { [lo]: 1 }],
+      [0.19, 0.054, -0.005, { [lo]: 1 }],
       [0.12, 0.044, 0, { [lo]: 1 }],
       [P.ankleY, 0.045, 0, { [lo]: 0.5, [ft]: 0.5 }],
     ];
     b.tube(L.map(([y, r, z, w]) => ({ c: [lx, y, z], rx: r, rz: r * 0.95, n: 2.2, v: lv(y), w })), REGIONS.leg, {
-      seg: 8, a0: LIMB_A0, capBottom: true,
-      shape: (i, a, r) => (Math.abs(r.c[1] - P.kneeY) < 0.01 && Math.cos(a) > 0.5 ? [0, 0, 0.012] : null), // kneecap
+      seg: 10, a0: LIMB_A0, capBottom: true,
+      shape: muscles([
+        { a: 0, aw: 1.2, y: 0.62, yw: 0.1, d: 0.012 },                       // quads
+        { a: -s * 0.55, aw: 0.7, y: 0.545, yw: 0.05, d: 0.01 },             // teardrop above the knee
+        { a: s * 1.3, aw: 0.8, y: 0.63, yw: 0.1, d: 0.006 },                // outer thigh
+        { a: Math.PI, aw: 1.1, y: 0.62, yw: 0.1, d: 0.006 },                // hamstrings
+        { a: 0, aw: 0.7, y: P.kneeY, yw: 0.025, d: 0.012 },                 // kneecap
+        { a: -s * 2.36, aw: 0.9, y: 0.33, yw: 0.08, d: 0.017 },             // inner calf
+        { a: s * 2.36, aw: 0.8, y: 0.35, yw: 0.07, d: 0.011 },              // outer calf
+        { a: 0, aw: 0.6, y: 0.27, yw: 0.1, d: -0.004 },                      // shin
+        { a: Math.PI, aw: 0.8, y: 0.14, yw: 0.05, d: -0.006 },              // achilles
+      ]),
     });
     b.boot([lx, 0.044, 0.052], [0.104, 0.088, 0.285], REGIONS.boot, ft, 'toe' + n);
 
@@ -223,14 +283,23 @@ export function bodyGeometry(style = 0) {
       [SLEEVE_DY + 0.004, 0.102, 0.097, { [ua]: 0.85, [fa]: 0.15 }],
       [SLEEVE_DY - 0.004, 0.064, 0.064, { [ua]: 0.8, [fa]: 0.2 }],
       [P.elbowDY, 0.058, 0.06, { [ua]: 0.5, [fa]: 0.5 }],
-      [-0.34, 0.063, 0.063, { [fa]: 1 }],
+      [-0.33, 0.063, 0.063, { [fa]: 1 }],
+      [-0.4, 0.056, 0.057, { [fa]: 1 }],
       [-0.46, 0.047, 0.049, { [fa]: 1 }],
       [P.wristDY, 0.04, 0.044, { [fa]: 0.5, [hd]: 0.5 }],
       [P.wristDY - 0.025, 0.035, 0.062, { [hd]: 1 }],
       [P.wristDY - 0.095, 0.038, 0.064, { [hd]: 1 }],
       [P.wristDY - 0.145, 0.02, 0.038, { [hd]: 1 }],
     ];
-    b.tube(A.map(([dy, rx, rz, w, ox = 0]) => ({ c: [ax + s * ox, ay + dy, 0], rx, rz, n: 2.2, v: av(dy), w })), REGIONS.arm, { seg: 8, a0: LIMB_A0, capBottom: true });
+    b.tube(A.map(([dy, rx, rz, w, ox = 0]) => ({ c: [ax + s * ox, ay + dy, 0], rx, rz, n: 2.2, v: av(dy), w })), REGIONS.arm, {
+      seg: 10, a0: LIMB_A0, capBottom: true,
+      shape: muscles([
+        { a: s * 0.7, aw: 0.9, y: ay - 0.35, yw: 0.07, d: 0.01 },           // forearm, top
+        { a: -s * 0.5, aw: 0.8, y: ay - 0.36, yw: 0.07, d: 0.006 },         // forearm, inside
+        { a: Math.PI, aw: 0.6, y: ay + P.elbowDY, yw: 0.03, d: 0.008 },     // elbow
+        { a: 0, aw: 0.8, y: ay - 0.2, yw: 0.05, d: 0.008 },                 // biceps (in the sleeve)
+      ]),
+    });
   }
   const g = b.geometry();
   geoCache.set(style, g);

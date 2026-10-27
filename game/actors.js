@@ -15,7 +15,7 @@ export function buildPlayer(kit, num, look = 0, { feetOnly = false } = {}) {
   const skin = SKINS[look % SKINS.length], hair = HAIRS[(look * 3 + 1) % HAIRS.length];
   const style = [0, 0, 1, 2, 3, 4, 5, 0, 3, 2, 0][look % 11], stubble = look % 4 === 1;
   const tex = playerAtlas({ kit, num, skin, hair, style, stubble, feetOnly });
-  const material = mat(tex.uuid, () => ps1(feetOnly ? { map: tex, alphaTest: 0.5 } : { map: tex }));
+  const material = mat(tex.uuid, () => ps1(feetOnly ? { map: tex, alphaTest: 0.5, vertexColors: true } : { map: tex, vertexColors: true }));
   const { mesh, bone } = buildBody(material, style);
   const root = new THREE.Group();
   root.add(mesh);
