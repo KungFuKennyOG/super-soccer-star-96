@@ -72,13 +72,7 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
       return;
     }
   }
-  if (p.role === 'gk' && s < 1) { // set, hands ready
-    bn.upperArmL.rotation.set(-0.5, 0, 0.4); bn.upperArmR.rotation.set(-0.5, 0, -0.4);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -1.0;
-    bn.upperLegL.rotation.set(-0.25, 0, 0.12); bn.upperLegR.rotation.set(-0.25, 0, -0.12);
-    bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.45;
-    bn.hips.position.y -= 0.07; bn.spine.rotation.x = 0.25;
-  }
+  if (p.role === 'gk') { keeperStance(m, p, dt); return; }
   if (guide && p.role === 'mate') { dancePose(bn, guide); return; }
   if (celebrate) {
     bn.hips.position.y += Math.abs(Math.sin(t * 7 + m.phase)) * 0.45;
@@ -103,6 +97,32 @@ function dancePose(bn, g) {
   if (g.move === 'out') l = r = 'out';
   bn.upperArmL.rotation.set(0, 0, ARM[l]); bn.upperArmR.rotation.set(0, 0, -ARM[r]);
   bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = 0;
+}
+
+// The keeper, when he isn't diving: always square to the ball in a crouched ready stance, side-stepping
+// (feet apart, feet together) instead of running, arms out and ready; the ball hugged to his chest
+// once he's caught it.
+function keeperStance(m, p, dt) {
+  const bn = m.bone;
+  const rx = p.fz, rz = -p.fx;                                      // his right, from his facing
+  const lateral = p.vx * rx + p.vz * rz, fwd = p.vx * p.fx + p.vz * p.fz;
+  m.shuffle = (m.shuffle || 0) + dt * Math.abs(lateral) * 3.2;
+  const step = Math.sin(m.shuffle), spread = 0.16 + 0.14 * Math.abs(step) * Math.min(1, Math.abs(lateral));
+  restPose(bn);
+  bn.hips.position.y -= 0.12 + 0.03 * Math.abs(Math.cos(m.shuffle)) * Math.min(1, Math.abs(lateral));
+  bn.spine.rotation.x = 0.32; bn.neck.rotation.x = -0.25;
+  bn.upperLegL.rotation.set(-0.42 - fwd * 0.08, 0, spread); bn.upperLegR.rotation.set(-0.42 - fwd * 0.08, 0, -spread);
+  bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.75;
+  bn.footL.rotation.x = bn.footR.rotation.x = -0.3;
+  if (p.holding) {
+    bn.upperArmL.rotation.set(-1.1, 0, -0.35); bn.upperArmR.rotation.set(-1.1, 0, 0.35);
+    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -1.5;
+    bn.spine.rotation.x = 0.15; bn.hips.position.y += 0.08;
+  } else {
+    const twitch = 0.06 * Math.sin(m.phase * 0.7);
+    bn.upperArmL.rotation.set(-0.55, 0, 0.55 + twitch); bn.upperArmR.rotation.set(-0.55, 0, -0.55 - twitch);
+    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.9;
+  }
 }
 
 // The keeper's dive, timed from the moment he commits: a quick load, a launch that rolls the body

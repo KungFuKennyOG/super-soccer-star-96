@@ -12,11 +12,14 @@ import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.
 const W = 256, H = 192;
 const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK' };
 const MODES = [
-  { id: 'attack', name: 'SCORE ATTACK', sub: '2 MINUTES - BEAT YOUR HIGH SCORE' },
+  { id: 'attack', name: 'SCORE ATTACK', sub: 'AGAINST THE CLOCK - BEAT YOUR HIGH SCORE' },
   { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS - GROUPS THEN KNOCKOUTS' },
   { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS - STRAIGHT KNOCKOUTS' },
 ];
 
+// Options on the mode screen, changed with left/right.
+export const LENGTHS = [{ name: 'SHORT', mul: 0.6 }, { name: 'NORMAL', mul: 1 }, { name: 'LONG', mul: 1.5 }, { name: 'EPIC', mul: 2.5 }];
+export const WOBBLES = ['OFF', 'LOW', 'FULL'];
 const centre = (c, s, y, col, sc = 1, sh = '#000') => drawText(c, s, Math.round((W - textWidth(s, sc)) / 2), y, col, sc, sh);
 
 export function logo(c, y) {
@@ -73,14 +76,24 @@ export function createMenus(scene, camera) {
 
   function drawMode() {
     frame(null);
-    logo(ctx, 12);
+    logo(ctx, 8);
     MODES.forEach((m, i) => {
-      const y = 70 + i * 34, on = i === sel;
-      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 28);
-      drawText(ctx, m.name, 38, y + 4, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
-      drawText(ctx, m.sub, 38, y + 19, on ? '#05072a' : '#9aa8e0');
+      const y = 58 + i * 30, on = i === sel;
+      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 27);
+      drawText(ctx, m.name, 38, y + 3, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
+      drawText(ctx, m.sub, 38, y + 18, on ? '#05072a' : '#9aa8e0');
     });
-    hint('UP/DOWN CHOOSE - A OR ENTER TO PICK');
+    // settings rows: < value > when selected
+    const st = data.settings;
+    const rows = [['MATCH LENGTH', LENGTHS[st.length].name], ['PS1 WOBBLE', WOBBLES[st.wobble]]];
+    rows.forEach(([k, v], i) => {
+      const y = 152 + i * 12, on = sel === MODES.length + i;
+      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(28, y - 2, W - 56, 11); }
+      drawText(ctx, k, 38, y, on ? '#f2c21a' : '#9aa8e0');
+      const val = on ? `< ${v} >` : v;
+      drawText(ctx, val, W - 38 - textWidth(val), y, on ? '#ffffff' : '#c8d4ff');
+    });
+    hint(sel >= MODES.length ? 'LEFT/RIGHT TO CHANGE' : 'UP/DOWN CHOOSE - A OR ENTER TO PICK');
   }
 
   // World Cup: pick on a world map; the stick moves to the nearest nation in that direction.
@@ -232,9 +245,13 @@ export function createMenus(scene, camera) {
       if (model && table3d.visible) model.root.rotation.y += dt * 0.9;
       let act = null;
       if (screen === 'mode') {
-        if (nav.up) sel = (sel + MODES.length - 1) % MODES.length;
-        if (nav.down) sel = (sel + 1) % MODES.length;
-        if (nav.ok) act = { mode: MODES[sel].id };
+        const n = MODES.length + 2, st = data.settings;
+        if (nav.up) sel = (sel + n - 1) % n;
+        if (nav.down) sel = (sel + 1) % n;
+        if (sel < MODES.length && nav.ok) act = { mode: MODES[sel].id };
+        const dir = nav.right ? 1 : nav.left ? -1 : 0;
+        if (dir && sel === MODES.length) { st.length = Math.max(0, Math.min(LENGTHS.length - 1, st.length + dir)); act = { settings: st }; }
+        if (dir && sel === MODES.length + 1) { st.wobble = Math.max(0, Math.min(WOBBLES.length - 1, st.wobble + dir)); act = { settings: st }; }
       } else if (screen === 'team' && data.mode === 'world') {
         for (const d of ['left', 'right', 'up', 'down']) {
           if (!nav[d]) continue;

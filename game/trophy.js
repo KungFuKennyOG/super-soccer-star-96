@@ -34,7 +34,12 @@ function plate(text, color, bg) {
 
 // Where your hands go on each cup (trophy-local): the big ears of the club cup, or round the column
 // under the globe of the world cup.
-const GRIPS = { club: [[0.25, 0.39, 0], [-0.25, 0.39, 0]], world: [[0.065, 0.24, 0], [-0.065, 0.24, 0]] };
+// Index 0 is on the cup's +x side (your left as it faces you) for your left hand, index 1 for your right.
+const GRIPS = { club: [[0.25, 0.39, 0], [-0.25, 0.39, 0]], world: [[0.07, 0.24, 0], [-0.07, 0.24, 0]] };
+// How a posed hand (in grip space, see hands.js) sits on a hand-hold: knuckles away from you, thumb up,
+// palm toward the cup. The same basis works for both hands because the left mesh is mirrored.
+const HOLD = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+  new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, -1, 0)));
 
 function buildTrophy(kind) {
   const g = new THREE.Group();
@@ -124,7 +129,7 @@ export function createCeremony(scene, camera, hands) {
       // (and are your hands in the browser). Left hand on your left (+x here), fingers wrapping in.
       deskHands = [buildHand('left', 'fist', team.kit), buildHand('right', 'fist', team.kit)];
       anchors = GRIPS[kind].map(a => new THREE.Vector3(...a));
-      deskHands.forEach((h, i) => { const s = i ? -1 : 1; h.position.copy(anchors[i]).add(new THREE.Vector3(s * 0.035, 0, 0)); h.rotation.set(0, s * Math.PI / 2, 0); h.visible = false; trophy.add(h); });
+      deskHands.forEach((h, i) => { h.position.copy(anchors[i]); h.quaternion.copy(HOLD); h.visible = false; trophy.add(h); });
       for (const m of squad) root.remove(m.root);
       squad = [];
       for (let i = 0; i < 6; i++) {
@@ -155,13 +160,14 @@ export function createCeremony(scene, camera, hands) {
           const b = g.gamepad.buttons[BTN.GRIP], squeeze = !!(b && b.value > 0.45);
           if (!squeeze) { held[g.side] = null; continue; }
           if (held[g.side] !== null) continue;
-          g.obj.getWorldPosition(hand);
-          anchors.forEach((a, i) => { aw.copy(a); trophy.localToWorld(aw); if (hand.distanceTo(aw) < 0.25 && held[g.side] === null) held[g.side] = i; });
+          // each hand takes the hand-hold on its own side
+          const i = g.side === 'left' ? 0 : 1;
+          g.obj.getWorldPosition(hand); aw.copy(anchors[i]); trophy.localToWorld(aw);
+          if (hand.distanceTo(aw) < 0.3) held[g.side] = i;
         }
         // a posed hand appears on the hand-hold you grabbed, and your controller hand hides
         for (const side of ['left', 'right']) {
           const on = held[side] !== null, h = deskHands[side === 'left' ? 0 : 1];
-          if (on) { const a = anchors[held[side]], sx = Math.sign(a.x) || (side === 'left' ? 1 : -1); h.position.copy(a).add(new THREE.Vector3(sx * 0.035, 0, 0)); h.rotation.set(0, sx * Math.PI / 2, 0); }
           h.visible = on; hands.hide(side, on);
         }
         const holding = grips.filter(g => held[g.side] !== null).map(g => ({ p: local(g.obj.getWorldPosition(new THREE.Vector3())), a: anchors[held[g.side]] }));

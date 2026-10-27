@@ -17,7 +17,7 @@ import { PS1 } from './ps1.js';
 import { buildStadium } from './stadium.js';
 import { buildBall, buildArrow, animate, placeModel } from './actors.js';
 import { createSquads } from './squad.js';
-import { createMenus } from './menus.js';
+import { createMenus, LENGTHS } from './menus.js';
 import { createCeremony } from './trophy.js';
 import { createHands } from './hands.js';
 import { groundFor, GROUNDS } from './grounds.js';
@@ -30,18 +30,35 @@ import { createCelebration } from './celebration.js';
 
 const LINES = 480;          // browser render height: a little chunky, clearly readable
 const VR_SCALE = 0.7;       // headset framebuffer scale: soft retro, still sharp
-const BEST_KEY = 'sss96.best';
+const BEST_KEY = 'sss96.best', SETTINGS_KEY = 'sss96.settings';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c');
 const { renderer, scene, camera, rig } = createStage({ canvas, far: 260, antialias: false });
 renderer.xr.setFramebufferScaleFactor(VR_SCALE);
 
+// settings: match length (index into LENGTHS) and PS1 wobble (0 off, 1 low, 2 full)
+const settings = loadSettings();
+function loadSettings() {
+  try { return { length: 1, wobble: 1, ...JSON.parse(localStorage.getItem('sss96.settings') || '{}') }; } catch (e) { return { length: 1, wobble: 1 }; }
+}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
+
+// Vertex wobble: the snap grid in screen lines (smaller = wobblier). In the headset the texture warp
+// stays off except at FULL, since it swims as your head moves.
+function applyWobble() {
+  const vr = renderer.xr.isPresenting, w = settings.wobble;
+  const lines = vr ? [8192, 1500, 900][w] : [8192, LINES * 2.5, LINES * 1.5][w];
+  const aspect = vr ? 1 : innerWidth / innerHeight;
+  PS1.snap.value.set(Math.round(lines * aspect), lines);
+  PS1.affine.value = w === 0 || (vr && w < 2) ? 0 : 1;
+}
+
 function lowRes() {
   if (renderer.xr.isPresenting) return;
   renderer.setPixelRatio(LINES / innerHeight);
   renderer.setSize(innerWidth, innerHeight, false);
-  PS1.snap.value.set(Math.round(LINES * 1.5 * innerWidth / innerHeight), LINES * 1.5); // wobble finer than the pixels
+  applyWobble();
 }
 lowRes(); addEventListener('resize', lowRes);
 
@@ -75,10 +92,10 @@ vrSupported().then(ok => { $('vr').disabled = !ok; if (!ok) $('vrnote').textCont
 $('vr').onclick = async () => {
   startAudio(); playMusic('menu');
   try { await enterVR(renderer, { foveation: 1 }); } catch (e) { $('vrnote').textContent = 'The headset refused to start VR.'; return; }
-  PS1.snap.value.set(8192, 8192); PS1.affine.value = 0; // no wobble or warp in the headset
+  applyWobble();
   overlay.hidden = true;
   setTimeout(() => openMenu('mode'), 300); // let the headset pose settle before placing the menu
-  renderer.xr.getSession().addEventListener('end', () => { PS1.affine.value = 1; lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
+  renderer.xr.getSession().addEventListener('end', () => { lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
 };
 $('play').onclick = () => { startAudio(); playMusic('menu'); overlay.hidden = true; desk.yaw = 0; desk.pitch = 0; openMenu('mode'); };
 // menu music starts on the first click or key (browsers won't play sound before that)
@@ -96,12 +113,13 @@ function openMenu(screen, data) {
   mode = 'menu'; hudEl.hidden = true;
   if (!renderer.xr.isPresenting) { desk.pitch = 0; if (document.pointerLockElement) document.exitPointerLock(); }
   playMusic('menu');
-  menus.open(screen, data);
+  menus.open(screen, screen === 'mode' ? { settings } : data);
 }
 const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
 
 function onMenu(act) {
   const scr = menus.screen;
+  if (act.settings) { saveSettings(); applyWobble(); return; }
   if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
   else if (act.team) {
     game.team = act.team;
@@ -118,7 +136,7 @@ function onMenu(act) {
   else if (act.play) {
     game.fixture = currentFixture(game.cup);
     game.opp = byId(game.fixture.opp);
-    game.scenario = scenarioFor(game.cup, game.fixture);
+    game.scenario = scenarioFor(game.cup, game.fixture, Math.random, LENGTHS[settings.length].mul);
     startMatch();
   } else if (act.quit) openMenu('mode');
   else if (act.ok && menuNext) { const n = menuNext; menuNext = null; n(); }
@@ -128,7 +146,7 @@ function message(title, lines, next, ok) { menuNext = next; openMenu('message', 
 
 function startMatch() {
   world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s));
-  match = game.scenario ? createScenarioMatch(game.scenario) : createMatch();
+  match = game.scenario ? createScenarioMatch(game.scenario) : createMatch(Math.round(MATCH.duration * LENGTHS[settings.length].mul));
   models = squads.dress(world, game.team, game.opp);
   hands.setKit(game.team.kit);
   const venue = pickVenue();
@@ -140,7 +158,7 @@ function startMatch() {
   sfx('whistle', 1.4);
   const s = game.scenario;
   if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
-  else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\nTWO MINUTES. SCORE ALL YOU CAN.\n${venue}`, tone: 'info', big: true });
+  else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\n${clockText(match.clock)} - SCORE ALL YOU CAN\n${venue}`, tone: 'info', big: true });
 }
 
 // Where this match is played. Champions Cup ties alternate: home in the round of 16, away in the
@@ -181,7 +199,7 @@ function fullTime() {
     next = startCeremony; ok = 'PRESS A TO LIFT THE CUP';
   } else if (res.retry) {
     lines = [score, { text: res.result === 'draw' ? 'NOT ENOUGH - YOU NEEDED THE WIN' : 'BEATEN!', color: '#ff4040' }, { text: 'CONTINUE?', big: true, color: '#f2c21a' }, { text: `${cup.continues} CONTINUE${cup.continues === 1 ? '' : 'S'} LEFT` }];
-    next = () => { game.scenario = scenarioFor(cup, game.fixture); startMatch(); }; ok = 'PRESS A TO TRY AGAIN';
+    next = () => { game.scenario = scenarioFor(cup, game.fixture, Math.random, LENGTHS[settings.length].mul); startMatch(); }; ok = 'PRESS A TO TRY AGAIN';
   } else if (res.out) {
     lines = [score, { text: 'KNOCKED OUT', big: true, color: '#ff4040' }, { text: `CHAMPIONS: ${byId(cup.champion).name}` }];
     next = () => openMenu('hub', { cup }); ok = 'PRESS A';

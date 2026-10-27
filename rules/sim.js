@@ -187,10 +187,13 @@ function updateAI(w, dt, rnd, ev) {
     const dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz);
     if (d < 0.25) speed = 0;
     else speed = Math.min(speed, d * 4);
-    steer(p, d > 1e-6 ? dx / d * speed : 0, d > 1e-6 ? dz / d * speed : 0, p.role === 'gk' ? 40 : 18, dt);
+    // the keeper eases into position (no twitching) but snaps across when he dives
+    const accel = p.role === 'gk' ? (p.dive ? 40 : 12) : 18;
+    steer(p, d > 1e-6 ? dx / d * speed : 0, d > 1e-6 ? dz / d * speed : 0, accel, dt);
     p.x += p.vx * dt; p.z += p.vz * dt;
     const s = Math.hypot(p.vx, p.vz);
     if (w.celebrate && p.role === 'mate' && s < 0.6) { const f = norm(you.x - p.x, you.z - p.z); p.fx = f.x; p.fz = f.z; }
+    else if (p.role === 'gk') { const f = norm(b.x - p.x, b.z - p.z); p.fx = f.x; p.fz = f.z; p.holding = w.owner === 'gk'; } // always square to the ball
     else if (s > 0.4) { p.fx = p.vx / s; p.fz = p.vz / s; }
     else if (p.role === 'gk' || p.role === 'def') { const f = norm(b.x - p.x, b.z - p.z); p.fx = f.x; p.fz = f.z; }
     bound(p);

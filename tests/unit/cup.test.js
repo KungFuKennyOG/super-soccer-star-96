@@ -72,3 +72,10 @@ test('stronger teams usually score more', () => {
   for (let i = 0; i < 400; i++) { const [x, y] = simScore(5, 1, rnd); a += x; b += y; }
   assert.ok(a > b * 2);
 });
+
+test('the match-length setting stretches the scenario clock', () => {
+  const cup = createCup('club', 'MAD', seeded(6));
+  const a = scenarioFor(cup, currentFixture(cup), seeded(3), 1), b = scenarioFor(cup, currentFixture(cup), seeded(3), 2.5);
+  assert.equal(b.clock, Math.round(a.clock * 2.5));
+  assert.ok(b.minute < a.minute && b.minute >= 1);
+});

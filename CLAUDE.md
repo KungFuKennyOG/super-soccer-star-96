@@ -48,12 +48,14 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Winning a cup ends with a physical trophy lift: grab with grips, raise above your head.
 - Team stars matter on the pitch (`rules/skill.js`, `tuneFor(yours, theirs)`): their stars scale pressing, tackling, interceptions and keeper; yours scale teammates' pace and passing and a little of your pace and shooting. Max ±10% between 1 and 5 stars (15% compounded too hard).
 - World Cup team select is a world map: the stick moves to the nearest nation that way; European picks zoom to Europe.
-- In the headset the PS1 wobble and texture warp are off (they swim when your head moves); only color depth and dither stay.
+- PS1 wobble is a setting (OFF / LOW / FULL, default LOW) on the mode screen. In the headset LOW is a light vertex wobble with no texture warp (warp swims as your head moves); FULL adds the warp back.
+- Match length is a setting (SHORT 0.6x, NORMAL, LONG 1.5x, EPIC 2.5x): Score Attack's 2 minutes and every cup scenario's clock scale with it. Settings persist in localStorage.
+- The keeper always faces the ball in a crouched ready stance and side-steps instead of running; he hugs the ball after a catch and eases into position (no twitching).
 - Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass). The lane is a corridor that widens toward the receiver (`PASS.lobNear`/`lobFar` in tuning). A blue ring and a LOB tag show it before you pass.
 - On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
 - Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
-- Your own body in first person shows only boots and lower socks, plus low-poly hands on the controller grips (`game/hands.js`, fist while squeezing grip, sweatband in your kit). Grip-space orientation is a best guess (fingers -Z, palm toward the other hand); flip in hands.js if Kenny reports them wrong.
-- Trophies are deliberately PS1: few sides, flat shading, dithered metal textures, engraved plates. While you grip a hand-hold, a posed hand on the cup replaces your controller hand.
+- Your own body in first person shows only boots and lower socks, plus low-poly hands on the controller grips (`game/hands.js`): open by default, pointing while you squeeze the grip, a fist on the trigger, sweatband in your kit. They follow the WebXR grip-space spec (origin mid-fist, -Z along the handle toward the thumb, palm toward -X on the right hand, +Y back to the wrist).
+- Trophies are deliberately PS1: few sides, flat shading, dithered metal textures, engraved plates. While you grip a hand-hold, a posed hand on the cup replaces your controller hand; each hand takes its own side (left hand on the cup's left).
 - Every club has its own ground (`game/grounds.js` recipes: stand tiers, corners, roof, lights, time of day, mowing, seat colors, extras like Liverpool's single big end, Dortmund's wall, Turin's track, Milan's towers; the two Milan clubs share a ground). Champions Cup alternates: home in R16 and SF, away in QF and the final. Nations and the World Cup use the national stadium.
 - The crowd is ~10k instanced fan dots in both teams' colors; they bob all game, yours jump when your team scores, theirs when they score on the counter (vertex shader, one draw call).
 - Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).

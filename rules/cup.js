@@ -61,7 +61,8 @@ export function currentFixture(cup) {
 export const userGroup = cup => cup.groups.find(g => g.teams.includes(cup.user));
 
 // The comeback you're dropped into for a fixture: start score, clock, and what you need.
-export function scenarioFor(cup, fx, rnd = Math.random) {
+// lengthMul stretches the clock (the match-length setting); the minute on the banner follows it.
+export function scenarioFor(cup, fx, rnd = Math.random, lengthMul = 1) {
   const us = byId(cup.user).s, them = byId(fx.opp).s;
   const depth = fx.stage === 'group' ? 0 : KO.indexOf(fx.stage) + 1;
   let deficit = 1;
@@ -69,10 +70,10 @@ export function scenarioFor(cup, fx, rnd = Math.random) {
   if (depth >= 4 && rnd() < 0.4) deficit++;
   deficit = Math.min(3, deficit);
   const theirs = deficit + (rnd() < 0.35 ? 1 : 0), ours = theirs - deficit;
-  const clock = 75 + 35 * deficit;
+  const clock = Math.round((75 + 35 * deficit) * lengthMul);
   const need = fx.stage === 'group' ? 'any' : 'win';
   const text = need === 'win' ? `${deficit} DOWN - SCORE ${deficit + 1} TO WIN` : `${deficit} DOWN - WIN FOR 3 PTS, DRAW FOR 1`;
-  return { us: ours, them: theirs, clock, minute: 90 - Math.round(clock / 6), need, text, oppStrength: them };
+  return { us: ours, them: theirs, clock, minute: Math.max(1, 90 - Math.round(clock / 6)), need, text, oppStrength: them };
 }
 
 // Group table, best first: points, then goal difference, goals for, then strength.
