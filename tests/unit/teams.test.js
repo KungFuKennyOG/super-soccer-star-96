@@ -33,3 +33,22 @@ test('change kits contrast with the home kit; keepers avoid green teams', () => 
   assert.equal(keeperKit(byId('NGA').kit).shirt, '#e8c820');
   assert.equal(keeperKit(byId('BRA').kit).shirt, '#29a35a');
 });
+
+import { NATION_POS, nationToward } from '../../rules/teams.js';
+test('every nation is on the map, and the stick moves to a sensible neighbour', () => {
+  for (const n of NATIONS) assert.ok(NATION_POS[n.id], n.id);
+  assert.equal(nationToward('FRA', 'down'), 'ESP');
+  assert.equal(nationToward('ESP', 'left'), 'POR');
+  assert.equal(nationToward('USA', 'up'), 'CAN');
+  assert.equal(nationToward('BRA', 'down'), 'URU');
+  assert.ok(['MEX', 'USA', 'CAN'].includes(nationToward('JPN', 'right')), 'wraps across the Pacific');
+});
+
+test('every nation can be reached from every other by moving the stick', () => {
+  const seen = new Set(['CAN']), queue = ['CAN'];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const d of ['left', 'right', 'up', 'down']) { const n = nationToward(id, d); if (n && !seen.has(n)) { seen.add(n); queue.push(n); } }
+  }
+  assert.equal(seen.size, 32, [...NATIONS.map(n => n.id)].filter(x => !seen.has(x)).join(' '));
+});

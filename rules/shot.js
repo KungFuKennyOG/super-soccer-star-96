@@ -31,9 +31,9 @@ export function ballistic(ball, p, vh) {
 
 // The shot: ball {x,y,z}, eye {x,y,z}, dir (unit 3D gaze), holdT seconds charged, rnd() 0..1.
 // Returns { vx, vy, vz, power, aim } — aim is where it was really going after error, or null.
-// extraErr (radians) widens the spread, e.g. for shooting at full sprint.
-export function shotVelocity(ball, eye, dir, holdT, rnd = Math.random, extraErr = 0) {
-  const power = chargeOf(holdT), over = overcharge(holdT), speed = shotSpeed(holdT);
+// extraErr (radians) widens the spread, e.g. for shooting at full sprint; powerMul scales the speed.
+export function shotVelocity(ball, eye, dir, holdT, rnd = Math.random, extraErr = 0, powerMul = 1) {
+  const power = chargeOf(holdT), over = overcharge(holdT), speed = shotSpeed(holdT) * powerMul;
   let p = assist(aimPoint(eye, dir));
   if (!p) {
     // not facing goal: hit it along the gaze, lifted by how far up you look
@@ -41,7 +41,7 @@ export function shotVelocity(ball, eye, dir, holdT, rnd = Math.random, extraErr 
     return { vx: dir.x / h * speed * Math.cos(elev), vy: speed * Math.sin(elev), vz: dir.z / h * speed * Math.cos(elev), power, aim: null };
   }
   const d = Math.hypot(p.x - ball.x, p.z - ball.z);
-  const errAng = 0.026 + (1 - power) * 0.025 + over * 0.16 + extraErr;
+  const errAng = Math.max(0.012, 0.026 + (1 - power) * 0.025 + over * 0.16 + extraErr);
   p = {
     x: p.x + (rnd() * 2 - 1) * d * errAng,
     y: Math.max(0.05, p.y + (rnd() * 2 - 1) * d * errAng * 0.6 + over * d * 0.12),

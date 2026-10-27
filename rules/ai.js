@@ -7,37 +7,37 @@ const goalC = { x: 0, z: GOAL.z };
 
 // Defenders: the one closest to the ball presses it, the rest each mark an attacker goal-side.
 // defs, attackers: [{ id, x, z }]. owner: id of the ball carrier or null. Returns Map id → { x, z, speed, role }.
-export function defenderTargets(defs, attackers, ball, owner) {
+export function defenderTargets(defs, attackers, ball, owner, ai = AI) {
   const out = new Map();
   const live = defs.filter(d => !d.stun);
   const chaser = closest(live.length ? live : defs, ball);
-  if (chaser) out.set(chaser.id, { x: ball.x, z: ball.z, speed: owner ? AI.press : AI.chase, role: 'press' });
+  if (chaser) out.set(chaser.id, { x: ball.x, z: ball.z, speed: owner ? ai.press : ai.chase, role: 'press' });
 
   // greedy: each remaining defender takes the nearest unmarked attacker who isn't on the ball
   const free = attackers.filter(a => a.id !== owner);
   for (const d of defs) {
     if (out.has(d.id)) continue;
     const m = closest(free, d);
-    if (!m) { out.set(d.id, { x: 0, z: GOAL.z + 12, speed: AI.mark, role: 'zone' }); continue; }
+    if (!m) { out.set(d.id, { x: 0, z: GOAL.z + 12, speed: ai.mark, role: 'zone' }); continue; }
     free.splice(free.indexOf(m), 1);
     const g = norm(goalC.x - m.x, goalC.z - m.z);
-    out.set(d.id, { x: m.x + g.x * 2.2, z: m.z + g.z * 2.2, speed: AI.mark, role: 'mark' });
+    out.set(d.id, { x: m.x + g.x * 2.2, z: m.z + g.z * 2.2, speed: ai.mark, role: 'mark' });
   }
   return out;
 }
 
 // Teammates off the ball: run their lane ahead of the ball, drifting away from the nearest defender.
 // If the ball is loose and they're nearer to it than you, go get it.
-export function mateTarget(mate, ball, you, defs, ownerIsHome, loose) {
+export function mateTarget(mate, ball, you, defs, ownerIsHome, loose, ai = AI) {
   if (loose && dist(mate, ball) < dist(you, ball) - 0.5 && dist(mate, ball) < 14) {
-    return { x: ball.x, z: ball.z, speed: AI.chase, role: 'chase' };
+    return { x: ball.x, z: ball.z, speed: ai.chase, role: 'chase' };
   }
   const lane = mate.lane;
   let tx = lane * 11, tz = clamp(ball.z - (ownerIsHome ? 7 : 2), GOAL.z + 9, -3);
   const d = closest(defs, { x: tx, z: tz });
   if (d && dist(d, { x: tx, z: tz }) < 3) tx += Math.sign(tx - d.x || lane) * 2.5;
   tx = clamp(tx, -PITCH.halfW + 2, PITCH.halfW - 2);
-  return { x: tx, z: tz, speed: AI.mateRun, role: 'run' };
+  return { x: tx, z: tz, speed: ai.mateRun, role: 'run' };
 }
 
 // A teammate on the ball: 'pass' back to you, 'shoot', or keep 'dribble'-ing at goal.
@@ -60,11 +60,11 @@ export function keeperSpot(ball) {
 
 // Can the keeper (at gk.x) get to a shot crossing at { x, y } in t seconds?
 // 'catch' or 'parry' when he gets there, 'beaten' when he doesn't, 'wide' when it's off target.
-export function keeperSave(gk, cross, speed) {
+export function keeperSave(gk, cross, speed, ai = AI) {
   if (!cross.onTarget || cross.y > GOAL.h + 0.15) return 'wide';
-  const reach = AI.gkReach + Math.max(0, cross.t - AI.gkReact) * AI.gkDive - Math.max(0, cross.y - 1.6) * 1.0;
+  const reach = ai.gkReach + Math.max(0, cross.t - ai.gkReact) * ai.gkDive - Math.max(0, cross.y - 1.6) * 1.0;
   if (Math.abs(cross.x - gk.x) > reach) return 'beaten';
-  return speed < AI.gkCatchBelow ? 'catch' : 'parry';
+  return speed < ai.gkCatchBelow ? 'catch' : 'parry';
 }
 
 export function closest(list, p) {

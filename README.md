@@ -12,7 +12,7 @@ You plus two teammates attack one goal against three defenders and a keeper.
 
 Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win; fall short and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
 
-Teams are picked on a turntable that shows a player in the kit. Kits are colors and patterns only; clubs go by city name.
+Teams are picked on a turntable that shows a player in the kit (on a world map for the World Cup). Stars matter: a 5-star side presses harder, tackles quicker and has a better keeper, and a 5-star team of your own runs and passes better. Kits are colors and patterns only; clubs go by city name.
 
 ## Controls
 

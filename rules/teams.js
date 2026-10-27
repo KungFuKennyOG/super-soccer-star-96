@@ -52,6 +52,34 @@ export const NATIONS = [
   { id: 'CAN', name: 'CANADA', s: 2, kit: k('solid', RED, null, RED, RED, W, W) },
 ];
 
+// Where each nation sits on the map: [longitude, latitude] of roughly the middle of the country.
+export const NATION_POS = {
+  GER: [10, 51], ITA: [12.5, 42.5], FRA: [2, 46.5], ENG: [-1.5, 52.5], ESP: [-3.7, 40.2], NED: [5.5, 52.3], POR: [-8.2, 39.6],
+  BEL: [4.5, 50.6], CRO: [16, 45.2], DEN: [9.5, 56], SWE: [16, 61], ROU: [25, 45.9], BUL: [25.5, 42.7], NOR: [9, 61.5],
+  BRA: [-51, -10], ARG: [-64, -34], URU: [-56, -32.8], COL: [-74, 4], CHI: [-71, -30],
+  NGA: [8, 9.5], CMR: [12.5, 5.5], MAR: [-7, 32], SEN: [-14.5, 14.5], GHA: [-1.2, 7.8],
+  JPN: [138, 36], KOR: [128, 36.5], KSA: [45, 24], IRN: [53, 32], AUS: [134, -25],
+  MEX: [-102, 23.5], USA: [-98, 39], CAN: [-106, 56],
+};
+
+// The nation you reach by pushing the stick in a direction on the map ('left' | 'right' | 'up' | 'down'):
+// the closest one that way, wrapping round the globe left and right. null if there's none.
+export function nationToward(fromId, dir, ids = NATIONS.map(n => n.id)) {
+  const [x0, y0] = NATION_POS[fromId];
+  const want = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] }[dir];
+  let best = null, bestScore = Infinity;
+  for (const id of ids) {
+    if (id === fromId) continue;
+    const [x, y] = NATION_POS[id];
+    const dx = ((x - x0 + 540) % 360) - 180, dy = y - y0, d = Math.hypot(dx, dy);
+    const cos = (dx * want[0] + dy * want[1]) / d;
+    if (cos < 0.35) continue;
+    const score = d * (1 + 2.5 * (1 - cos));
+    if (score < bestScore) { bestScore = score; best = id; }
+  }
+  return best;
+}
+
 export const CLUBS = [
   { id: 'MAD', name: 'MADRID', s: 5, kit: k('solid', W, null, W, W, '#2b2f6b', '#2b2f6b', { trim2: '#d9b23a' }) },
   { id: 'BAR', name: 'BARCELONA', s: 5, kit: k('stripes', '#1d3f94', '#9a1c3c', NAVY, NAVY, NAVY, GOLD, { band: '#9a1c3c', sleeve: '#9a1c3c', outline: NAVY, trim2: GOLD }) },

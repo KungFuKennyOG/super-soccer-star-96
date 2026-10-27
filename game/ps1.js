@@ -3,22 +3,25 @@
 // cut to 18-bit with a soft 4x4 ordered dither. Use ps1() instead of new MeshLambertMaterial / MeshBasicMaterial.
 import * as THREE from 'three';
 
+// In the headset the wobble and texture warp swim as your head moves, so main.js turns both off
+// there (snap grid out of reach, affine 0) and keeps only the color depth and dither.
 // Shared by every PS1 material. snap = the virtual screen the vertices snap to (PS1 was 320x240).
 // levels: color steps per channel (PS1 had 32; 64 is gentler). dither: how strong the pattern is (0..1).
 export const PS1 = {
   snap: { value: new THREE.Vector2(640, 480) },
   levels: { value: 63 },
+  affine: { value: 1 },     // 1 = PS1 texture warp, 0 = perspective-correct (used in the headset)
   dither: { value: 0.6 },
 };
 
-const VERT_PARS = 'varying float vAffW;\nuniform vec2 uSnap;\n';
+const VERT_PARS = 'varying float vAffW;\nuniform vec2 uSnap;\nuniform float uAffine;\n';
 const VERT_SNAP = `
   {
     vec4 p = gl_Position;
     p.xy = floor(p.xy / p.w * uSnap * 0.5 + 0.5) / (uSnap * 0.5) * p.w;
     gl_Position = p;
   }
-  vAffW = gl_Position.w;
+  vAffW = mix(1.0, gl_Position.w, uAffine);
   #ifdef USE_UV
     vUv *= vAffW;
   #endif
@@ -43,7 +46,7 @@ const FRAG_DITHER = `
 
 function patch(mat) {
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uSnap = PS1.snap; sh.uniforms.uLevels = PS1.levels; sh.uniforms.uDither = PS1.dither;
+    sh.uniforms.uSnap = PS1.snap; sh.uniforms.uLevels = PS1.levels; sh.uniforms.uDither = PS1.dither; sh.uniforms.uAffine = PS1.affine;
     sh.vertexShader = VERT_PARS + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT_SNAP);
     sh.fragmentShader = FRAG_PARS + sh.fragmentShader
       .replace('#include <map_fragment>', FRAG_MAP)

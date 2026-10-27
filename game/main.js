@@ -8,6 +8,7 @@ import { createWorld, stepSim, resetPlay, startCelebration, defenders } from '..
 import { createMatch, createScenarioMatch, counterAttack, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
 import { ALL, NATIONS, byId, teamsFor } from '../rules/teams.js';
 import { createCup, currentFixture, scenarioFor, playUser, STAGE_NAMES } from '../rules/cup.js';
+import { tuneFor } from '../rules/skill.js';
 import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
 import { PASS, GOAL, MATCH } from '../rules/tuning.js';
@@ -70,10 +71,10 @@ vrSupported().then(ok => { $('vr').disabled = !ok; if (!ok) $('vrnote').textCont
 $('vr').onclick = async () => {
   startAudio(); playMusic('menu');
   try { await enterVR(renderer, { foveation: 1 }); } catch (e) { $('vrnote').textContent = 'The headset refused to start VR.'; return; }
-  PS1.snap.value.set(900, 900);
+  PS1.snap.value.set(8192, 8192); PS1.affine.value = 0; // no wobble or warp in the headset
   overlay.hidden = true;
   setTimeout(() => openMenu('mode'), 300); // let the headset pose settle before placing the menu
-  renderer.xr.getSession().addEventListener('end', () => { lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
+  renderer.xr.getSession().addEventListener('end', () => { PS1.affine.value = 1; lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
 };
 $('play').onclick = () => { startAudio(); playMusic('menu'); overlay.hidden = true; desk.yaw = 0; desk.pitch = 0; openMenu('mode'); };
 // menu music starts on the first click or key (browsers won't play sound before that)
@@ -122,7 +123,7 @@ let menuNext = null;
 function message(title, lines, next, ok) { menuNext = next; openMenu('message', { title, lines, ok }); }
 
 function startMatch() {
-  world = createWorld();
+  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s));
   match = game.scenario ? createScenarioMatch(game.scenario) : createMatch();
   models = squads.dress(world, game.team, game.opp);
   lastHead = null; shotHold = passHold = null; armed = false;
@@ -273,13 +274,15 @@ function startDance(delay = 1.6) { startCelebration(world); celebration.start(de
 const loop = startLoop(renderer, (dt, t) => {
   const raw = controls.read();
 
+  // the button that starts a match (A) is also knock-on: don't let that same press reach the match
+  const wasPlaying = mode === 'play';
   if (mode === 'menu') { const act = menus.update(dt, raw.nav); if (act) onMenu(act); }
   if (mode === 'ceremony' && ceremony.update(dt, t, raw, desk.keys) === 'done') endCeremony();
 
   if (raw.vr && mode === 'play') rig.rotation.y -= raw.turn * 2.4 * dt;
   else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
-  if (mode === 'play' && !hooks.paused) {
+  if (mode === 'play' && wasPlaying && !hooks.paused) {
     if (raw.restart) { resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     const intent = buildIntent(raw, dt);
     const ev = stepSim(world, intent, dt);

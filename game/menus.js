@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { ps1, pixelTex, canvasTex } from './ps1.js';
 import { drawText, textWidth } from './tex.js';
 import { buildPlayer } from './actors.js';
-import { byId } from '../rules/teams.js';
+import { byId, nationToward } from '../rules/teams.js';
+import { drawWorldMap } from './worldmap.js';
 import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.js';
 
 const W = 256, H = 192;
@@ -82,7 +83,20 @@ export function createMenus(scene, camera) {
     hint('UP/DOWN CHOOSE - A OR ENTER TO PICK');
   }
 
+  // World Cup: pick on a world map; the stick moves to the nearest nation in that direction.
+  function drawNationMap() {
+    const t = data.teams[sel];
+    frame(`PICK YOUR NATION - ${CUP_NAMES[data.mode]}`);
+    centre(ctx, t.name, 20, '#ffffff', textWidth(t.name, 2) > W - 12 ? 1 : 2, '#0a0a50');
+    const stars = '*'.repeat(t.s) + '-'.repeat(5 - t.s), word = ['', 'UNDERDOG', 'DECENT', 'SOLID', 'STRONG', 'GIANT'][t.s];
+    centre(ctx, `${stars}  ${word}`, 38, '#f2c21a', 1, null);
+    drawWorldMap(ctx, 4, 50, W - 8, H - 66, t.id, blink);
+    hint('STICK MOVES ON THE MAP - A PICK - B BACK');
+    showModel(t);
+  }
+
   function drawTeam() {
+    if (data.mode === 'world') return drawNationMap();
     const t = data.teams[sel];
     frame(`PICK YOUR TEAM - ${CUP_NAMES[data.mode]}`);
     drawText(ctx, '<', 6, 70, '#f2c21a', 3, '#000'); drawText(ctx, '>', W - 21, 70, '#f2c21a', 3, '#000');
@@ -169,9 +183,24 @@ export function createMenus(scene, camera) {
     if (cup.done && cup.champion) centre(ctx, `WINNER ${byId(cup.champion).name}`, top + 8 * ROW, '#f2c21a', 1, null);
   }
 
+  // Lines shrink to fit, and wrap onto a second line if they still don't.
+  function fitted(lines) {
+    const out = [];
+    for (const l of lines) {
+      let sc = l.big ? 2 : 1;
+      if (textWidth(l.text, sc) > W - 12) sc = 1;
+      if (textWidth(l.text, sc) <= W - 12) { out.push({ ...l, sc }); continue; }
+      const words = l.text.split(' '), a = [];
+      while (words.length && textWidth([...a, words[0]].join(' '), 1) <= W - 12) a.push(words.shift());
+      out.push({ ...l, text: a.join(' '), sc: 1 }, { ...l, text: words.join(' '), sc: 1 });
+    }
+    return out;
+  }
+
   function drawMessage() {
     frame(data.title);
-    data.lines.forEach((l, i) => centre(ctx, l.text, 40 + i * (l.big ? 24 : 14), l.color || '#ffffff', l.big ? 2 : 1, '#000'));
+    let y = 36;
+    for (const l of fitted(data.lines)) { centre(ctx, l.text, y, l.color || '#ffffff', l.sc, '#000'); y += l.sc === 2 ? 24 : 14; }
     if (Math.floor(blink * 2) % 2) centre(ctx, data.ok || 'PRESS A', H - 26, '#f2c21a', 1, null);
   }
 
@@ -206,6 +235,14 @@ export function createMenus(scene, camera) {
         if (nav.up) sel = (sel + MODES.length - 1) % MODES.length;
         if (nav.down) sel = (sel + 1) % MODES.length;
         if (nav.ok) act = { mode: MODES[sel].id };
+      } else if (screen === 'team' && data.mode === 'world') {
+        for (const d of ['left', 'right', 'up', 'down']) {
+          if (!nav[d]) continue;
+          const to = nationToward(data.teams[sel].id, d);
+          if (to) sel = data.teams.findIndex(t => t.id === to);
+        }
+        if (nav.ok) act = { team: data.teams[sel] };
+        if (nav.back) act = { back: true };
       } else if (screen === 'team') {
         const n = data.teams.length;
         if (nav.left || nav.up) sel = (sel + n - 1) % n;

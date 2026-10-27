@@ -46,6 +46,9 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Teams (agreed list): 32 nations in `rules/teams.js`; 16 clubs by city name (London Red and London Blue both in, Marseille out). No club names or crests.
 - Menus are in-world panels for both headset and browser. Picking is A/X or Enter, never a trigger (a held trigger would fire a shot at kick-off). Shoot and pass also ignore input until both triggers have been released after kick-off.
 - Winning a cup ends with a physical trophy lift: grab with grips, raise above your head.
+- Team stars matter on the pitch (`rules/skill.js`, `tuneFor(yours, theirs)`): their stars scale pressing, tackling, interceptions and keeper; yours scale teammates' pace and passing and a little of your pace and shooting. Max ±10% between 1 and 5 stars (15% compounded too hard).
+- World Cup team select is a world map: the stick moves to the nearest nation that way; European picks zoom to Europe.
+- In the headset the PS1 wobble and texture warp are off (they swim when your head moves); only color depth and dither stay.
 - Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass). The lane is a corridor that widens toward the receiver (`PASS.lobNear`/`lobFar` in tuning). A blue ring and a LOB tag show it before you pass.
 - On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
 - Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
