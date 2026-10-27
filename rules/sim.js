@@ -6,7 +6,7 @@
 //   sprint: bool
 //   facing: {x, z}     head direction on the ground (unit)
 //   physical: {x, z}   metres the player physically stepped this frame (VR room-scale)
-//   knock, drag, call: bool (true on the frame pressed)
+//   knock, drag, call: bool (true on the frame pressed; call also comes from raising a hand, callHand 'left'/'right')
 //   shot: { eye, dir, holdT } on the frame the shot is released
 //   pass: { holdT, targetId } on the frame the pass is released
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
@@ -75,7 +75,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
     else if (it.knock) knock(w, ev);
     else if (it.drag) drag(w, ev);
   }
-  if (!w.dead && it.call && w.owner && w.byId[w.owner].role === 'mate') w.called = true;
+  if (!w.dead && it.call && w.owner && w.byId[w.owner].role === 'mate' && !w.called) { w.called = true; ev.push({ type: 'called', by: w.owner, hand: it.callHand || null }); }
 
   updateAI(w, dt, rnd, ev);
 

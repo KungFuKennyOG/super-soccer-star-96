@@ -79,6 +79,15 @@ test('calling for it gets the ball back from a teammate', () => {
   const ev = run(w, 3, t => idle({ call: t < DT }));
   assert.ok(ev.some(e => e.type === 'pass' && e.by === 'm1' && e.to === 'you'));
   assert.ok(ev.some(e => e.type === 'received' && e.id === 'you'));
+  assert.equal(ev.filter(e => e.type === 'called').length, 1);
+});
+
+test('a raised hand calls once, with the hand that went up', () => {
+  const w = createWorld(fixed);
+  w.owner = 'm1'; w.ownT = 0;
+  const ev = stepSim(w, idle({ call: true, callHand: 'left' }), DT, fixed);
+  assert.deepEqual(ev.find(e => e.type === 'called'), { type: 'called', by: 'm1', hand: 'left' });
+  assert.ok(!stepSim(w, idle({ call: true }), DT, fixed).some(e => e.type === 'called'));   // already called
 });
 
 import { startCelebration } from '../../rules/sim.js';

@@ -80,7 +80,7 @@ const commentary = createCommentary(camera);
 commentary.setMode(settings.commentary);
 const replay = createReplay(scene, renderer);
 const intents = createIntents(camera, rig);
-let slowT = 0, said10 = false;
+let slowT = 0, said10 = false, callT = 0;
 $('radar').appendChild(radar.canvas);
 
 // what's being played: the mode, your team, the opponent, and the cup run if there is one
@@ -257,6 +257,7 @@ function feedback(ev) {
     if (e.type === 'kick' && e.kind && m) m.special = { kind: e.kind, t: 0 };
     if (e.type === 'kick' && e.kind === 'bicycle') slowT = 1.3;               // slow motion for the overhead kick
     if (e.type === 'flick') sfx('touch');
+    if (e.type === 'called') { sfx('call'); if (e.hand) buzz(e.hand, 0.5, 50); callT = 0.6; }
     if (e.type === 'kick') { sfx('kick', e.power); if (e.by === 'you') buzz('right', 0.9, 60); }
     if (e.type === 'pass') { sfx('pass', 0.5); if (e.by === 'you') buzz('left', 0.6, 40); if (e.grade === 'perfect' && e.by === 'you') sfx('perfect'); }
     if (e.type === 'received') { sfx('touch'); if (e.id === 'you') buzz('both', 0.3, 30); }
@@ -299,6 +300,7 @@ const loop = startLoop(renderer, (dt, t) => {
   if (mode === 'play' && wasPlaying && !hooks.paused) {
     if (raw.restart) { resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
+    if (raw.vr) raw.hand = hands.highest(camera.position.y);
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);
     replay.record(world, ev, simDt);
@@ -337,7 +339,9 @@ const loop = startLoop(renderer, (dt, t) => {
   yo.root.rotation.y = ys > 0.5 ? Math.atan2(you.vx, you.vz) : Math.atan2(you.fx, you.fz);
   ball.update(world.ball, simDt);
   const carrier = world.owner && world.owner !== 'you' ? world.byId[world.owner] : null;
+  callT = Math.max(0, callT - dt);
   arrow.visible = !!carrier;
+  arrow.scale.setScalar(1 + callT * 1.2);              // the arrow over the carrier pops when you call for it
   if (carrier) { arrow.position.set(carrier.x, 2.35 + Math.sin(t * 6) * 0.06, carrier.z); arrow.lookAt(headPosNow()); }
 
   stadium.update(dt, t);

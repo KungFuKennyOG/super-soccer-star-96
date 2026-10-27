@@ -91,6 +91,16 @@ export function createHands(renderer, rig) {
   return {
     // grip-space objects with their side, for things you hold (the trophy)
     grips: () => slots.filter(s => s.side && s.gamepad).map(s => ({ side: s.side, obj: s.grip, gamepad: s.gamepad })),
+    // the higher of the two tracked hands relative to your eyes (rig space), for calling for the ball
+    highest(eyeY) {
+      let best = null;
+      for (const s of slots) {
+        if (!s.gamepad || !s.grip.visible) continue;
+        const dy = s.grip.position.y - eyeY;
+        if (!best || dy > best.dy) best = { side: s.side, dy };
+      }
+      return best;
+    },
     setKit(k) { kit = k; slots.forEach(build); },
     // hide one hand (e.g. while a posed copy of it holds the trophy)
     hide(side, on) { for (const s of slots) if (s.side === side) s.hidden = on; },

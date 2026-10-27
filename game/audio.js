@@ -87,6 +87,13 @@ export function sfx(name, strength = 1) {
       env(g, 0.002, 0.06, 0.08, t + i * 0.06);
       o.connect(g); g.connect(master); o.start(t + i * 0.06); o.stop(t + i * 0.06 + 0.12);
     });
+  } else if (name === 'call') {        // a two-note whistle: "over here!"
+    [[1650, 2300], [1900, 2600]].forEach(([a, b], i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = t + i * 0.16;
+      o.type = 'sine'; o.frequency.setValueAtTime(a, at); o.frequency.exponentialRampToValueAtTime(b, at + 0.1);
+      env(g, 0.01, 0.12, 0.06, at);
+      o.connect(g); g.connect(master); o.start(at); o.stop(at + 0.14);
+    });
   } else if (name === 'roar') crowdSwell(0.9, 1100, 4);
   else if (name === 'ooh') crowdSwell(0.45, 500, 1.8);
   else if (name === 'groan') crowdSwell(0.3, 350, 1.4);

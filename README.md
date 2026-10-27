@@ -25,7 +25,7 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Turn | Right stick | Mouse (Q/Z without one) |
 | Shoot | Hold right trigger, **look where you want it**, let go | Hold left click or F |
 | Pass | Hold left trigger at a teammate, let go when the shrinking ring meets the circle. It goes along the ground when the lane is clear and lobs over anyone near the lane (the target ring turns blue and says LOB). | Hold right click or E |
-| Call for it | Pass button when a teammate has the ball | Same |
+| Call for it | Raise a hand above your head, or the pass button, when a teammate has the ball | Pass button |
 | Knock-on | A | Space |
 | Drag-back | B (shakes the defender pressing you) | C |
 | Hat-trick dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
