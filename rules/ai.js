@@ -41,7 +41,9 @@ export function mateTarget(mate, ball, you, defs, ownerIsHome, loose, ai = AI) {
 }
 
 // A teammate on the ball: 'pass' back to you, 'shoot', or keep 'dribble'-ing at goal.
-export function mateDecision(mate, defs, heldT, called) {
+// hold (training drills): he waits on the ball until you call for it.
+export function mateDecision(mate, defs, heldT, called, hold = false) {
+  if (hold) return called && heldT > 0.15 ? 'pass' : 'hold';
   const near = closest(defs, mate);
   const dGoal = dist(mate, goalC);
   if (called && heldT > 0.15) return 'pass';

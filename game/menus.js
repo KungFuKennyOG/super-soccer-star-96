@@ -15,6 +15,7 @@ const MODES = [
   { id: 'attack', name: 'SCORE ATTACK', sub: 'BEAT YOUR HIGH SCORE' },
   { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS: GROUPS + KNOCKOUTS' },
   { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS: STRAIGHT KNOCKOUTS' },
+  { id: 'training', name: 'TRAINING', sub: 'LEARN AND TEST EVERY MOVE' },
 ];
 
 // Options on the mode screen, changed with left/right.
@@ -79,13 +80,11 @@ export function createMenus(scene, camera) {
   function drawMode() {
     frame(null);
     logo(ctx, 8);
+    // mode buttons; the picked one's description shows in the hint line
     MODES.forEach((m, i) => {
-      const y = 52 + i * 26, on = i === sel;
-      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 24);
-      drawText(ctx, m.name, 38, y + 1, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
-      let sub = m.sub;
-      while (textWidth(sub) > W - 56 - 14 && sub.includes(' ')) sub = sub.slice(0, sub.lastIndexOf(' '));
-      drawText(ctx, sub, 38, y + 17, on ? '#05072a' : '#9aa8e0');
+      const y = 50 + i * 20, on = i === sel;
+      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 18);
+      drawText(ctx, m.name, 38, y + 2, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
     });
     // settings rows: < value > when selected
     const st = data.settings;
@@ -98,7 +97,7 @@ export function createMenus(scene, camera) {
       const val = on ? `< ${v} >` : v;
       drawText(ctx, val, W - 38 - textWidth(val), y, on ? '#ffffff' : '#c8d4ff');
     });
-    hint(sel >= MODES.length ? 'LEFT/RIGHT TO CHANGE' : 'UP/DOWN CHOOSE - A OR ENTER TO PICK');
+    hint(sel >= MODES.length ? 'LEFT/RIGHT TO CHANGE' : `${MODES[sel].sub} - A TO PICK`);
   }
 
   // World Cup: pick on a world map; the stick moves to the nearest nation in that direction.
@@ -232,6 +231,7 @@ export function createMenus(scene, camera) {
 
   return {
     get screen() { return screen; },
+    get sel() { return sel; },
     // screen: 'mode' | 'team' | 'hub' | 'message'. data depends on the screen:
     // team { mode, teams, start? }, hub { cup }, message { title, lines: [{ text, big?, color? }], ok? }
     open(s, d = {}) {

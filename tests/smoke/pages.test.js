@@ -61,3 +61,48 @@ test('game boots, kicks off and plays without errors', async t => {
   assert.ok(state.shots >= 1, 'the shot was taken');
   assert.ok(state.clock < 120, 'the clock ran');
 });
+
+test('training: picks from the mode menu, runs the first drill, skips, and resets drills', async t => {
+  if (!threeSource) { t.skip('three.js unreachable (no CDN and no node_modules/three)'); return; }
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  if (threeSource === 'local') await page.route(THREE_URL, r => r.fulfill({ path: LOCAL_THREE, contentType: 'text/javascript' }));
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(server.url + '/index.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => window.__sssOK === true, null, { timeout: 15000 });
+  await page.click('#play');
+  await page.waitForTimeout(500);
+  for (let i = 0; i < 8; i++) {
+    const sel = await page.evaluate(() => window.__sss.menus.sel);
+    if (sel === 3) break;
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(b => window.__sss.menus.sel !== b, sel, { timeout: 30000 });
+  }
+  await page.screenshot({ path: new URL('menu-training.png', OUT).pathname });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__sss.training.active && window.__sss.menus.screen === null, null, { timeout: 40000 });
+  await page.evaluate(() => { const d = window.__sss.desk; d.yaw = 0; d.pitch = 0; });   // headless mouse noise
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: new URL('training-1.png', OUT).pathname });
+  const startStep = await page.evaluate(() => window.__sss.training.step.id);
+  // dribbling counts toward the first drill (headless frames are too slow to finish it)
+  await page.keyboard.down('KeyW');
+  await page.waitForFunction(() => window.__sss.training.progress > 0.5, null, { timeout: 60000 });
+  await page.keyboard.up('KeyW');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: new URL('training-2.png', OUT).pathname });
+  // skip ahead to the lob drill: a defender should be standing in the lane
+  for (let i = 0; i < 7; i++) {
+    const before = await page.evaluate(() => window.__sss.training.step.id);
+    await page.keyboard.press('KeyN');
+    await page.waitForFunction(b => window.__sss.training.step.id !== b, before, { timeout: 30000 });
+  }
+  await page.waitForTimeout(400);
+  const state = await page.evaluate(() => ({ step: window.__sss.training.step.id, frozen: [...window.__sss.world.drill.frozen] }));
+  await page.screenshot({ path: new URL('training-skip.png', OUT).pathname });
+  await page.close();
+  assert.deepEqual(errors, [], 'uncaught errors');
+  assert.equal(startStep, 'run');
+  assert.equal(state.step, 'lob');
+  assert.ok(state.frozen.includes('d1') && state.frozen.includes('d2'), 'defenders parked, one in the lane');
+});

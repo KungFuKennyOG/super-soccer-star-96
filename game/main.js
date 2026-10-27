@@ -30,6 +30,7 @@ import { createCelebration } from './celebration.js';
 import { createCommentary } from './commentary.js';
 import { createReplay } from './replay.js';
 import { createIntents } from './intent.js';
+import { createTraining } from './training.js';
 import { LINE_IDS } from '../rules/commentary.js';
 
 const LINES = 480;          // browser render height: a little chunky, clearly readable
@@ -80,6 +81,7 @@ const commentary = createCommentary(camera);
 commentary.setMode(settings.commentary);
 const replay = createReplay(scene, renderer);
 const intents = createIntents(camera, rig);
+const training = createTraining(camera);
 let slowT = 0, said10 = false, callT = 0;
 $('radar').appendChild(radar.canvas);
 
@@ -106,7 +108,7 @@ $('vr').onclick = async () => {
   applyWobble();
   overlay.hidden = true;
   setTimeout(() => openMenu('mode'), 300); // let the headset pose settle before placing the menu
-  renderer.xr.getSession().addEventListener('end', () => { lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
+  renderer.xr.getSession().addEventListener('end', () => { lowRes(); training.stop(world); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
 };
 $('play').onclick = () => { startAudio(); commentary.preload(LINE_IDS); playMusic('menu'); overlay.hidden = true; desk.yaw = 0; desk.pitch = 0; openMenu('mode'); };
 // menu music starts on the first click or key (browsers won't play sound before that)
@@ -122,6 +124,7 @@ function showPause() {
 
 function openMenu(screen, data) {
   mode = 'menu'; hudEl.hidden = true;
+  training.stop(world);
   if (!renderer.xr.isPresenting) { desk.pitch = 0; if (document.pointerLockElement) document.exitPointerLock(); }
   playMusic('menu');
   menus.open(screen, screen === 'mode' ? { settings } : data);
@@ -131,7 +134,8 @@ const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
 function onMenu(act) {
   const scr = menus.screen;
   if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); if (!settings.replays) replay.stop(); return; }
-  if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
+  if (act.mode === 'training') { game.kind = 'training'; game.cup = null; game.scenario = null; game.opp = byId(game.team.id === 'BAR' ? 'MAD' : 'BAR'); startMatch(); }
+  else if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
   else if (act.team) {
     game.team = act.team;
     if (game.kind === 'attack') {
@@ -157,20 +161,23 @@ function message(title, lines, next, ok) { menuNext = next; openMenu('message', 
 
 function startMatch() {
   world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s));
-  match = game.scenario ? createScenarioMatch(game.scenario) : createMatch(Math.round(MATCH.duration * LENGTHS[settings.length].mul));
+  const drills = game.kind === 'training';
+  match = game.scenario ? createScenarioMatch(game.scenario) : createMatch(drills ? 99 * 60 : Math.round(MATCH.duration * LENGTHS[settings.length].mul));
   models = squads.dress(world, game.team, game.opp);
   hands.setKit(game.team.kit);
   const venue = pickVenue();
   hud.placeScoreboard(stadium.ground.board.y, stadium.ground.board.z);
   replay.setup(world, game.team, game.opp, stadium.ground.board);
   intents.reset(); slowT = 0; said10 = false;
+  if (drills) training.start(world, renderer.xr.isPresenting);
   menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
   mode = 'play'; hudEl.hidden = renderer.xr.isPresenting;
   if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
   sfx('whistle', 1.4);
   setTimeout(() => commentary.event({ type: 'kickoff' }), 900);
   const s = game.scenario;
-  if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
+  if (drills) hud.banner({ text: 'TRAINING', sub: `LEARN EVERY MOVE\n${renderer.xr.isPresenting ? 'X' : 'N'} SKIPS A DRILL`, tone: 'info', big: true });
+  else if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
   else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\n${clockText(match.clock)} - SCORE ALL YOU CAN\n${venue}`, tone: 'info', big: true });
 }
 
@@ -229,6 +236,14 @@ function fullTime() {
   setTimeout(() => message('FULL TIME', lines, next, ok), 1800);
 }
 
+function finishTraining() {
+  mode = 'menu'; stadium.cheer(true); sfx('roar');
+  setTimeout(() => message('TRAINING COMPLETE', [
+    { text: 'EVERY MOVE DONE!', big: true, color: '#40ff60' }, { text: `GOALS ${match.goals}` },
+    { text: 'NOW GO WIN SOMETHING', color: '#f2c21a' },
+  ], () => openMenu('mode'), 'PRESS A FOR THE MENU'), 1200);
+}
+
 function startCeremony() {
   menus.close(); mode = 'ceremony';
   for (const m of Object.values(models)) { m.root.visible = m.shadow.visible = false; }
@@ -271,10 +286,10 @@ function feedback(ev) {
       b.text = 'THEY SCORE!'; b.sub = `ON THE COUNTER  ${match.us}-${match.them}`; sfx('roar'); stadium.theirs();
     }
     if (b) hud.banner(b);
-    const hat = isHatTrick(match, e);
+    const hat = isHatTrick(match, e) && !training.active;
     if (b && b.text === 'THEY SCORE!') commentary.event({ type: 'counterGoal' });
     else commentary.event(e, { us: match.us, them: match.them, scenario: !!match.scenario, hatTrick: hat });
-    if (e.type === 'goal' && settings.replays && !hat) replay.goal();
+    if (e.type === 'goal' && settings.replays && !hat && !training.active) replay.goal();
     if (hat) startDance();
   }
 }
@@ -298,13 +313,18 @@ const loop = startLoop(renderer, (dt, t) => {
   else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
   if (mode === 'play' && wasPlaying && !hooks.paused) {
-    if (raw.restart) { resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
+    if (raw.skip) training.skip();
+    if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
     if (raw.vr) raw.hand = hands.highest(camera.position.y);
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);
     replay.record(world, ev, simDt);
     feedback(ev);
+    const tr = training.update({ ev, intent, world, dt: simDt, vr: raw.vr, restart: raw.restart });
+    if (tr === 'done') { sfx('perfect'); buzz('both', 0.5, 80); }
+    if (tr === 'next') sfx('whistle', 0.5);
+    if (tr === 'finished') finishTraining();
     if (celebration.active) {
       const d = celebration.update(dt, raw.vr, desk.keys);
       if (d) {
@@ -316,8 +336,8 @@ const loop = startLoop(renderer, (dt, t) => {
     }
     const r = celebration.active || replay.active ? null : tickMatch(match, simDt, world.dead, !!world.shot && !world.shot.done);
     if (!said10 && match.clock <= 10 && match.clock > 0 && !world.dead) { said10 = true; commentary.event({ type: 'last10' }); }
-    if (r === 'reset') { resetPlay(world); stadium.cheer(false); sfx('whistle', 0.5); }
-    if (r === 'over') { mode = 'menu'; fullTime(); }
+    if (r === 'reset') { if (training.active) training.reset(world); else resetPlay(world); stadium.cheer(false); sfx('whistle', 0.5); }
+    if (r === 'over' && mode === 'play') { mode = 'menu'; fullTime(); }
   }
 
   // put the rig under the player's head
@@ -370,10 +390,11 @@ function updateHud() {
     aim, charge: intents.shotHold ? chargeOf(intents.shotHold.t) : null, over: intents.shotHold ? overcharge(intents.shotHold.t) : 0,
   });
   if (!renderer.xr.isPresenting && !hooks.vrHud) hud.power.visible = false;      // the browser shows its own bar
-  hud.scoreboard(match.goals, clockText(match.clock), match.points, flashT > 0 ? 'GOAL!' : '',
+  const clock = training.active ? 'DRILL' : clockText(match.clock);
+  hud.scoreboard(match.goals, clock, match.points, flashT > 0 ? 'GOAL!' : '',
     match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '');
   // browser HUD
-  $('hClock').textContent = clockText(match.clock);
+  $('hClock').textContent = clock;
   $('hScore').textContent = match.scenario ? `${game.team.id} ${match.us} - ${match.them} ${game.opp.id}` : `V ${game.opp.id}`;
   const pw = $('power');
   const sh = intents.shotHold;
@@ -391,6 +412,6 @@ function placeOnHands() {
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, vrHud: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
+const hooks = { paused: false, vrHud: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, training, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

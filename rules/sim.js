@@ -200,6 +200,14 @@ function updateAI(w, dt, rnd, ev) {
 
   for (const p of w.players) {
     if (p.role === 'you') continue;
+    // training drills pin some players in place; pinned defenders can't tackle or intercept
+    if (w.drill && w.drill.frozen.has(p.id)) {
+      p.vx = p.vz = 0;
+      if (p.role === 'def') p.stun = 99;
+      if (w.owner === p.id && p.role === 'mate') mateOnBall(w, p, rnd, ev);     // he still passes or crosses when called
+      const f = norm(you.x - p.x, you.z - p.z); p.fx = f.x; p.fz = f.z;
+      continue;
+    }
     p.stun = Math.max(0, p.stun - dt);
     let t = null;
     if (w.dead && w.celebrate && p.role === 'mate') t = celebrationSpot(w, p);
@@ -247,11 +255,12 @@ function keeperTarget(w, gk) {
 }
 
 function mateOnBall(w, p, rnd, ev) {
-  const choice = mateDecision(p, defenders(w), w.ownT, w.called);
+  const choice = mateDecision(p, defenders(w), w.ownT, w.called, !!(w.drill && w.drill.mateHold));
+  if (choice === 'hold') return { x: p.x, z: p.z, speed: 0 };
   if (choice === 'pass') {
     // you're in the box: whip a cross in for a header or a volley instead of passing to feet
     if (inBox(w.you) && (Math.abs(p.x) > 5 || w.called) && dist(p, w.you) > 6) {
-      const v = crossVelocity(w.ball, w.you, w.headY || 1.65, rnd);
+      const v = crossVelocity(w.ball, w.you, w.headY || 1.65, rnd, w.drill && w.drill.crossHead ? true : null);
       launch(w, p, v);
       w.pendingPass = { from: p.id, to: 'you', grade: 'good', t: w.time, lead: v.lead, lob: true, cross: true };
       w.called = false;

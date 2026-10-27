@@ -9,6 +9,7 @@ You plus two teammates attack one goal against three defenders and a keeper.
 - **Score Attack:** two minutes, score as much as you can, beat your high score.
 - **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
 - **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
+- **Training:** 14 drills, one move each: dribble, sprint, turn, knock-on, drag-back, pass, calling for it, lob, shoot, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
 
 Every club has its own ground (Champions Cup ties alternate home and away), packed with fans in both teams' colors who jump when their side scores.
 
@@ -30,6 +31,7 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Drag-back | B (shakes the defender pressing you) | C |
 | Hat-trick dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
 | Restart the attack | Y | R |
+| Skip a training drill | X | N |
 | Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 
 ## Scoring

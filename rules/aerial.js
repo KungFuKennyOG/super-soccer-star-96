@@ -61,8 +61,9 @@ export const inBox = you => you.z < GOAL.z + AIR.boxDepth && Math.abs(you.x) < A
 
 // A teammate's cross: a lofted ball dropping onto the spot you're running into, at head height
 // (header) or at waist height (volley). from: ball {x,y,z}; you: {x, z, vx, vz}; headY: your head height.
-export function crossVelocity(from, you, headY, rnd = Math.random) {
-  const forHead = rnd() < 0.55;
+// head: true/false forces a header or a volley cross; left out, it's a coin flip.
+export function crossVelocity(from, you, headY, rnd = Math.random, head = null) {
+  const forHead = head === null ? rnd() < 0.55 : head;
   const T0 = hdist(from, you) / AIR.crossSpeed;
   const lead = { x: you.x + (you.vx || 0) * T0 * 0.8, z: you.z + (you.vz || 0) * T0 * 0.8 };
   const y = forHead ? headY : 0.75 + rnd() * 0.3;
