@@ -13,7 +13,7 @@ const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); 
 // kit: a kit spec from rules/teams.js; look picks skin, hair, hairstyle and stubble.
 export function buildPlayer(kit, num, look = 0, { feetOnly = false } = {}) {
   const skin = SKINS[look % SKINS.length], hair = HAIRS[(look * 3 + 1) % HAIRS.length];
-  const style = look % 3, stubble = look % 4 === 1;
+  const style = [0, 0, 1, 2, 3, 4, 5, 0, 3, 2, 0][look % 11], stubble = look % 4 === 1;
   const tex = playerAtlas({ kit, num, skin, hair, style, stubble, feetOnly });
   const material = mat(tex.uuid, () => ps1(feetOnly ? { map: tex, alphaTest: 0.5 } : { map: tex }));
   const { mesh, bone } = buildBody(material, style);
@@ -38,12 +38,22 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
   const s = Math.hypot(p.vx, p.vz);
   m.phase += dt * (2.4 + s * 1.45);
   m.kickT += dt;
-  const swing = Math.min(1, s / 6) * 0.95, ph = Math.sin(m.phase), run = Math.min(1, s / 3);
+  const swing = Math.min(1, s / 6) * 0.95, ph = Math.sin(m.phase), cph = Math.cos(m.phase), run = Math.min(1, s / 3);
 
-  bn.upperLegL.rotation.x = -ph * swing; bn.upperLegR.rotation.x = ph * swing;
-  bn.lowerLegL.rotation.x = (Math.max(0, ph) * 1.4 + 0.08) * swing;
-  bn.lowerLegR.rotation.x = (Math.max(0, -ph) * 1.4 + 0.08) * swing;
-  bn.footL.rotation.x = -bn.lowerLegL.rotation.x * 0.25; bn.footR.rotation.x = -bn.lowerLegR.rotation.x * 0.25;
+  // The stride, like the motion-captured runs of the PS1 FIFAs: the leg reaches further forward than
+  // back, the knee folds hardest as the thigh comes through (heel up toward the backside), the foot
+  // points as it pushes off.
+  const thigh = x => (x > 0 ? x : x * 0.7) * swing;
+  bn.upperLegL.rotation.x = -thigh(ph); bn.upperLegR.rotation.x = -thigh(-ph);
+  bn.lowerLegL.rotation.x = (Math.max(0, cph) ** 1.4 * 1.9 + 0.1) * swing;
+  bn.lowerLegR.rotation.x = (Math.max(0, -cph) ** 1.4 * 1.9 + 0.1) * swing;
+  bn.footL.rotation.x = (ph < 0 ? -ph * 0.5 : -0.15 * ph) * swing; bn.footR.rotation.x = (ph > 0 ? ph * 0.5 : 0.15 * ph) * swing;
+  // standing: soft knees, weight on the balls of the feet, a little breathing
+  const still = 1 - run;
+  bn.upperLegL.rotation.x -= 0.1 * still; bn.upperLegR.rotation.x -= 0.1 * still;
+  bn.lowerLegL.rotation.x += 0.2 * still; bn.lowerLegR.rotation.x += 0.2 * still;
+  bn.footL.rotation.x -= 0.1 * still; bn.footR.rotation.x -= 0.1 * still;
+  bn.hips.position.y -= 0.025 * still;
   if (m.kickT < 0.32) { // right foot strikes through
     const k = m.kickT / 0.32;
     bn.upperLegR.rotation.x = k < 0.4 ? 0.9 * (k / 0.4) : 0.9 - 2.4 * ((k - 0.4) / 0.6);
@@ -53,15 +63,19 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
   }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
-  bn.hips.position.y += Math.abs(Math.cos(m.phase)) * 0.05 * swing;
-  bn.hips.rotation.y = ph * 0.12 * swing;
-  bn.spine.rotation.x = Math.min(0.2, s * 0.028);
-  bn.chest.rotation.y = -ph * 0.22 * swing;
-  bn.neck.rotation.y = ph * 0.1 * swing;
+  // bounce at each push-off, hips and shoulders twisting against each other, a forward lean that grows
+  // with speed and a head that stays level; arms pump bent at the elbow, opposite to the legs
+  bn.hips.position.y += (Math.abs(cph) - 0.6) * 0.06 * swing - 0.03 * swing;
+  bn.hips.rotation.y = ph * 0.14 * swing;
+  bn.spine.rotation.x = Math.min(0.26, s * 0.034) + 0.05 * still + 0.015 * Math.sin(t * 2.2 + m.phase) * still;
+  bn.chest.rotation.y = -ph * 0.26 * swing;
+  bn.neck.rotation.x = -bn.spine.rotation.x * 0.8;
+  bn.neck.rotation.y = ph * 0.12 * swing;
   if (m.kickT >= 0.32) {
-    bn.upperArmL.rotation.set(ph * swing * 0.8, 0, 0.12); bn.upperArmR.rotation.set(-ph * swing * 0.8, 0, -0.12);
+    bn.upperArmL.rotation.set(ph * swing * 0.95 - 0.1 * run, 0, 0.14); bn.upperArmR.rotation.set(-ph * swing * 0.95 - 0.1 * run, 0, -0.14);
   }
-  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -(0.25 + 1.2 * run);
+  bn.foreArmL.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, -ph) * swing);
+  bn.foreArmR.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, ph) * swing);
 
   if (p.role === 'gk') {
     if (p.dive && !m.dive) m.dive = { dir: p.dive, t: 0 };

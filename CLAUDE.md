@@ -59,7 +59,7 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Every club has its own ground (`game/grounds.js` recipes: stand tiers, corners, roof, lights, time of day, mowing, seat colors, extras like Liverpool's single big end, Dortmund's wall, Turin's track, Milan's towers; the two Milan clubs share a ground). Champions Cup alternates: home in R16 and SF, away in QF and the final. Nations and the World Cup use the national stadium.
 - The crowd is ~10k instanced fan dots in both teams' colors; they bob all game, yours jump when your team scores, theirs when they score on the counter (vertex shader, one draw call).
 - Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).
-- Players are code-built skinned meshes for now. The planned upgrade is a real rigged model (Mixamo or a CC0 pack) with real run, kick and dive animations, with kits repainted on its UVs.
+- Players are code-built low-poly skinned meshes in the PS1 FIFA 98 / Virtua Striker style (`game/body.js`, proportions in `P`): inverted-triangle build, short thick neck, a head a little big for the body, long untucked shirt over short baggy shorts (torso reads long, legs short), boxy superellipse cross-sections, 22 bones (clavicles, toes), Gouraud shading, polo collar, sock turnovers. Hair is a solid shell (`game/hair.js`: crop, curly, shaved, mullet, long, flat-top). Faces and kits are painted on a 256 sheet in `game/atlas.js`. The run cycle has knee lift, heel kick and arm pump. A realistic CC0 rigged model (Quaternius) with mocap was tried and rejected by Kenny as looking worse; stay with the stylised low-poly look. `tools/lab.html` shows a lineup for checking models.
 
 ## Asking for a headset check
 

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SSS96 model lab</title>
+<!-- Dev page: a lineup of players for checking the models. npm run serve, then
+     /tools/lab.html?pose=idle|sprint|kick|keeper|dive|celebrate|dance&kit=MAD,BAR&yaw=0&cam=x,y,z&at=x,y,z -->
+<style>html,body{margin:0;background:#101830;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { buildPlayer, animate, placeModel } from '../game/actors.js';
+import { byId, keeperKit } from '../rules/teams.js';
+const q = new URLSearchParams(location.search);
+const kits = (q.get('kit') || 'MAD,BAR,MUN,LIV,ITA').split(',');
+const pose = q.get('pose') || 'idle';
+const look = +(q.get('look') || 0);
+const cam = (q.get('cam') || '0,1.3,4.2').split(',').map(Number);
+const at = (q.get('at') || '0,1.0,0').split(',').map(Number);
+const yaw = +(q.get('yaw') || 0);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#2a4a2a');
+scene.add(new THREE.HemisphereLight('#c8d8ff', '#2a3a20', 0.6));
+const sun = new THREE.DirectionalLight('#fff0d8', 1.05); sun.position.set(-20, 40, 10); scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshLambertMaterial({ color: '#3f8f3a' }));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
+camera.position.set(...cam); camera.lookAt(...at);
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const speeds = { idle: 0, walk: 1.4, jog: 4.5, sprint: 8 };
+const players = kits.map((id, i) => {
+  const team = byId(id);
+  const kit = pose === 'keeper' || pose === 'dive' ? keeperKit(team.kit) : team.kit;
+  const m = buildPlayer(kit, [9, 10, 7, 4, 11, 3, 8, 5][i % 8], look + i * +(q.get('step') || 3));
+  const p = { x: (i - (kits.length - 1) / 2) * 1.1, z: 0, fx: Math.sin(yaw), fz: Math.cos(yaw), vx: 0, vz: 0, role: pose === 'keeper' || pose === 'dive' ? 'gk' : 'mate' };
+  scene.add(m.root);
+  return { m, p };
+});
+let t = 0;
+window.__lab = { ready: false, step(dt) { tick(dt); } };
+function tick(dt) {
+  t += dt;
+  for (const { m, p } of players) {
+    const s = speeds[pose] || 0;
+    p.vx = p.fx * s; p.vz = p.fz * s;
+    if (pose === 'kick' && m.kickT > 0.8) m.kickT = 0;
+    p.dive = pose === 'dive' && !m.dive && t > 0.3 ? 1 : 0;
+    const guide = pose === 'dance' ? { beat: t * 1.5, move: ['left', 'right', 'up', 'out'][Math.floor(t * 1.5) % 4] } : null;
+    animate(m, p, dt, t, pose === 'celebrate', guide);
+    placeModel(m, p);
+  }
+  renderer.render(scene, camera);
+}
+window.__lab.ready = true;
+</script>
+</body>
+</html>
