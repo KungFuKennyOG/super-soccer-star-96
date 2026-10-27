@@ -45,3 +45,15 @@ test('your third goal is a hat trick; teammates\' goals do not count toward it',
   assert.equal(third.b.text, 'HAT TRICK!');
   assert.equal(m.goals, 4); assert.equal(m.yourGoals, 3);
 });
+
+import { createScenarioMatch, counterAttack, counterChance } from '../../rules/match.js';
+test('cup matches keep the score: your goals add to yours, counters to theirs', () => {
+  const m = createScenarioMatch({ us: 0, them: 2, clock: 145, oppStrength: 4 });
+  assert.equal(m.clock, 145);
+  const b = scoreEvent(m, { type: 'goal', x: 0, y: 0.5, dist: 12, by: 'm1', assist: null, chain: 0 });
+  assert.equal(m.us, 1); assert.match(b.sub, /^1 - 2/);
+  assert.ok(counterAttack(m, () => 0)); assert.equal(m.them, 3);
+  assert.ok(!counterAttack(m, () => 0.99)); assert.equal(m.them, 3);
+  assert.ok(counterChance(5) > counterChance(1));
+  assert.ok(!counterAttack(createMatch(), () => 0), 'score attack has no counters');
+});

@@ -6,7 +6,7 @@
 //   boot   x 0-63,   y 64-95
 // Shading, cloth folds and muscle tone are painted in, like the hand-painted kits of the era.
 import { canvasTex, pixelTex } from './ps1.js';
-import { KITS, paint, rgb, mul, hash, drawText, textWidth } from './tex.js';
+import { paint, rgb, mul, hash, drawText, textWidth } from './tex.js';
 
 export const REGIONS = {
   torso: { x: 0, y: 0, w: 64, h: 64 },
@@ -25,17 +25,18 @@ export const SLEEVE_DY = -0.254;                       // where the sleeve ends 
 
 const cache = new Map();
 
-// feetOnly: everything above the lower sock is see-through (your own body in first person).
+// kit: a kit spec from rules/teams.js. feetOnly: everything above the lower sock is see-through
+// (your own body in first person).
 export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false, feetOnly = false }) {
-  const key = `${kit}|${num}|${skin}|${hair}|${style}|${stubble}|${feetOnly}`;
+  const key = `${JSON.stringify(kit)}|${num}|${skin}|${hair}|${style}|${stubble}|${feetOnly}`;
   if (cache.has(key)) return cache.get(key);
-  const k = KITS[kit];
+  const k = kit;
   const c = canvasTex(SIZE, SIZE, ctx => {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
     ctx.drawImage(torso(k, num, skin), 0, 0);
     ctx.drawImage(head(skin, hair, style, stubble), 64, 0);
     ctx.drawImage(leg(k, skin), 64, 64);
-    ctx.drawImage(arm(k, skin, kit === 'keeper'), 96, 64);
+    ctx.drawImage(arm(k, skin, !!k.gloves), 96, 64);
     ctx.drawImage(boot(), 0, 64);
     if (feetOnly) {
       ctx.clearRect(0, 0, 128, 64);                                      // torso, head
@@ -64,8 +65,20 @@ function cloth(base, x, y, W, front, folds = true) {
   return mul(base, light * (0.97 + 0.06 * hash(x, y)));
 }
 
+// The shirt's own color at a texel, before shading: the kit pattern lives here.
+function shirtColor(k, x, y, collar) {
+  const base = rgb(k.shirt), alt = rgb(k.alt);
+  switch (k.pattern) {
+    case 'stripes': return Math.floor((x + 3) / 6) % 2 ? alt : base;
+    case 'hoops': return Math.floor((y - collar) / 5) % 2 ? alt : base;
+    case 'checks': return (Math.floor((x + 2) / 4) + Math.floor((y - collar) / 4)) % 2 ? alt : base;
+    case 'band': return x < 5 || x > 58 || Math.abs(x - 31.5) < 5 ? alt : base;   // down the chest and the back
+    default: return (x === 15 || x === 16 || x === 47 || x === 48) ? mul(base, 0.9) : base; // side panels
+  }
+}
+
 function torso(k, num, skinHex) {
-  const W = 64, H = 64, sk = rgb(skinHex), base = rgb(k.shirt), alt = rgb(k.shade), trim = rgb(k.trim), trim2 = rgb(k.trim2), shorts = rgb(k.shorts);
+  const W = 64, H = 64, sk = rgb(skinHex), trim = rgb(k.trim), trim2 = rgb(k.trim2), shorts = rgb(k.shorts);
   const neckEnd = torsoRow(1.545), shortsTop = torsoRow(0.978), collar = neckEnd + 2;
   const c = paint(W, H, (x, y) => {
     const th = (x + 0.5) / W * Math.PI * 2, front = Math.cos(th);
@@ -73,12 +86,11 @@ function torso(k, num, skinHex) {
     if (y < collar) return mul(trim, 0.9 + 0.1 * front);
     if (y === collar) return trim2;
     if (y >= shortsTop) {
-      if (y < shortsTop + 2) return mul(k.stripes ? trim : shorts, 0.85);                 // waistband
+      if (y < shortsTop + 2) return mul(trim, 0.85);                                        // waistband
       const s = cloth(shorts, x, y, W, front, false);
       return y > H - 4 ? mul(s, 0.8) : s;
     }
-    let col = k.stripes && Math.floor((x + 3) / 6) % 2 ? alt : base;
-    if (!k.stripes && (x === 15 || x === 16 || x === 47 || x === 48)) col = rgb(k.shade);  // side panels
+    let col = shirtColor(k, x, y, collar);
     if (y < collar + 4 && (x < 2 || x > 61)) col = trim;                                    // V at the throat
     let s = cloth(col, x, y, W, front, y > collar + 12);
     if (y > shortsTop - 2) s = mul(s, 0.78);                                               // loose hem
@@ -87,10 +99,10 @@ function torso(k, num, skinHex) {
   const ctx = c.getContext('2d');
   ctx.fillStyle = k.trim2; ctx.fillRect(5, collar + 6, 4, 4); ctx.fillStyle = k.trim; ctx.fillRect(6, collar + 7, 2, 2); // plain badge
   const s = String(num), tw = textWidth(s, 2), x0 = Math.round(32 - tw / 2), y0 = collar + 7;
-  if (k.outline) drawText(ctx, s, x0 + 1, y0 + 1, k.outline, 2);
+  if (k.outline) { ctx.fillStyle = k.outline; ctx.fillRect(x0 - 2, y0 - 2, tw + 4, 18); }
   drawText(ctx, s, x0, y0, k.number, 2);
   // small number on the front of the shorts
-  drawText(ctx, s, 6, shortsTop + 4, k.stripes ? k.trim2 : k.trim, 1);
+  drawText(ctx, s, 6, shortsTop + 4, k.number === k.shorts ? k.trim : k.number, 1);
   return c;
 }
 
@@ -149,7 +161,7 @@ function leg(k, skinHex) {
   return paint(W, H, (x, y) => {
     const th = (x + 0.5) / W * Math.PI * 2, front = Math.cos(th), outer = Math.abs(Math.sin(th)) > 0.92;
     if (y < hem) {
-      if (outer && !k.stripes) return mul(trim, 0.9);                                       // side stripe
+      if (outer && k.pattern !== 'stripes') return mul(trim, 0.9);                          // side stripe
       return mul(cloth(shorts, x, y, W, front, false), y > hem - 2 ? 0.82 : 1);
     }
     if (y < sockTop) {
@@ -166,7 +178,8 @@ function leg(k, skinHex) {
 }
 
 function arm(k, skinHex, gloves) {
-  const W = 32, H = 64, sk = rgb(skinHex), sleeve = rgb(k.sleeve), trim = rgb(k.trim);
+  const W = 32, H = 64, sk = rgb(skinHex), trim = rgb(k.trim);
+  const sleeve = rgb(k.sleeve || (k.pattern === 'sleeves' ? k.alt : k.shirt));
   const hem = armRow(SLEEVE_DY), wrist = armRow(-0.54);
   return paint(W, H, (x, y) => {
     const th = (x + 0.5) / W * Math.PI * 2, front = Math.cos(th);

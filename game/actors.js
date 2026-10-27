@@ -10,7 +10,7 @@ import { buildBody, restPose } from './body.js';
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
 
-// kit: 'white' | 'stripes' | 'keeper'; look picks skin, hair, hairstyle and stubble.
+// kit: a kit spec from rules/teams.js; look picks skin, hair, hairstyle and stubble.
 export function buildPlayer(kit, num, look = 0, { feetOnly = false } = {}) {
   const skin = SKINS[look % SKINS.length], hair = HAIRS[(look * 3 + 1) % HAIRS.length];
   const style = look % 3, stubble = look % 4 === 1;

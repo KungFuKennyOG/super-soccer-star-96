@@ -8,7 +8,7 @@ const midi = n => { const m = n.match(/^([A-G]#?)(\d)$/); return 12 * (+m[2] + 1
 const freq = m => 440 * Math.pow(2, (m - 69) / 12);
 const CHORDS = {
   A: ['A', 'C#', 'E'], 'F#m': ['F#', 'A', 'C#'], D: ['D', 'F#', 'A'], E: ['E', 'G#', 'B'], 'C#m': ['C#', 'E', 'G#'],
-  Em: ['E', 'G', 'B'], C: ['C', 'E', 'G'], G: ['G', 'B', 'D'], Bm: ['B', 'D', 'F#'],
+  Em: ['E', 'G', 'B'], C: ['C', 'E', 'G'], G: ['G', 'B', 'D'], Bm: ['B', 'D', 'F#'], F: ['F', 'A', 'C'],
 };
 
 // Lead lines are 8 eighth notes per bar: a note, '.' to hold, '-' for silence.
@@ -21,6 +21,16 @@ const TRACKS = {
       'A5 . F#5 . D5 . F#5 A5', 'G#5 . E5 . B4 . E5 G#5', 'G#5 F#5 E5 C#5 F#5 . A5 .', 'F#5 . E5 . B5 . . -',
     ],
     drums: 'K-h-S-h-K-hKS-h-',   // per 16 steps: K kick, S snare, h hat
+    arp: true,
+  },
+  champions: {
+    bpm: 132,
+    chords: ['C', 'G', 'C', 'G', 'F', 'C', 'G', 'C'],
+    lead: [
+      'G4 . C5 . E5 . G5 .', 'G5 . F5 E5 D5 . B4 .', 'C5 . E5 . G5 . C6 .', 'B5 . A5 G5 D5 . . -',
+      'A5 . C6 . A5 . F5 .', 'G5 . E5 . C5 . E5 .', 'D5 . G5 . B5 . D6 .', 'C6 . . . . . . -',
+    ],
+    drums: 'K-h-S-h-K-h-S-hS',
     arp: true,
   },
   dance: {

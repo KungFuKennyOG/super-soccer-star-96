@@ -10,8 +10,8 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 | --- | --- |
 | `index.html` | Title screen, browser HUD, import map |
 | `engine/` | Stage (renderer, rig), WebXR session, controllers and desktop input, frame loop (copied from Last Call) |
-| `rules/` | **Pure game rules, no three.js**: tuning numbers, ball physics, passing, shooting, AI, the sim, match scoring. Unit tested in Node. |
-| `game/` | Everything that draws or sounds: PS1 materials, textures, stadium, skinned players, HUD, audio, controls, `main.js` |
+| `rules/` | **Pure game rules, no three.js**: tuning numbers, ball physics, passing, shooting, AI, the sim, match scoring, the dance, teams and kits (`teams.js`), cup runs (`cup.js`). Unit tested in Node. |
+| `game/` | Everything that draws or sounds: PS1 materials, textures, stadium, skinned players (`body.js`, `atlas.js`, `actors.js`, `squad.js`), HUD, menus (`menus.js`), trophy lift (`trophy.js`), dance (`celebration.js`), audio and music, controls, `main.js` |
 | `tests/unit/` | Node tests for every module in `rules/` |
 | `tests/smoke/` | Headless Chromium play-through with screenshots |
 | `tools/serve.mjs` | Local no-cache server |
@@ -42,6 +42,10 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Comfort isn't a constraint (Kenny's call: it's just for him). Smooth turning is fine.
 - Controls: sticky-ball dribbling, head-aimed shooting, timing-ring passes (hold, release when the ring meets the circle).
 - First mode: 3 v 3 plus keeper on a half pitch, 2-minute arcade score attack.
+- Cups (Kenny's format): every match is a comeback scenario (start behind, short clock, reach the target). Opponents never attack in play; they can score on the counter when you lose the ball (`counterAttack` in `rules/match.js`). World Cup '96 = 32 nations, groups of 4 with draws then knockouts. Champions Cup = 16 city clubs, knockouts. 3 arcade continues per cup for knockout losses; going out in the groups is final.
+- Teams (agreed list): 32 nations in `rules/teams.js`; 16 clubs by city name (London Red and London Blue both in, Marseille out). No club names or crests.
+- Menus are in-world panels for both headset and browser. Picking is A/X or Enter, never a trigger (a held trigger would fire a shot at kick-off). Shoot and pass also ignore input until both triggers have been released after kick-off.
+- Winning a cup ends with a physical trophy lift: grab with grips, raise above your head.
 - Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass). The lane is a corridor that widens toward the receiver (`PASS.lobNear`/`lobFar` in tuning). A blue ring and a LOB tag show it before you pass.
 - On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
 - Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.

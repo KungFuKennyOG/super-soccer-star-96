@@ -15,7 +15,8 @@ const GLYPHS = {
   6: '060810 1E1111 0E', 7: '1F0102 040808 08', 8: '0E1111 0E1111 0E', 9: '0E1111 0F0102 0C',
   ':': '000C0C 000C0C 00', '!': '040404 040400 04', '+': '000404 1F0404 00', '-': '000000 1F0000 00',
   '.': '000000 00000C 0C', '/': '010102 040810 10', "'": '040408 000000 00', '?': '0E1101 020400 04',
-  '*': '00150E 1F0E15 00', ' ': '000000 000000 00',
+  '*': '00150E 1F0E15 00', ' ': '000000 000000 00', '<': '020408 100804 02', '>': '080402 010204 08',
+  '(': '020408 080804 02', ')': '080402 020204 08', ',': '000000 000C04 08',
 };
 const ROWS = {};
 for (const [ch, s] of Object.entries(GLYPHS)) {
@@ -41,16 +42,6 @@ export function drawText(ctx, str, x, y, color, s = 1, shadow) {
     cx += 6 * s;
   }
 }
-
-/* ---------- kits ---------- */
-
-// White kit (all white, navy and gold trim) vs blue-and-garnet stripes with navy shorts. Colors only:
-// no crests, sponsors or club names.
-export const KITS = {
-  white: { shirt: '#f2f1ea', shade: '#d8d6ce', trim: '#2b2f6b', trim2: '#d9b23a', sleeve: '#f2f1ea', shorts: '#f2f1ea', socks: '#f2f1ea', band: '#2b2f6b', number: '#2b2f6b', outline: null },
-  stripes: { shirt: '#1d3f94', shade: '#9a1c3c', trim: '#14204f', trim2: '#f2c21a', sleeve: '#9a1c3c', shorts: '#14204f', socks: '#14204f', band: '#9a1c3c', number: '#f2c21a', outline: '#14204f', stripes: true },
-  keeper: { shirt: '#29a35a', shade: '#1f8a48', trim: '#111111', trim2: '#e8e050', sleeve: '#29a35a', shorts: '#151515', socks: '#29a35a', band: '#111111', number: '#111111', outline: null },
-};
 
 const cache = new Map();
 const once = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };

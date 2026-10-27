@@ -27,8 +27,9 @@ export function buildHud(scene, camera) {
     leg.position.set(s * 7, 19, GOAL.z - 22.4); scene.add(leg);
   }
   let sbKey = '';
-  function scoreboard(goals, clock, points, flash) {
-    const key = `${goals}|${clock}|${points}|${flash}`;
+  // score: 'MAD 1-2 BAR' in a cup match (shown instead of the goal count), or ''
+  function scoreboard(goals, clock, points, flash, score = '') {
+    const key = `${goals}|${clock}|${points}|${flash}|${score}`;
     if (key === sbKey) return; sbKey = key;
     const c = sb.ctx;
     c.fillStyle = '#05050a'; c.fillRect(0, 0, 128, 48);
@@ -36,6 +37,9 @@ export function buildHud(scene, camera) {
     drawText(c, 'SUPER SOCCER STAR', 13, 2, '#ffffff', 1, '#000');
     if (flash) {
       drawText(c, flash, Math.round((128 - textWidth(flash, 2)) / 2), 17, Math.floor(performance.now() / 150) % 2 ? '#f2c21a' : '#ffffff', 2);
+    } else if (score) {
+      drawText(c, score, Math.round((128 - textWidth(score)) / 2), 15, '#f2c21a');
+      drawText(c, clock, Math.round((128 - textWidth(clock, 2)) / 2), 24, '#ffffff', 2);
     } else {
       drawText(c, 'GOALS', 4, 15, '#5ad0ff'); drawText(c, String(goals).padStart(2, '0'), 4, 24, '#f2c21a', 2);
       drawText(c, clock, 128 - 4 - textWidth(clock, 2), 24, '#ffffff', 2); drawText(c, 'TIME', 128 - 4 - textWidth('TIME'), 15, '#5ad0ff');

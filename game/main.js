@@ -5,20 +5,24 @@ import { vrSupported, enterVR } from '../engine/xr.js';
 import { buzz } from '../engine/input.js';
 import { startLoop } from '../engine/loop.js';
 import { createWorld, stepSim, resetPlay, startCelebration, defenders } from '../rules/sim.js';
-import { createMatch, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
+import { createMatch, createScenarioMatch, counterAttack, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
+import { ALL, NATIONS, byId, teamsFor } from '../rules/teams.js';
+import { createCup, currentFixture, scenarioFor, playUser, STAGE_NAMES } from '../rules/cup.js';
 import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
 import { PASS, GOAL, MATCH } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
 import { PS1 } from './ps1.js';
 import { buildStadium } from './stadium.js';
-import { buildPlayer, buildYou, buildBall, buildArrow, animate, placeModel } from './actors.js';
-import { buildHud, buildPanel, buildRadar } from './hud.js';
+import { buildBall, buildArrow, animate, placeModel } from './actors.js';
+import { createSquads } from './squad.js';
+import { createMenus } from './menus.js';
+import { createCeremony } from './trophy.js';
+import { buildHud, buildRadar } from './hud.js';
 import { createControls } from './controls.js';
 import { startAudio, sfx } from './audio.js';
 import { playMusic, stopMusic } from './music.js';
 import { createCelebration } from './celebration.js';
-import { drawText, textWidth } from './tex.js';
 
 const LINES = 480;          // browser render height: a little chunky, clearly readable
 const VR_SCALE = 0.7;       // headset framebuffer scale: soft retro, still sharp
@@ -39,107 +43,156 @@ lowRes(); addEventListener('resize', lowRes);
 
 const stadium = buildStadium(scene);
 const hud = buildHud(scene, camera);
-const panel = buildPanel(scene);
 const radar = buildRadar();
 const celebration = createCelebration(scene, camera);
+const menus = createMenus(scene, camera);
+const ceremony = createCeremony(scene, camera);
+const squads = createSquads(scene);
 $('radar').appendChild(radar.canvas);
 
+// what's being played: the mode, your team, the opponent, and the cup run if there is one
+const game = { kind: 'attack', team: byId('MAD'), opp: byId('BAR'), cup: null, fixture: null, scenario: null };
 let world = createWorld(), match = createMatch();
-const models = {};
-for (const p of world.players) {
-  const kit = p.team === 'home' ? 'white' : p.role === 'gk' ? 'keeper' : 'stripes';
-  const m = p.role === 'you' ? buildYou(kit) : buildPlayer(kit, p.num, p.num * 7 + (p.team === 'home' ? 0 : 2));
-  models[p.id] = m;
-  scene.add(m.root, m.shadow);
-}
+let models = squads.dress(world, game.team, game.opp);
 const ball = buildBall(); scene.add(ball.mesh, ball.shadow);
 const arrow = buildArrow(); scene.add(arrow);
 
-let mode = 'title';   // 'title' | 'play' | 'over'
+let mode = 'title';   // 'title' (browser start page) | 'menu' | 'play' | 'ceremony' | 'paused'
 let celebrateT = 0, flashT = 0, best = loadBest();
 const controls = createControls({ renderer, rig, canvas, isPlaying: () => mode === 'play', onUnlock: () => { if (mode === 'play') showPause(); } });
 const desk = controls.desk;
 
-/* ---------- menus ---------- */
+/* ---------- start page (browser) ---------- */
 
 const overlay = $('overlay'), hudEl = $('hud');
-$('best').textContent = best ? `BEST ${best}` : '';
+$('best').textContent = best ? `SCORE ATTACK BEST ${best}` : '';
 vrSupported().then(ok => { $('vr').disabled = !ok; if (!ok) $('vrnote').textContent = 'No headset found. Open this page in the Quest browser to play in VR.'; });
 $('vr').onclick = async () => {
-  startAudio();
+  startAudio(); playMusic('menu');
   try { await enterVR(renderer, { foveation: 1 }); } catch (e) { $('vrnote').textContent = 'The headset refused to start VR.'; return; }
   PS1.snap.value.set(900, 900);
   overlay.hidden = true;
-  mode = 'title'; vrTitle();
-  renderer.xr.getSession().addEventListener('end', () => { lowRes(); mode = 'title'; panel.hide(); overlay.hidden = false; });
+  setTimeout(() => openMenu('mode'), 300); // let the headset pose settle before placing the menu
+  renderer.xr.getSession().addEventListener('end', () => { lowRes(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
 };
-$('play').onclick = () => { startAudio(); overlay.hidden = true; desk.lock(); kickOff(); };
+$('play').onclick = () => { startAudio(); playMusic('menu'); overlay.hidden = true; desk.yaw = 0; desk.pitch = 0; openMenu('mode'); };
 // menu music starts on the first click or key (browsers won't play sound before that)
 const menuMusic = () => { startAudio(); if (mode !== 'play') playMusic('menu'); };
 addEventListener('pointerdown', menuMusic, { once: true });
 addEventListener('keydown', menuMusic, { once: true });
-function showPause() { mode = 'title'; overlay.hidden = false; $('play').textContent = 'RESUME'; $('play').onclick = () => { overlay.hidden = true; desk.lock(); mode = 'play'; }; }
-
-function kickOff() {
-  world = createWorld(); match = createMatch();
-  bindWorld();
-  stopMusic(0.4); celebration.cancel();
-  mode = 'play'; panel.hide(); hudEl.hidden = renderer.xr.isPresenting;
-  sfx('whistle', 1.4);
-  hud.banner({ text: 'KICK OFF!', sub: 'TWO MINUTES. SCORE ALL YOU CAN.', tone: 'info', big: true });
+function showPause() {
+  mode = 'paused'; overlay.hidden = false; $('play').textContent = 'RESUME';
+  $('play').onclick = () => { overlay.hidden = true; desk.lock(); mode = 'play'; };
 }
-function bindWorld() { lastHead = null; }
+
+/* ---------- menus and the cup run ---------- */
+
+function openMenu(screen, data) {
+  mode = 'menu'; hudEl.hidden = true;
+  if (!renderer.xr.isPresenting) { desk.pitch = 0; if (document.pointerLockElement) document.exitPointerLock(); }
+  playMusic('menu');
+  menus.open(screen, data);
+}
+const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
+
+function onMenu(act) {
+  const scr = menus.screen;
+  if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
+  else if (act.team) {
+    game.team = act.team;
+    if (game.kind === 'attack') {
+      const rivals = ALL.filter(t => t.id !== act.team.id && t.s >= 4 && (t.id.length === 3) && teamsFor(NATIONS.includes(act.team) ? 'world' : 'club').includes(t));
+      game.opp = rivals[Math.floor(Math.random() * rivals.length)];
+      game.cup = null; game.scenario = null;
+      startMatch();
+    } else {
+      game.cup = createCup(game.kind, act.team.id);
+      openMenu('hub', { cup: game.cup });
+    }
+  } else if (act.back && scr === 'team') openMenu('mode');
+  else if (act.play) {
+    game.fixture = currentFixture(game.cup);
+    game.opp = byId(game.fixture.opp);
+    game.scenario = scenarioFor(game.cup, game.fixture);
+    startMatch();
+  } else if (act.quit) openMenu('mode');
+  else if (act.ok && menuNext) { const n = menuNext; menuNext = null; n(); }
+}
+let menuNext = null;
+function message(title, lines, next, ok) { menuNext = next; openMenu('message', { title, lines, ok }); }
+
+function startMatch() {
+  world = createWorld();
+  match = game.scenario ? createScenarioMatch(game.scenario) : createMatch();
+  models = squads.dress(world, game.team, game.opp);
+  lastHead = null; shotHold = passHold = null; armed = false;
+  menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
+  mode = 'play'; hudEl.hidden = renderer.xr.isPresenting;
+  if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
+  sfx('whistle', 1.4);
+  const s = game.scenario;
+  if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}`, tone: 'info', big: true });
+  else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\nTWO MINUTES. SCORE ALL YOU CAN.`, tone: 'info', big: true });
+}
+
+function fullTime() {
+  sfx('whistle', 1); setTimeout(() => sfx('whistle', 1), 450); setTimeout(() => sfx('whistle', 2), 900);
+  stadium.cheer(false);
+  if (!game.cup) {
+    const newBest = match.points > best;
+    if (newBest) { best = match.points; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+    $('best').textContent = `SCORE ATTACK BEST ${best}`;
+    hud.banner({ text: 'FULL TIME', sub: newBest ? 'NEW BEST SCORE!' : '', tone: 'good', big: true });
+    return setTimeout(() => message('FULL TIME', [
+      { text: `GOALS ${match.goals}`, big: true }, { text: `SHOTS ${match.shots}` },
+      { text: `POINTS ${match.points}`, big: true, color: '#f2c21a' }, { text: newBest ? 'NEW BEST SCORE!' : `BEST ${best}`, color: newBest ? '#40ff60' : '#9aa8e0' },
+    ], () => openMenu('mode'), 'PRESS A FOR THE MENU'), 1800);
+  }
+  const cup = game.cup, us = match.us, them = match.them, team = game.team, opp = game.opp;
+  const res = playUser(cup, us, them);
+  const score = { text: `${team.id} ${us} - ${them} ${opp.id}`, big: true };
+  hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}`, tone: res.result === 'loss' ? 'bad' : 'good', big: true });
+  let lines, next, ok;
+  if (res.champion) {
+    lines = [score, { text: 'YOU WIN THE CUP!', big: true, color: '#f2c21a' }, { text: `${team.name} ARE CHAMPIONS` }];
+    next = startCeremony; ok = 'PRESS A TO LIFT THE CUP';
+  } else if (res.retry) {
+    lines = [score, { text: res.result === 'draw' ? 'NOT ENOUGH - YOU NEEDED THE WIN' : 'BEATEN!', color: '#ff4040' }, { text: 'CONTINUE?', big: true, color: '#f2c21a' }, { text: `${cup.continues} CONTINUE${cup.continues === 1 ? '' : 'S'} LEFT` }];
+    next = () => { game.scenario = scenarioFor(cup, game.fixture); startMatch(); }; ok = 'PRESS A TO TRY AGAIN';
+  } else if (res.out) {
+    lines = [score, { text: 'KNOCKED OUT', big: true, color: '#ff4040' }, { text: `CHAMPIONS: ${byId(cup.champion).name}` }];
+    next = () => openMenu('hub', { cup }); ok = 'PRESS A';
+  } else {
+    const what = cup.stage === 'group' || game.fixture.stage === 'group'
+      ? { win: 'WIN - 3 POINTS', draw: 'DRAW - 1 POINT', loss: 'DEFEAT - NO POINTS' }[res.result]
+      : `THROUGH TO THE ${STAGE_NAMES[cup.stage]}`;
+    lines = [score, { text: what, big: true, color: res.result === 'loss' ? '#ff4040' : '#40ff60' }];
+    if (res.advanced && game.fixture.stage === 'group') lines.push({ text: `THROUGH TO THE ${STAGE_NAMES[cup.stage]}`, color: '#f2c21a' });
+    next = () => openMenu('hub', { cup }); ok = 'PRESS A';
+  }
+  setTimeout(() => message('FULL TIME', lines, next, ok), 1800);
+}
+
+function startCeremony() {
+  menus.close(); mode = 'ceremony';
+  for (const m of Object.values(models)) { m.root.visible = m.shadow.visible = false; }
+  ball.mesh.visible = ball.shadow.visible = arrow.visible = false;
+  stadium.cheer(true);
+  ceremony.start(game.cup.kind, game.team);
+}
+function endCeremony() {
+  ceremony.stop(); stadium.cheer(false);
+  for (const m of Object.values(models)) { m.root.visible = m.shadow.visible = true; }
+  ball.mesh.visible = ball.shadow.visible = true;
+  openMenu('mode');
+}
 
 const headW = new THREE.Vector3(), dirW = new THREE.Vector3();
-function headYaw() { camera.getWorldDirection(dirW); return Math.atan2(dirW.x, dirW.z); }
 function headPosNow() { camera.getWorldPosition(headW); return headW; }
-
-function logo(c, y) {
-  const chrome = r => ['#ffffff', '#ffffff', '#dfe8ff', '#7d8fd0', '#ffffff', '#c8d4ff', '#9aa8e0'][r];
-  drawText(c, 'SUPER', Math.round((256 - textWidth('SUPER', 2)) / 2) - 30, y, '#f2c21a', 2, '#c8102e');
-  drawText(c, 'SOCCER STAR', Math.round((256 - textWidth('SOCCER STAR', 3)) / 2), y + 18, chrome, 3, '#0a0a50');
-  c.fillStyle = '#c8102e'; c.fillRect(186, y - 2, 40, 18);
-  drawText(c, "'96", 190, y + 1, '#f2c21a', 2, '#000');
-}
-function vrTitle() {
-  panel.show(c => {
-    c.fillStyle = 'rgba(5,8,40,.88)'; c.fillRect(0, 0, 256, 160);
-    c.fillStyle = '#f2c21a'; c.fillRect(0, 0, 256, 3); c.fillRect(0, 157, 256, 3);
-    logo(c, 18);
-    const lines = ['LEFT STICK RUN  -  R STICK TURN', 'R TRIGGER SHOOT: LOOK TO AIM', 'L TRIGGER PASS: RELEASE ON RING', 'A KNOCK-ON  -  B DRAG-BACK'];
-    lines.forEach((l, i) => drawText(c, l, Math.round((256 - textWidth(l)) / 2), 72 + i * 11, '#c8d4ff'));
-    if (Math.floor(performance.now() / 500) % 2) drawText(c, 'PULL TRIGGER TO KICK OFF', Math.round((256 - textWidth('PULL TRIGGER TO KICK OFF')) / 2), 130, '#ffffff', 1, '#c8102e');
-    if (best) drawText(c, `BEST ${best}`, 4, 148, '#f2c21a');
-  }, headPosNow(), headYaw());
-}
-function fullTime() {
-  mode = 'over';
-  const newBest = match.points > best;
-  if (newBest) { best = match.points; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
-  sfx('whistle', 1); setTimeout(() => sfx('whistle', 1), 450); setTimeout(() => sfx('whistle', 2), 900);
-  setTimeout(() => { if (mode === 'over') playMusic('menu'); }, 1800);
-  hud.banner({ text: 'FULL TIME', sub: newBest ? 'NEW BEST SCORE!' : '', tone: 'good', big: true });
-  const draw = c => {
-    c.fillStyle = 'rgba(5,8,40,.9)'; c.fillRect(0, 0, 256, 160);
-    logo(c, 10);
-    const rows = [['GOALS', match.goals], ['SHOTS', match.shots], ['POINTS', match.points], ['BEST', best]];
-    rows.forEach(([k, v], i) => { drawText(c, k, 50, 64 + i * 16, '#5ad0ff', 1); drawText(c, String(v), 206 - textWidth(String(v), 2), 61 + i * 16, '#ffffff', 2); });
-    drawText(c, 'TRIGGER: PLAY AGAIN', Math.round((256 - textWidth('TRIGGER: PLAY AGAIN')) / 2), 140, '#f2c21a');
-  };
-  if (renderer.xr.isPresenting) panel.show(draw, headPosNow(), headYaw());
-  else {
-    desk.locked && document.exitPointerLock();
-    overlay.hidden = false; hudEl.hidden = true;
-    $('final').hidden = false;
-    $('final').textContent = `FULL TIME — GOALS ${match.goals} · POINTS ${match.points}${newBest ? ' · NEW BEST!' : ''}`;
-    $('play').textContent = 'PLAY AGAIN';
-    $('play').onclick = () => { $('final').hidden = true; overlay.hidden = true; desk.lock(); kickOff(); };
-  }
-}
 
 /* ---------- holds: shot charge and pass ring ---------- */
 
-let shotHold = null, passHold = null, lastHead = null;
+let shotHold = null, passHold = null, lastHead = null, armed = false;
 const rigYaw = () => rig.rotation.y;
 
 function buildIntent(raw, dt) {
@@ -158,6 +211,8 @@ function buildIntent(raw, dt) {
     lastHead = { x: hx, z: hz };
   }
   const onBall = world.owner === 'you' && !world.dead;
+  // after kick-off, shoot and pass only count once both have been let go
+  if (!armed) { if (!raw.shoot && !raw.pass) armed = true; else { passHeldPrev = raw.pass; return intent; } }
 
   if (raw.shoot && onBall && !passHold) shotHold = shotHold || { t: 0 };
   if (shotHold) {
@@ -202,6 +257,9 @@ function feedback(ev) {
     if (e.type === 'post') { sfx('post'); sfx('ooh'); }
     if (e.type === 'out' || e.type === 'tackled' || e.type === 'intercepted') { sfx('groan'); sfx('whistle', 0.6); }
     const b = scoreEvent(match, e);
+    if (b && (e.type === 'tackled' || e.type === 'intercepted') && counterAttack(match)) {
+      b.text = 'THEY SCORE!'; b.sub = `ON THE COUNTER  ${match.us}-${match.them}`; sfx('roar');
+    }
     if (b) hud.banner(b);
     if (isHatTrick(match, e)) startDance();
   }
@@ -215,14 +273,11 @@ function startDance(delay = 1.6) { startCelebration(world); celebration.start(de
 const loop = startLoop(renderer, (dt, t) => {
   const raw = controls.read();
 
-  if (mode !== 'play') {
-    if (renderer.xr.isPresenting && mode === 'title') vrTitle();
-    if (raw.start && renderer.xr.isPresenting) kickOff();
-    else if (raw.start && mode === 'over') { $('play').onclick(); }
-  }
+  if (mode === 'menu') { const act = menus.update(dt, raw.nav); if (act) onMenu(act); }
+  if (mode === 'ceremony' && ceremony.update(dt, t, raw, desk.keys) === 'done') endCeremony();
 
-  if (raw.vr) rig.rotation.y -= raw.turn * 2.4 * dt;
-  else { desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
+  if (raw.vr && mode === 'play') rig.rotation.y -= raw.turn * 2.4 * dt;
+  else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
   if (mode === 'play' && !hooks.paused) {
     if (raw.restart) { resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
@@ -239,7 +294,7 @@ const loop = startLoop(renderer, (dt, t) => {
     }
     const r = celebration.active ? null : tickMatch(match, dt, world.dead, !!world.shot && !world.shot.done);
     if (r === 'reset') { resetPlay(world); stadium.cheer(false); sfx('whistle', 0.5); }
-    if (r === 'over') { stadium.cheer(false); fullTime(); }
+    if (r === 'over') { mode = 'menu'; fullTime(); }
   }
 
   // put the rig under the player's head
@@ -284,9 +339,11 @@ function updateHud() {
     pass: passHold ? { target: world.byId[passHold.target], scale: ringScale(passHold.t), grade: gradePass(passHold.t) } : null,
     aim, charge: shotHold ? chargeOf(shotHold.t) : null, over: shotHold ? overcharge(shotHold.t) : 0,
   });
-  hud.scoreboard(match.goals, clockText(match.clock), match.points, flashT > 0 ? 'GOAL!' : '');
+  hud.scoreboard(match.goals, clockText(match.clock), match.points, flashT > 0 ? 'GOAL!' : '',
+    match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '');
   // browser HUD
   $('hClock').textContent = clockText(match.clock);
+  $('hScore').textContent = match.scenario ? `${game.team.id} ${match.us} - ${match.them} ${game.opp.id}` : `V ${game.opp.id}`;
   const pw = $('power');
   pw.hidden = !shotHold;
   if (shotHold) { $('powerFill').style.width = `${chargeOf(shotHold.t) * 100}%`; pw.classList.toggle('over', overcharge(shotHold.t) > 0); }
@@ -304,6 +361,6 @@ function placeOnHands() {
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, kickOff, loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

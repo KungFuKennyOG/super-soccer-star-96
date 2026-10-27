@@ -6,6 +6,22 @@ export function createMatch(duration = MATCH.duration) {
   return { clock: duration, points: 0, goals: 0, yourGoals: 0, shots: 0, phase: 'play', deadT: 0, over: false, best: null };
 }
 
+// A cup match: you start behind (scenario from rules/cup.js) and the clock is short. Your team's goals
+// count toward `us`; the opponent can score on the counter when you give the ball away.
+export function createScenarioMatch(scn) {
+  return { ...createMatch(scn.clock), us: scn.us, them: scn.them, scenario: scn };
+}
+
+// Chance the opponent scores on the break after you lose the ball, by their strength (1..5).
+export const counterChance = s => 0.06 + 0.035 * s;
+
+// Call on a turnover in a cup match. Returns true when they score from it.
+export function counterAttack(m, rnd = Math.random) {
+  if (!m.scenario || rnd() >= counterChance(m.scenario.oppStrength)) return false;
+  m.them++;
+  return true;
+}
+
 // A goal that hits the top corner.
 export const isTopBins = e => e.y > 1.55 && Math.abs(e.x) > GOAL.halfW - 1.4;
 
@@ -19,6 +35,7 @@ export function scoreEvent(m, e) {
     case 'goal': {
       m.goals++;
       if (e.by === 'you') m.yourGoals++;
+      if (m.scenario) m.us++;
       const bonus = [];
       let pts = 1000;
       if (isTopBins(e)) { pts += 750; bonus.push('TOP BINS +750'); }
@@ -27,7 +44,8 @@ export function scoreEvent(m, e) {
       if (e.chain > 1) { pts += e.chain * 100; bonus.push(`PASS CHAIN x${e.chain} +${e.chain * 100}`); }
       m.points += pts;
       const text = isHatTrick(m, e) ? 'HAT TRICK!' : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
-      return { text, sub: bonus.join('\n') || `+${pts}`, tone: 'good', big: true };
+      const sub = (m.scenario ? `${m.us} - ${m.them}\n` : '') + (bonus.join('\n') || `+${pts}`);
+      return { text, sub, tone: 'good', big: true };
     }
     case 'saved': return { text: 'SAVED', sub: 'keeper holds it', tone: 'bad' };
     case 'parried': return { text: 'PARRIED!', sub: 'loose ball', tone: 'info' };

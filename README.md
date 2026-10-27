@@ -2,7 +2,17 @@
 
 Arcade VR football for Meta Quest 3, in the style of late-90s / early-2000s 3D soccer games. Play it in the Quest browser at **https://kungfukennyog.github.io/super-soccer-star-96/**, or in any desktop browser with mouse and keyboard.
 
-You plus two teammates attack one goal against three defenders and a keeper. You have two minutes to score as much as you can.
+You plus two teammates attack one goal against three defenders and a keeper.
+
+## Modes
+
+- **Score Attack:** two minutes, score as much as you can, beat your high score.
+- **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
+- **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
+
+Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win; fall short and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
+
+Teams are picked on a turntable that shows a player in the kit. Kits are colors and patterns only; clubs go by city name.
 
 ## Controls
 
@@ -18,6 +28,7 @@ You plus two teammates attack one goal against three defenders and a keeper. You
 | Drag-back | B (shakes the defender pressing you) | C |
 | Hat-trick dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
 | Restart the attack | Y | R |
+| Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 
 ## Scoring
 
