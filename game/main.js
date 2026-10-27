@@ -383,6 +383,7 @@ function updateHud() {
     pass: passHold ? { target: world.byId[passHold.target], scale: ringScale(passHold.t), grade: gradePass(passHold.t) } : null,
     aim, charge: shotHold ? chargeOf(shotHold.t) : null, over: shotHold ? overcharge(shotHold.t) : 0,
   });
+  if (!renderer.xr.isPresenting && !hooks.vrHud) hud.power.visible = false;      // the browser shows its own bar
   hud.scoreboard(match.goals, clockText(match.clock), match.points, flashT > 0 ? 'GOAL!' : '',
     match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '');
   // browser HUD
@@ -393,18 +394,16 @@ function updateHud() {
   if (shotHold) { $('powerFill').style.width = `${chargeOf(shotHold.t) * 100}%`; pw.classList.toggle('over', overcharge(shotHold.t) > 0); }
 }
 
-// the power bar rides on the right controller, the radar on the left wrist
+// the radar rides on the left wrist
 function placeOnHands() {
   const a = renderer.xr.getController(0), b = renderer.xr.getController(1);
   const R = b.userData.hand === 'right' ? b : a, L = R === a ? b : a;
-  if (hud.power.parent !== R) R.add(hud.power);
-  hud.power.position.set(0, 0.03, -0.02);
   if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.06, 0.06); radar.mesh.rotation.set(-1.0, 0, 0); }
 }
 
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
+const hooks = { paused: false, vrHud: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

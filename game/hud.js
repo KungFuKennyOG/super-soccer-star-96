@@ -93,11 +93,27 @@ export function buildHud(scene, camera) {
   /* shot: a reticle on the goal mouth and a power bar */
   const reticle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), ps1({ map: reticleTex(), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
   reticle.renderOrder = 11; reticle.visible = false; scene.add(reticle);
+  // Shot power, where you're looking while you aim: a bar floating just below the middle of your view
+  // (headset; the browser has its own bar), and a ring round the reticle on the goal that fills up.
+  const hudMat = color => ps1({ color, lit: false, depthTest: false, depthWrite: false, fog: false });
   const power = new THREE.Group();
-  const pBack = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.16), ps1({ color: '#111', lit: false }));
-  const pFill = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.014, 0.16).translate(0, 0, -0.08), ps1({ color: '#f2c21a', lit: false }));
-  pFill.position.z = 0.08;
-  power.add(pBack, pFill); power.visible = false;
+  const bar = (w, h, color, z, order) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), hudMat(color)); m.position.z = z; m.renderOrder = order; power.add(m); return m; };
+  bar(0.29, 0.046, '#f2c21a', 0, 20);                            // gold frame
+  bar(0.28, 0.036, '#10122a', 0.001, 21);                        // dark well
+  const pFill = bar(0.27, 0.026, '#f2c21a', 0.002, 22);
+  pFill.geometry.translate(0.135, 0, 0); pFill.position.x = -0.135;
+  const lbl = canvasPlane(40, 8, 0.1, 0.02);
+  drawText(lbl.ctx, 'POWER', 5, 0, '#f2c21a'); lbl.t.needsUpdate = true;
+  lbl.m.material.depthTest = false; lbl.m.renderOrder = 23; lbl.m.position.set(-0.09, 0.036, 0.002); power.add(lbl.m);
+  power.position.set(0, -0.2, -0.7); power.rotation.x = 0.28;
+  power.visible = false;
+  camera.add(power);
+  const ringSegs = [];
+  for (let i = 0; i < 28; i++) {
+    const a0 = Math.PI / 2 - (i / 28) * Math.PI * 2;                 // clockwise from the top
+    const seg = new THREE.Mesh(new THREE.RingGeometry(0.78, 0.98, 2, 1, a0 - Math.PI * 2 / 28 * 0.85, Math.PI * 2 / 28 * 0.85), hudMat('#f2c21a'));
+    seg.renderOrder = 12; reticle.add(seg); ringSegs.push(seg);
+  }
 
   const headPos = new THREE.Vector3(), headDir = new THREE.Vector3(), tmp = new THREE.Vector3();
   let bnYaw = null;
@@ -137,8 +153,11 @@ export function buildHud(scene, camera) {
 
       power.visible = charge != null;
       if (charge != null) {
-        pFill.scale.z = Math.max(0.02, charge);
-        pFill.material.color.set(over > 0 ? (Math.floor(performance.now() / 80) % 2 ? '#ff2020' : '#ffffff') : charge >= 1 ? '#ff8020' : '#f2c21a');
+        const col = over > 0 ? (Math.floor(performance.now() / 80) % 2 ? '#ff2020' : '#ffffff') : charge >= 1 ? '#ff8020' : '#f2c21a';
+        pFill.scale.x = Math.max(0.02, charge);
+        pFill.material.color.set(col);
+        const lit = Math.round(charge * ringSegs.length);
+        ringSegs.forEach((sg, i) => { sg.visible = i < lit; sg.material.color.set(col); });
       }
     },
   };
