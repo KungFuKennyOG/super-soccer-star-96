@@ -24,12 +24,12 @@ export const REGIONS = {
 export const SIZE = 128;                                 // the sheet in base units (UVs are fractions of it)
 
 // Rows where things change, shared with body.js so the paint lines up with the geometry.
-export const TORSO_Y = { top: 1.62, bottom: 0.8 };    // world heights covered by the torso region
-export const LEG_Y = { top: 0.95, bottom: 0.085 };
-export const ARM_DY = { top: 0.07, bottom: -0.665 };
-export const SLEEVE_DY = -0.222;                       // where the sleeve ends, below the shoulder
-export const SHIRT_HEM = 0.89;                         // the untucked shirt's hem (world height)
-export const SHORTS_Y = 0.7;                           // where the shorts end (world height)
+export const TORSO_Y = { top: 1.64, bottom: 0.82 };   // world heights covered by the torso region
+export const LEG_Y = { top: 0.97, bottom: 0.08 };
+export const ARM_DY = { top: 0.04, bottom: -0.71 };
+export const SLEEVE_DY = -0.17;                        // where the sleeve ends, below the shoulder
+export const SHIRT_HEM = 0.995;                        // where the shirt tucks into the shorts (world height)
+export const SHORTS_Y = 0.75;                          // where the shorts end (world height)
 export const LIMB_A0 = Math.PI / 6;                    // where u = 0 sits round the 6-sided legs and arms
 
 const cache = new Map();
@@ -103,7 +103,7 @@ function shirtColor(k, x, y, top) {
 
 function torso(k, num, skinHex) {
   const W = 64, H = 64, sk = rgb(skinHex), trim = rgb(k.trim), trim2 = rgb(k.trim2), shorts = rgb(k.shorts);
-  const neckEnd = torsoRow(1.545), band = neckEnd + 1.6, shortsTop = torsoRow(SHIRT_HEM - 0.003), chestY = torsoRow(1.32);
+  const neckEnd = torsoRow(1.555), band = neckEnd + 1.6, shortsTop = torsoRow(SHIRT_HEM - 0.003), chestY = torsoRow(1.33);
   const c = paintS(W, H, (x, y, px, py) => {
     const th = x / W * Math.PI * 2, front = Math.cos(th), side = Math.abs(Math.sin(th));
     if (y < neckEnd) return mul(sk, (0.78 + 0.16 * Math.abs(front) + 0.06 * front) * (y > neckEnd - 2 ? 0.8 : 1));
@@ -175,7 +175,8 @@ function head(skinHex, hairHex, style, stubble) {
     if (ax < 9) {
       const browY = 12.1 + 0.18 * Math.max(0, ax - 3.4);                                      // brows dip a little at the ends
       if (Math.abs(y - browY) < 0.65 && ex < 2.3) return brow;
-      if (y > browY + 0.6 && y < 13.8 && ex < 2.3) light *= 0.74;                             // brow shadow
+      if (y > browY + 0.6 && y < 13.8 && ex < 2.4) light *= 0.64;                             // brow shadow
+      if (y > 12.6 && y < 16.2 && ex < 2.8) light *= 0.9;                                     // eye sockets
       if (y > 13.6 && y < 15.3 && ex < 2 - 1.2 * (y - 14.45) ** 2) {                         // almond eyes
         if (y < 14.05) return mul(sk, 0.4);                                                   // upper lid
         if (ex < 0.8) return ex < 0.3 && y < 14.7 ? [236, 236, 230] : iris;                    // iris and a glint
@@ -185,14 +186,16 @@ function head(skinHex, hairHex, style, stubble) {
       if (y > 14 && y < 19 && dx < -0.5 && dx > -1.8) light *= 0.78;                           // nose shadow
       if (y > 14.5 && y < 18.4 && dx > -0.4 && dx < 0.8) light *= 1.08;                        // nose ridge
       if (y > 18.5 && y < 19.3 && ax > 0.5 && ax < 1.7) light *= 0.58;                          // nostrils
-      if (y > 16 && y < 20.5 && Math.abs(ax - 6.2) < 1.4) light *= 0.93;                       // under the cheekbones
+      if (y > 16 && y < 21 && Math.abs(ax - 6.4) < 1.6) light *= 0.84;                         // under the cheekbones
+      if (y > 15 && y < 17 && Math.abs(ax - 5.4) < 1.6) light *= 1.06;                         // cheekbones
       if (y > 19.4 && y < 20.4 && ax < 0.6) light *= 0.9;                                      // philtrum
       if (y > 20.4 && y < 21.1 && ax < 2.9 - (ax > 2.5 ? 0.3 : 0)) return mul(lips, 0.6);     // mouth
       if (y > 21.1 && y < 22.2 && ax < 2.3) col = y < 21.5 ? mul(lips, 1.08) : lips;           // lower lip
       if (y > 22.5 && y < 23.4 && ax < 1.6) light *= 0.86;                                     // under the lip
       if (y > 25.5 && ax < 2.6) light *= 1.04;                                                 // chin
     }
-    if (y > 26.5) light *= 0.84;                                                               // under the jaw
+    if (y > 26) light *= 0.74;                                                                 // under the jaw
+    if (ax > 7 && ax < 12 && y > 9 && y < 13) light *= 0.88;                                    // temples
     if (stubble && y > 19.6 && y < 27.5 && ax < 11.5 && !(y < 22.3 && ax < 2.9) && hash(px, py, 3) < 0.55) light *= 0.8;
     return mul(col, light);
   });
@@ -200,7 +203,7 @@ function head(skinHex, hairHex, style, stubble) {
 
 function leg(k, skinHex) {
   const W = 32, H = 64, sk = rgb(skinHex), shorts = rgb(k.shorts), socks = rgb(k.socks), band = rgb(k.band), trim = rgb(k.trim);
-  const hem = legRow(SHORTS_Y - 0.003), sockTop = legRow(0.441), turn = legRow(0.405), knee = legRow(0.48);
+  const hem = legRow(SHORTS_Y - 0.003), sockTop = legRow(0.457), turn = legRow(0.424), knee = legRow(0.5);
   return paintS(W, H, (x, y, px, py) => {
     const th = x / W * Math.PI * 2 + LIMB_A0, front = Math.cos(th), out = Math.sin(th);
     if (y < hem) {
@@ -233,7 +236,7 @@ function leg(k, skinHex) {
 function arm(k, skinHex, gloves) {
   const W = 32, H = 64, sk = rgb(skinHex), trim = rgb(k.trim), trim2 = rgb(k.trim2);
   const sleeve = rgb(k.sleeve || (k.pattern === 'sleeves' ? k.alt : k.shirt));
-  const hem = armRow(SLEEVE_DY), wrist = armRow(-0.52), elbow = armRow(-0.28);
+  const hem = armRow(SLEEVE_DY), wrist = armRow(-0.548), elbow = armRow(-0.31);
   return paintS(W, H, (x, y, px, py) => {
     const th = x / W * Math.PI * 2 + LIMB_A0, front = Math.cos(th), out = Math.sin(th);
     if (y < hem - 2.2) {

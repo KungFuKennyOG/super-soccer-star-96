@@ -41,10 +41,20 @@ const FRAG_MAP = `#ifdef USE_MAP
   diffuseColor *= sampledDiffuseColor;
 #endif`;
 const FRAG_DITHER = `
+  #ifdef PS1_POP
+  {
+    // the punchy lit-side / shadow-side look of the FIFA 98 and Virtua Striker players
+    vec3 c = gl_FragColor.rgb;
+    float l = dot(c, vec3(0.3, 0.59, 0.11));
+    c = mix(vec3(l), c, 1.18) * mix(0.8, 1.22, smoothstep(0.08, 0.75, l));
+    gl_FragColor.rgb = c;
+  }
+  #endif
   gl_FragColor.rgb = floor(clamp(gl_FragColor.rgb, 0.0, 1.0) * uLevels + 0.5 + (bayer4(gl_FragCoord.xy) - 0.5) * uDither) / uLevels;
 `;
 
-function patch(mat) {
+function patch(mat, pop = false) {
+  if (pop) mat.defines = { ...(mat.defines || {}), PS1_POP: '' };
   mat.onBeforeCompile = sh => {
     sh.uniforms.uSnap = PS1.snap; sh.uniforms.uLevels = PS1.levels; sh.uniforms.uDither = PS1.dither; sh.uniforms.uAffine = PS1.affine;
     sh.vertexShader = VERT_PARS + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT_SNAP);
@@ -52,16 +62,16 @@ function patch(mat) {
       .replace('#include <map_fragment>', FRAG_MAP)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n' + FRAG_DITHER);
   };
-  mat.customProgramCacheKey = () => 'ps1';
+  mat.customProgramCacheKey = () => (pop ? 'ps1pop' : 'ps1');
   return mat;
 }
 
-// opts: { color, map, lit (default true), vertexColors, transparent, opacity, alphaTest, side, emissive, fog }
+// opts: { color, map, lit (default true), pop (extra contrast, for players), vertexColors, transparent, opacity, alphaTest, side, emissive, fog }
 export function ps1(opts = {}) {
-  const { lit = true, ...o } = opts;
+  const { lit = true, pop = false, ...o } = opts;
   if (o.map) o.map = pixelTex(o.map);
   const mat = lit ? new THREE.MeshLambertMaterial(o) : new THREE.MeshBasicMaterial(o);
-  return patch(mat);
+  return patch(mat, pop);
 }
 
 // Hard pixels: no filtering, no mipmaps. Accepts a canvas or a texture.
