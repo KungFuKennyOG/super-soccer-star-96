@@ -2,7 +2,7 @@
 // headset, grab it with your grips (one hand or both) and raise it above your head. In the browser,
 // press E to pick it up and hold Up to raise it. Lifting it sets off confetti, fireworks and the crowd.
 import * as THREE from 'three';
-import { controllers, BTN } from '../engine/input.js';
+import { BTN } from '../engine/input.js';
 import { ps1, pixelTex, canvasTex } from './ps1.js';
 import { drawText, textWidth } from './tex.js';
 import { buildPlayer, animate } from './actors.js';
@@ -31,6 +31,10 @@ function plate(text, color, bg) {
     drawText(c, text, Math.round((w - textWidth(text)) / 2), 3, color);
   })), flatShading: true });
 }
+
+// Where your hands go on each cup (trophy-local): the big ears of the club cup, or round the column
+// under the globe of the world cup.
+const GRIPS = { club: [[0.25, 0.39, 0], [-0.25, 0.39, 0]], world: [[0.065, 0.24, 0], [-0.065, 0.24, 0]] };
 
 function buildTrophy(kind) {
   const g = new THREE.Group();
@@ -65,7 +69,8 @@ function buildTrophy(kind) {
   return g;
 }
 
-export function createCeremony(scene, camera) {
+// hands: from game/hands.js, so the cup is held by your real grips.
+export function createCeremony(scene, camera, hands) {
   const root = new THREE.Group(); root.visible = false; scene.add(root);
   const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.0, 12), ps1({ color: '#20264a' }));
   plinth.position.set(0, 0.5, 0.9); root.add(plinth);
@@ -96,7 +101,7 @@ export function createCeremony(scene, camera) {
   let trophy = null, squad = [], state = null, lifted = false, liftT = 0, palette = [], nextBurst = 0;
   const head = new THREE.Vector3(), dir = new THREE.Vector3(), hand = new THREE.Vector3(), tw = new THREE.Vector3();
   const rest = new THREE.Vector3(0, 1.02, 0.9);
-  let held = { left: false, right: false }, deskHold = false, deskY = 1.25, deskHands = [];
+  let held = { left: null, right: null }, deskHold = false, deskY = 1.25, deskHands = [], anchors = [];
 
   function burst(at) {
     const c = palette[Math.floor(Math.random() * palette.length)];
@@ -118,7 +123,8 @@ export function createCeremony(scene, camera) {
       // in the browser your hands appear on the cup once you pick it up
       deskHands = [buildHand('left', 'fist', team.kit), buildHand('right', 'fist', team.kit)];
       // left hand on the viewer's left (+x here), fingers wrapping in toward the stem
-      deskHands.forEach((h, i) => { const s = i ? -1 : 1; h.position.set(s * 0.13, kind === 'world' ? 0.2 : 0.16, -0.02); h.rotation.set(0, s * Math.PI / 2, 0); h.visible = false; trophy.add(h); });
+      anchors = GRIPS[kind].map(a => new THREE.Vector3(...a));
+      deskHands.forEach((h, i) => { const s = i ? -1 : 1; h.position.copy(anchors[i]).add(new THREE.Vector3(s * 0.035, 0, 0)); h.rotation.set(0, s * Math.PI / 2, 0); h.visible = false; trophy.add(h); });
       for (const m of squad) root.remove(m.root);
       squad = [];
       for (let i = 0; i < 6; i++) {
@@ -131,7 +137,7 @@ export function createCeremony(scene, camera) {
       palette = [team.kit.shirt, team.kit.alt, team.kit.shorts, '#f2c21a', '#ffffff'];
       camera.getWorldPosition(head); camera.getWorldDirection(dir);
       root.position.set(head.x, 0, head.z); root.rotation.y = Math.atan2(dir.x, dir.z);
-      root.visible = true; state = 'waiting'; lifted = false; held = { left: false, right: false }; deskHold = false; deskY = 1.25;
+      root.visible = true; state = 'waiting'; lifted = false; held = { left: null, right: null }; trophy.quaternion.identity(); deskHold = false; deskY = 1.25;
       say('CHAMPIONS!', 'GRAB THE CUP AND LIFT IT ABOVE YOUR HEAD');
     },
     stop() { state = null; root.visible = conf.visible = sparks.visible = false; },
@@ -143,22 +149,30 @@ export function createCeremony(scene, camera) {
       const local = v => root.worldToLocal(v);
 
       if (raw.vr) {
-        for (const c of controllers) {
-          const gp = c.userData.gamepad, h = c.userData.hand;
-          const grip = !!(gp && gp.buttons[BTN.GRIP] && gp.buttons[BTN.GRIP].pressed);
-          c.getWorldPosition(hand);
-          trophy.getWorldPosition(tw); tw.y += 0.25;
-          if (grip && !held[h] && hand.distanceTo(tw) < 0.35) held[h] = true;
-          if (!grip) held[h] = false;
+        // grab: squeeze a grip with your hand near one of the cup's hand-holds
+        const grips = hands.grips(), aw = new THREE.Vector3();
+        for (const g of grips) {
+          const b = g.gamepad.buttons[BTN.GRIP], squeeze = !!(b && b.value > 0.45);
+          if (!squeeze) { held[g.side] = null; continue; }
+          if (held[g.side] !== null) continue;
+          g.obj.getWorldPosition(hand);
+          anchors.forEach((a, i) => { aw.copy(a); trophy.localToWorld(aw); if (hand.distanceTo(aw) < 0.25 && held[g.side] === null) held[g.side] = i; });
         }
-        const hands = controllers.filter(c => held[c.userData.hand]);
-        if (hands.length) {
-          const p = new THREE.Vector3();
-          for (const c of hands) { c.getWorldPosition(hand); p.add(hand); }
-          p.multiplyScalar(1 / hands.length);
-          local(p); p.y -= hands.length === 2 ? 0.2 : 0.3;
-          trophy.position.lerp(p, Math.min(1, dt * 20));
-        } else trophy.position.lerp(rest, Math.min(1, dt * 6));
+        const holding = grips.filter(g => held[g.side] !== null).map(g => ({ p: local(g.obj.getWorldPosition(new THREE.Vector3())), a: anchors[held[g.side]] }));
+        if (holding.length === 2 && holding[0].a !== holding[1].a) {
+          // two hands: the cup turns with the line between your hands (tilt it, turn it)
+          const [h0, h1] = holding, want = h1.p.clone().sub(h0.p).normalize(), have = h1.a.clone().sub(h0.a).normalize();
+          const q = new THREE.Quaternion().setFromUnitVectors(have, want);
+          trophy.quaternion.slerp(q, Math.min(1, dt * 15));
+          const mid = h0.p.clone().add(h1.p).multiplyScalar(0.5), amid = h0.a.clone().add(h1.a).multiplyScalar(0.5).applyQuaternion(trophy.quaternion);
+          trophy.position.lerp(mid.sub(amid), Math.min(1, dt * 25));
+        } else if (holding.length) {
+          const h0 = holding[0];
+          trophy.position.lerp(h0.p.clone().sub(h0.a.clone().applyQuaternion(trophy.quaternion)), Math.min(1, dt * 25));
+        } else {
+          trophy.position.lerp(rest, Math.min(1, dt * 6));
+          trophy.quaternion.slerp(new THREE.Quaternion(), Math.min(1, dt * 6));
+        }
       } else {
         if (keys.KeyE && !deskHold) { deskHold = true; deskHands.forEach(h => { h.visible = true; }); }
         if (deskHold) {
@@ -168,7 +182,7 @@ export function createCeremony(scene, camera) {
       }
 
       trophy.getWorldPosition(tw);
-      if (!lifted && tw.y > head.y + 0.05 && (raw.vr ? (held.left || held.right) : deskHold)) {
+      if (!lifted && tw.y > head.y + 0.05 && (raw.vr ? (held.left !== null || held.right !== null) : deskHold)) {
         lifted = true; liftT = 0; state = 'lifted';
         sfx('roar'); sfx('net'); playMusic('champions');
         say('CHAMPIONS!', '', '#ffffff');

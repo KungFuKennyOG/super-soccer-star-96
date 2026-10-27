@@ -48,9 +48,9 @@ const hud = buildHud(scene, camera);
 const radar = buildRadar();
 const celebration = createCelebration(scene, camera);
 const menus = createMenus(scene, camera);
-const ceremony = createCeremony(scene, camera);
 const squads = createSquads(scene);
 const hands = createHands(renderer, rig);
+const ceremony = createCeremony(scene, camera, hands);
 $('radar').appendChild(radar.canvas);
 
 // what's being played: the mode, your team, the opponent, and the cup run if there is one

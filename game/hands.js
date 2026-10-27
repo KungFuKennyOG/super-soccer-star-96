@@ -78,6 +78,8 @@ export function createHands(renderer, rig) {
     slot.grip.add(slot.open, slot.fist);
   }
   return {
+    // grip-space objects with their side, for things you hold (the trophy)
+    grips: () => slots.filter(s => s.side && s.gamepad).map(s => ({ side: s.side, obj: s.grip, gamepad: s.gamepad })),
     setKit(k) { kit = k; slots.forEach(build); },
     // squeeze: force a fist on both hands (e.g. while holding the trophy)
     update(squeeze = false) {
