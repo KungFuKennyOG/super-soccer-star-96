@@ -20,6 +20,8 @@ import { createSquads } from './squad.js';
 import { createMenus } from './menus.js';
 import { createCeremony } from './trophy.js';
 import { createHands } from './hands.js';
+import { groundFor, GROUNDS } from './grounds.js';
+import { CLUBS } from '../rules/teams.js';
 import { buildHud, buildRadar } from './hud.js';
 import { createControls } from './controls.js';
 import { startAudio, sfx } from './audio.js';
@@ -129,14 +131,31 @@ function startMatch() {
   match = game.scenario ? createScenarioMatch(game.scenario) : createMatch();
   models = squads.dress(world, game.team, game.opp);
   hands.setKit(game.team.kit);
+  const venue = pickVenue();
+  hud.placeScoreboard(stadium.ground.board.y, stadium.ground.board.z);
   lastHead = null; shotHold = passHold = null; armed = false;
   menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
   mode = 'play'; hudEl.hidden = renderer.xr.isPresenting;
   if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
   sfx('whistle', 1.4);
   const s = game.scenario;
-  if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}`, tone: 'info', big: true });
-  else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\nTWO MINUTES. SCORE ALL YOU CAN.`, tone: 'info', big: true });
+  if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
+  else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\nTWO MINUTES. SCORE ALL YOU CAN.\n${venue}`, tone: 'info', big: true });
+}
+
+// Where this match is played. Champions Cup ties alternate: home in the round of 16, away in the
+// quarters, home in the semis, away in the final. Clubs play Score Attack at home; nations at the
+// national stadium. Returns a line for the kick-off banner.
+const fans = kit => [kit.shirt, kit.alt, kit.shorts, kit.trim, '#f2f1ea'];
+function pickVenue() {
+  const team = game.team, opp = game.opp, isClub = CLUBS.includes(team);
+  let host = null;
+  if (game.cup && game.cup.kind === 'club') host = ['r16', 'sf'].includes(game.fixture.stage) ? team : opp;
+  else if (!game.cup && isClub) host = team;
+  const recipe = host ? groundFor(host.id) : GROUNDS.default;
+  const share = host === team ? 0.78 : host === opp ? 0.22 : 0.55;
+  stadium.setGround(recipe, fans(team.kit), fans(opp.kit), share);
+  return host === team ? `HOME - ${recipe.name}` : host === opp ? `AWAY - AT ${recipe.name}` : recipe.name;
 }
 
 function fullTime() {
@@ -263,7 +282,7 @@ function feedback(ev) {
     if (e.type === 'out' || e.type === 'tackled' || e.type === 'intercepted') { sfx('groan'); sfx('whistle', 0.6); }
     const b = scoreEvent(match, e);
     if (b && (e.type === 'tackled' || e.type === 'intercepted') && counterAttack(match)) {
-      b.text = 'THEY SCORE!'; b.sub = `ON THE COUNTER  ${match.us}-${match.them}`; sfx('roar');
+      b.text = 'THEY SCORE!'; b.sub = `ON THE COUNTER  ${match.us}-${match.them}`; sfx('roar'); stadium.theirs();
     }
     if (b) hud.banner(b);
     if (isHatTrick(match, e)) startDance();
@@ -368,6 +387,6 @@ function placeOnHands() {
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

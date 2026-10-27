@@ -53,7 +53,9 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
 - Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
 - Your own body in first person shows only boots and lower socks, plus low-poly hands on the controller grips (`game/hands.js`, fist while squeezing grip, sweatband in your kit). Grip-space orientation is a best guess (fingers -Z, palm toward the other hand); flip in hands.js if Kenny reports them wrong.
-- Trophies are deliberately PS1: few sides, flat shading, dithered metal textures, engraved plates.
+- Trophies are deliberately PS1: few sides, flat shading, dithered metal textures, engraved plates. While you grip a hand-hold, a posed hand on the cup replaces your controller hand.
+- Every club has its own ground (`game/grounds.js` recipes: stand tiers, corners, roof, lights, time of day, mowing, seat colors, extras like Liverpool's single big end, Dortmund's wall, Turin's track, Milan's towers; the two Milan clubs share a ground). Champions Cup alternates: home in R16 and SF, away in QF and the final. Nations and the World Cup use the national stadium.
+- The crowd is ~10k instanced fan dots in both teams' colors; they bob all game, yours jump when your team scores, theirs when they score on the counter (vertex shader, one draw call).
 - Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).
 - Players are code-built skinned meshes for now. The planned upgrade is a real rigged model (Mixamo or a CC0 pack) with real run, kick and dive animations, with kits repainted on its UVs.
 

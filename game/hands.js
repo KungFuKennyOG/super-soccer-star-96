@@ -81,12 +81,14 @@ export function createHands(renderer, rig) {
     // grip-space objects with their side, for things you hold (the trophy)
     grips: () => slots.filter(s => s.side && s.gamepad).map(s => ({ side: s.side, obj: s.grip, gamepad: s.gamepad })),
     setKit(k) { kit = k; slots.forEach(build); },
+    // hide one hand (e.g. while a posed copy of it holds the trophy)
+    hide(side, on) { for (const s of slots) if (s.side === side) s.hidden = on; },
     // squeeze: force a fist on both hands (e.g. while holding the trophy)
     update(squeeze = false) {
       for (const s of slots) {
         if (!s.open || !s.gamepad) continue;
         const g = s.gamepad.buttons[1], fist = squeeze || (g && g.value > 0.45);
-        s.open.visible = !fist; s.fist.visible = !!fist;
+        s.open.visible = !fist && !s.hidden; s.fist.visible = !!fist && !s.hidden;
       }
     },
   };

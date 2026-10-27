@@ -120,9 +120,9 @@ export function createCeremony(scene, camera, hands) {
     start(kind, team) {
       if (trophy) root.remove(trophy);
       trophy = buildTrophy(kind); trophy.position.copy(rest); root.add(trophy);
-      // in the browser your hands appear on the cup once you pick it up
+      // posed hands that hold the cup properly: they replace your controller hands while you grip it
+      // (and are your hands in the browser). Left hand on your left (+x here), fingers wrapping in.
       deskHands = [buildHand('left', 'fist', team.kit), buildHand('right', 'fist', team.kit)];
-      // left hand on the viewer's left (+x here), fingers wrapping in toward the stem
       anchors = GRIPS[kind].map(a => new THREE.Vector3(...a));
       deskHands.forEach((h, i) => { const s = i ? -1 : 1; h.position.copy(anchors[i]).add(new THREE.Vector3(s * 0.035, 0, 0)); h.rotation.set(0, s * Math.PI / 2, 0); h.visible = false; trophy.add(h); });
       for (const m of squad) root.remove(m.root);
@@ -140,7 +140,7 @@ export function createCeremony(scene, camera, hands) {
       root.visible = true; state = 'waiting'; lifted = false; held = { left: null, right: null }; trophy.quaternion.identity(); deskHold = false; deskY = 1.25;
       say('CHAMPIONS!', 'GRAB THE CUP AND LIFT IT ABOVE YOUR HEAD');
     },
-    stop() { state = null; root.visible = conf.visible = sparks.visible = false; },
+    stop() { state = null; root.visible = conf.visible = sparks.visible = false; hands.hide('left', false); hands.hide('right', false); },
     // raw: controls.read(); keys: desktop keys. Returns 'done' once you've lifted it and pressed on.
     update(dt, t, raw, keys) {
       if (!state) return null;
@@ -157,6 +157,12 @@ export function createCeremony(scene, camera, hands) {
           if (held[g.side] !== null) continue;
           g.obj.getWorldPosition(hand);
           anchors.forEach((a, i) => { aw.copy(a); trophy.localToWorld(aw); if (hand.distanceTo(aw) < 0.25 && held[g.side] === null) held[g.side] = i; });
+        }
+        // a posed hand appears on the hand-hold you grabbed, and your controller hand hides
+        for (const side of ['left', 'right']) {
+          const on = held[side] !== null, h = deskHands[side === 'left' ? 0 : 1];
+          if (on) { const a = anchors[held[side]], sx = Math.sign(a.x) || (side === 'left' ? 1 : -1); h.position.copy(a).add(new THREE.Vector3(sx * 0.035, 0, 0)); h.rotation.set(0, sx * Math.PI / 2, 0); }
+          h.visible = on; hands.hide(side, on);
         }
         const holding = grips.filter(g => held[g.side] !== null).map(g => ({ p: local(g.obj.getWorldPosition(new THREE.Vector3())), a: anchors[held[g.side]] }));
         if (holding.length === 2 && holding[0].a !== holding[1].a) {

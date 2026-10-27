@@ -22,9 +22,15 @@ export function buildHud(scene, camera) {
   scene.add(sb.m);
   const frame = new THREE.Mesh(new THREE.BoxGeometry(19, 7.6, 0.6), ps1({ color: '#22222a' }));
   frame.position.set(0, 29, GOAL.z - 22.35); scene.add(frame);
-  for (const s of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.6, 14, 0.6), ps1({ color: '#22222a' }));
-    leg.position.set(s * 7, 19, GOAL.z - 22.4); scene.add(leg);
+  // hung from two cables, high enough to clear any stand's roof (placeScoreboard)
+  const cables = [-1, 1].map(s => {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.12, 40, 0.12), ps1({ color: '#22222a' }));
+    c.position.set(s * 7, 29 + 3.8 + 20, GOAL.z - 22.4); scene.add(c); return c;
+  });
+  function placeScoreboard(y, z) {
+    sb.m.position.y = frame.position.y = y;
+    sb.m.position.z = z; frame.position.z = z - 0.35;
+    for (const c of cables) { c.position.y = y + 3.8 + 20; c.position.z = z - 0.4; }
   }
   let sbKey = '';
   // score: 'MAD 1-2 BAR' in a cup match (shown instead of the goal count), or ''
@@ -97,7 +103,7 @@ export function buildHud(scene, camera) {
   let bnYaw = null;
 
   return {
-    scoreboard, banner, power,
+    scoreboard, banner, power, placeScoreboard,
     // per frame. pass: { target: {x,z}, scale (live ring), grade window color } or null.
     update(dt, { pass, aim, charge, over, mate, lob }) {
       camera.getWorldPosition(headPos); camera.getWorldDirection(headDir);

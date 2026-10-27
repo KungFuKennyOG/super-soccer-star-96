@@ -1,32 +1,86 @@
-// The ground: striped pitch, painted lines, the goal with a net that bulges, stands full of
-// pixel fans, ad boards, floodlights and a night sky. Returns { update(dt), netHit(x, y), cheer(on) }.
+// The ground: striped pitch, painted lines, the goal with a net that bulges, ad boards and the sky.
+// The stands, roofs, lights and crowd come from a recipe (grounds.js) and change with setGround().
 import * as THREE from 'three';
 import { GOAL, PITCH } from '../rules/tuning.js';
 import { ps1, pixelTex } from './ps1.js';
-import { grassTex, crowdTex, adTex, netTex, AD_WORDS } from './tex.js';
+import { grassTex, adTex, netTex, AD_WORDS } from './tex.js';
+import { buildGround, TIMES, GROUNDS } from './grounds.js';
+import { canvasTex } from './ps1.js';
 
 const LINE = 0.12;
 
 export function buildStadium(scene) {
   scene.background = new THREE.Color('#070b22');
   scene.fog = new THREE.Fog('#0d1433', 50, 140);
-
-  scene.add(new THREE.HemisphereLight('#c8d8ff', '#2a3a20', 0.6));
+  const hemi = new THREE.HemisphereLight('#c8d8ff', '#2a3a20', 0.6); scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff0d8', 1.05);
   sun.position.set(-20, 40, 10); scene.add(sun);
 
-  scene.add(sky());
-  scene.add(pitch());
+  const skyDome = sky(); scene.add(skyDome);
+  const grass = pitch(); scene.add(grass);
   scene.add(lines());
   const goal = buildGoal(); scene.add(goal.group);
-  const crowd = stands(scene);
   boards(scene);
-  floodlights(scene);
-  return {
+
+  let ground = null, jumpOurs = 0, jumpTheirs = 0, cheering = false;
+  const api = {
     netHit: goal.hit,
-    cheer: on => { crowd.cheer = on; },
-    update(dt, t) { goal.update(dt); crowd.update(t); },
+    // your fans jump while on; their fans jump for a few seconds on theirs()
+    cheer: on => { cheering = on; },
+    theirs: () => { jumpTheirs = 1; },
+    get ground() { return ground; },
+    // recipe from grounds.js; ours/theirs: fan colors; oursShare: how much of the crowd is yours
+    setGround(recipe = GROUNDS.default, ours = ['#f2f1ea'], theirs = ['#3a3a4a'], oursShare = 0.75) {
+      if (ground) { scene.remove(ground.group); ground.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+      ground = buildGround(recipe, ours, theirs, oursShare);
+      scene.add(ground.group);
+      const T = TIMES[recipe.time] || TIMES.night;
+      scene.background.set(T.bg); scene.fog.color.set(T.fog[0]); scene.fog.near = T.fog[1]; scene.fog.far = T.fog[2];
+      hemi.color.set(T.hemi[0]); hemi.groundColor.set(T.hemi[1]); hemi.intensity = T.hemi[2];
+      sun.color.set(T.sun[0]); sun.intensity = T.sun[1];
+      ground.lamps.color.set(T.lamps ? '#fffbe0' : '#8a8a90');
+      paintSky(skyDome, T.sky[0], T.sky[1]);
+      mow(grass, recipe.mow);
+      return ground;
+    },
+    update(dt, t) {
+      goal.update(dt);
+      if (!ground) return;
+      jumpOurs += ((cheering ? 1 : 0) - jumpOurs) * Math.min(1, dt * 3);
+      jumpTheirs = Math.max(0, jumpTheirs - dt * 0.3);
+      ground.uniforms.uTime.value = t;
+      ground.uniforms.uJumpOurs.value = jumpOurs;
+      ground.uniforms.uJumpTheirs.value = jumpTheirs;
+    },
   };
+  api.setGround();
+  return api;
+}
+
+function paintSky(mesh, horizon, top) {
+  const g = mesh.geometry, p = g.attributes.position, c = g.attributes.color, a = new THREE.Color(horizon), b = new THREE.Color(top), x = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const k = THREE.MathUtils.clamp(p.getY(i) / 180, 0, 1);
+    x.copy(a).lerp(b, Math.pow(k, 0.6)); c.setXYZ(i, x.r, x.g, x.b);
+  }
+  c.needsUpdate = true;
+}
+
+// Mowing patterns: 'stripes' (6 m bands), 'wide' (12 m bands) or 'checks'.
+let checksTex = null;
+function mow(mesh, kind) {
+  const W = 60, D = 56;
+  if (kind === 'checks') {
+    if (!checksTex) checksTex = pixelTex(canvasTex(64, 64, (c) => {
+      c.fillStyle = '#3d8a2a'; c.fillRect(0, 0, 64, 64);
+      c.fillStyle = '#2c6c1f'; c.fillRect(0, 0, 32, 32); c.fillRect(32, 32, 32, 32);
+    }), [W / 12, D / 12]);
+    mesh.material.map = checksTex;
+  } else {
+    mesh.material.map = mesh.userData.stripes;
+    mesh.userData.stripes.repeat.set(W / 7, D / (kind === 'wide' ? 24 : 12));
+  }
+  mesh.material.needsUpdate = true;
 }
 
 function sky() {
@@ -50,7 +104,9 @@ function pitch() {
   pixelTex(t, [W / 7, D / 12]);
   // bands start on the goal line
   t.offset.set(0, 0.5);
-  return new THREE.Mesh(g, ps1({ map: t }));
+  const m = new THREE.Mesh(g, ps1({ map: t }));
+  m.userData.stripes = m.material.map;
+  return m;
 }
 
 // All the white paint as thin quads in one mesh.
@@ -128,42 +184,6 @@ function buildGoal() {
   };
 }
 
-// Stands on all four sides. The goal end is tallest. Crowd swaps between two frames when cheering.
-function stands(scene) {
-  const frames = [crowdTex(0), crowdTex(1)];
-  const meshes = [];
-  const concrete = ps1({ color: '#5a5a66' }), roof = ps1({ color: '#2a2a34' });
-  const W = PITCH.halfW;
-
-  // one sloped bank: a box, rotated, with crowd on its face. at: centre of the front-bottom edge.
-  const bank = (len, depth, rise, x, z, yaw) => {
-    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; scene.add(g);
-    const slope = Math.hypot(depth, rise), ang = Math.atan2(rise, depth);
-    const geo = new THREE.PlaneGeometry(len, slope, 8, 4);
-    const crowdM = frames.map(f => ps1({ map: pixelTex(f.clone(), [len / 7, slope / 7]), lit: false, color: '#c4c4c4' }));
-    const face = new THREE.Mesh(geo, crowdM[0]);
-    face.rotation.x = -(Math.PI / 2 - ang); face.position.set(0, 1.2 + rise / 2, -depth / 2);
-    g.add(face); meshes.push({ face, crowdM });
-    const front = new THREE.Mesh(new THREE.BoxGeometry(len, 1.2, 0.3), concrete); front.position.set(0, 0.6, 0); g.add(front);
-    const backW = new THREE.Mesh(new THREE.BoxGeometry(len, rise + 4, 0.6), concrete); backW.position.set(0, (rise + 4) / 2, -depth - 0.3); g.add(backW);
-    const r = new THREE.Mesh(new THREE.BoxGeometry(len, 0.4, depth * 0.7), roof); r.position.set(0, rise + 4.5, -depth * 0.7); g.add(r);
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(len, 0.15, 0.15), ps1({ color: '#ffe9a0', lit: false }));
-    edge.position.set(0, rise + 4.3, -depth * 0.35); g.add(edge);
-  };
-  bank(70, 16, 13, 0, GOAL.z - 5.5, 0);            // behind the goal
-  bank(66, 14, 10, -(W + 4.5), GOAL.z + 30, Math.PI / 2);
-  bank(66, 14, 10, W + 4.5, GOAL.z + 30, -Math.PI / 2);
-  bank(70, 14, 9, 0, 7, Math.PI);                  // behind you
-
-  return {
-    cheer: false,
-    update(t) {
-      const f = this.cheer ? Math.floor(t * 9) % 2 : 0;
-      for (const m of meshes) m.face.material = m.crowdM[f];
-    },
-  };
-}
-
 function boards(scene) {
   const W = PITCH.halfW + 1.6, Z = GOAL.z - 3.2, L = 6;
   let i = 0;
@@ -173,17 +193,4 @@ function boards(scene) {
   };
   for (let x = -W + L / 2; x < W; x += L) board(x, Z, 0);
   for (let z = Z + L / 2; z < 4; z += L) { board(-W, z, Math.PI / 2); board(W, z, -Math.PI / 2); }
-}
-
-function floodlights(scene) {
-  const pole = ps1({ color: '#3a3a44' }), lamp = ps1({ color: '#fffbe0', lit: false });
-  for (const [x, z] of [[-34, GOAL.z - 14], [34, GOAL.z - 14], [-34, 12], [34, 12]]) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, 34, 0.8), pole); p.position.set(x, 17, z); scene.add(p);
-    const head = new THREE.Group(); head.position.set(x, 35, z); head.lookAt(0, 0, GOAL.z + 16); scene.add(head);
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 0.5), pole); head.add(frame);
-    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
-      const l = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), lamp);
-      l.position.set(-2.1 + c * 1.4, -0.7 + r * 1.4, 0.26); head.add(l);
-    }
-  }
 }
