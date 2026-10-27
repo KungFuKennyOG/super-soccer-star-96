@@ -33,3 +33,15 @@ test('clock runs only in play; reset after a dead ball; over at zero', () => {
   assert.equal(tickMatch(m, 0.1, false, false), 'over');
   assert.equal(clockText(83), '1:23');
 });
+
+import { isHatTrick } from '../../rules/match.js';
+test('your third goal is a hat trick; teammates\' goals do not count toward it', () => {
+  const m = createMatch();
+  const g = by => { const e = { type: 'goal', x: 0, y: 0.5, dist: 12, by, assist: null, chain: 0 }; const b = scoreEvent(m, e); return { e, b }; };
+  g('you'); g('m1');
+  assert.ok(!isHatTrick(m, g('you').e));
+  const third = g('you');
+  assert.ok(isHatTrick(m, third.e));
+  assert.equal(third.b.text, 'HAT TRICK!');
+  assert.equal(m.goals, 4); assert.equal(m.yourGoals, 3);
+});

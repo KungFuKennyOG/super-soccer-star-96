@@ -3,11 +3,14 @@ import { MATCH, GOAL } from './tuning.js';
 import { GRADES } from './pass.js';
 
 export function createMatch(duration = MATCH.duration) {
-  return { clock: duration, points: 0, goals: 0, shots: 0, phase: 'play', deadT: 0, over: false, best: null };
+  return { clock: duration, points: 0, goals: 0, yourGoals: 0, shots: 0, phase: 'play', deadT: 0, over: false, best: null };
 }
 
 // A goal that hits the top corner.
 export const isTopBins = e => e.y > 1.55 && Math.abs(e.x) > GOAL.halfW - 1.4;
+
+// Your third goal (and sixth, ninth...) is a hat trick. Call after scoreEvent has counted the goal.
+export const isHatTrick = (m, e) => e.type === 'goal' && e.by === 'you' && m.yourGoals > 0 && m.yourGoals % 3 === 0;
 
 // Scores one sim event. Returns a banner { text, sub, tone, big } or null. tone: 'good' | 'bad' | 'info'.
 export function scoreEvent(m, e) {
@@ -15,6 +18,7 @@ export function scoreEvent(m, e) {
     case 'kick': if (e.by === 'you') m.shots++; return null;
     case 'goal': {
       m.goals++;
+      if (e.by === 'you') m.yourGoals++;
       const bonus = [];
       let pts = 1000;
       if (isTopBins(e)) { pts += 750; bonus.push('TOP BINS +750'); }
@@ -22,7 +26,7 @@ export function scoreEvent(m, e) {
       if (e.assist && e.assist.from !== e.by) { pts += 300; bonus.push(e.by === 'you' ? 'ONE-TWO +300' : 'ASSIST +300'); }
       if (e.chain > 1) { pts += e.chain * 100; bonus.push(`PASS CHAIN x${e.chain} +${e.chain * 100}`); }
       m.points += pts;
-      const text = isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
+      const text = isHatTrick(m, e) ? 'HAT TRICK!' : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
       return { text, sub: bonus.join('\n') || `+${pts}`, tone: 'good', big: true };
     }
     case 'saved': return { text: 'SAVED', sub: 'keeper holds it', tone: 'bad' };

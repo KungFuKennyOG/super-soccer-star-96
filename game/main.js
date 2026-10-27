@@ -4,11 +4,11 @@ import { createStage } from '../engine/stage.js';
 import { vrSupported, enterVR } from '../engine/xr.js';
 import { buzz } from '../engine/input.js';
 import { startLoop } from '../engine/loop.js';
-import { createWorld, stepSim, resetPlay } from '../rules/sim.js';
-import { createMatch, scoreEvent, tickMatch, clockText } from '../rules/match.js';
+import { createWorld, stepSim, resetPlay, startCelebration } from '../rules/sim.js';
+import { createMatch, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
 import { ringScale, gradePass, pickTarget } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
-import { PASS, GOAL } from '../rules/tuning.js';
+import { PASS, GOAL, MATCH } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
 import { PS1 } from './ps1.js';
 import { buildStadium } from './stadium.js';
@@ -16,10 +16,12 @@ import { buildPlayer, buildYou, buildBall, buildArrow, animate, placeModel } fro
 import { buildHud, buildPanel, buildRadar } from './hud.js';
 import { createControls } from './controls.js';
 import { startAudio, sfx } from './audio.js';
+import { playMusic, stopMusic } from './music.js';
+import { createCelebration } from './celebration.js';
 import { drawText, textWidth } from './tex.js';
 
-const LINES = 360;          // browser render height: chunky like a 90s console, still readable
-const VR_SCALE = 0.5;       // headset framebuffer scale: chunky but sharp enough to read
+const LINES = 480;          // browser render height: a little chunky, clearly readable
+const VR_SCALE = 0.7;       // headset framebuffer scale: soft retro, still sharp
 const BEST_KEY = 'sss96.best';
 
 const $ = id => document.getElementById(id);
@@ -31,7 +33,7 @@ function lowRes() {
   if (renderer.xr.isPresenting) return;
   renderer.setPixelRatio(LINES / innerHeight);
   renderer.setSize(innerWidth, innerHeight, false);
-  PS1.snap.value.set(Math.round(LINES * innerWidth / innerHeight), LINES);
+  PS1.snap.value.set(Math.round(LINES * 1.5 * innerWidth / innerHeight), LINES * 1.5); // wobble finer than the pixels
 }
 lowRes(); addEventListener('resize', lowRes);
 
@@ -39,6 +41,7 @@ const stadium = buildStadium(scene);
 const hud = buildHud(scene, camera);
 const panel = buildPanel(scene);
 const radar = buildRadar();
+const celebration = createCelebration(scene, camera);
 $('radar').appendChild(radar.canvas);
 
 let world = createWorld(), match = createMatch();
@@ -65,17 +68,22 @@ vrSupported().then(ok => { $('vr').disabled = !ok; if (!ok) $('vrnote').textCont
 $('vr').onclick = async () => {
   startAudio();
   try { await enterVR(renderer, { foveation: 1 }); } catch (e) { $('vrnote').textContent = 'The headset refused to start VR.'; return; }
-  PS1.snap.value.set(480, 480);
+  PS1.snap.value.set(900, 900);
   overlay.hidden = true;
   mode = 'title'; vrTitle();
   renderer.xr.getSession().addEventListener('end', () => { lowRes(); mode = 'title'; panel.hide(); overlay.hidden = false; });
 };
 $('play').onclick = () => { startAudio(); overlay.hidden = true; desk.lock(); kickOff(); };
+// menu music starts on the first click or key (browsers won't play sound before that)
+const menuMusic = () => { startAudio(); if (mode !== 'play') playMusic('menu'); };
+addEventListener('pointerdown', menuMusic, { once: true });
+addEventListener('keydown', menuMusic, { once: true });
 function showPause() { mode = 'title'; overlay.hidden = false; $('play').textContent = 'RESUME'; $('play').onclick = () => { overlay.hidden = true; desk.lock(); mode = 'play'; }; }
 
 function kickOff() {
   world = createWorld(); match = createMatch();
   bindWorld();
+  stopMusic(0.4); celebration.cancel();
   mode = 'play'; panel.hide(); hudEl.hidden = renderer.xr.isPresenting;
   sfx('whistle', 1.4);
   hud.banner({ text: 'KICK OFF!', sub: 'TWO MINUTES. SCORE ALL YOU CAN.', tone: 'info', big: true });
@@ -98,7 +106,7 @@ function vrTitle() {
     c.fillStyle = 'rgba(5,8,40,.88)'; c.fillRect(0, 0, 256, 160);
     c.fillStyle = '#f2c21a'; c.fillRect(0, 0, 256, 3); c.fillRect(0, 157, 256, 3);
     logo(c, 18);
-    const lines = ['LEFT STICK RUN  -  R STICK TURN', 'R TRIGGER SHOOT: LOOK TO AIM', 'L TRIGGER PASS: RELEASE ON RING', 'FLICK R STICK UP KNOCK, DOWN DRAG'];
+    const lines = ['LEFT STICK RUN  -  R STICK TURN', 'R TRIGGER SHOOT: LOOK TO AIM', 'L TRIGGER PASS: RELEASE ON RING', 'A KNOCK-ON  -  B DRAG-BACK'];
     lines.forEach((l, i) => drawText(c, l, Math.round((256 - textWidth(l)) / 2), 72 + i * 11, '#c8d4ff'));
     if (Math.floor(performance.now() / 500) % 2) drawText(c, 'PULL TRIGGER TO KICK OFF', Math.round((256 - textWidth('PULL TRIGGER TO KICK OFF')) / 2), 130, '#ffffff', 1, '#c8102e');
     if (best) drawText(c, `BEST ${best}`, 4, 148, '#f2c21a');
@@ -109,6 +117,7 @@ function fullTime() {
   const newBest = match.points > best;
   if (newBest) { best = match.points; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
   sfx('whistle', 1); setTimeout(() => sfx('whistle', 1), 450); setTimeout(() => sfx('whistle', 2), 900);
+  setTimeout(() => { if (mode === 'over') playMusic('menu'); }, 1800);
   hud.banner({ text: 'FULL TIME', sub: newBest ? 'NEW BEST SCORE!' : '', tone: 'good', big: true });
   const draw = c => {
     c.fillStyle = 'rgba(5,8,40,.9)'; c.fillRect(0, 0, 256, 160);
@@ -194,8 +203,12 @@ function feedback(ev) {
     if (e.type === 'out' || e.type === 'tackled' || e.type === 'intercepted') { sfx('groan'); sfx('whistle', 0.6); }
     const b = scoreEvent(match, e);
     if (b) hud.banner(b);
+    if (isHatTrick(match, e)) startDance();
   }
 }
+
+// The hat-trick dance: teammates come over, then the rhythm game starts.
+function startDance(delay = 1.6) { startCelebration(world); celebration.start(delay); }
 
 /* ---------- the frame ---------- */
 
@@ -212,11 +225,19 @@ const loop = startLoop(renderer, (dt, t) => {
   else { desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
   if (mode === 'play' && !hooks.paused) {
-    if (raw.restart) { resetPlay(world); match.deadT = 0; sfx('whistle', 0.6); }
+    if (raw.restart) { resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     const intent = buildIntent(raw, dt);
     const ev = stepSim(world, intent, dt);
     feedback(ev);
-    const r = tickMatch(match, dt, world.dead, !!world.shot && !world.shot.done);
+    if (celebration.active) {
+      const d = celebration.update(dt, raw.vr, desk.keys);
+      if (d) {
+        match.points += d.score;
+        hud.banner({ text: d.hits === d.count ? 'FULL COMBO!' : `DANCE ${d.hits}/${d.count}`, sub: `+${d.score}`, tone: d.hits ? 'good' : 'bad', big: true });
+        match.deadT = MATCH.deadTime - 1.2;
+      }
+    }
+    const r = celebration.active ? null : tickMatch(match, dt, world.dead, !!world.shot && !world.shot.done);
     if (r === 'reset') { resetPlay(world); stadium.cheer(false); sfx('whistle', 0.5); }
     if (r === 'over') { stadium.cheer(false); fullTime(); }
   }
@@ -233,7 +254,7 @@ const loop = startLoop(renderer, (dt, t) => {
   for (const p of world.players) {
     const m = models[p.id];
     placeModel(m, p);
-    animate(m, p, dt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you');
+    animate(m, p, dt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you', celebration.guide);
   }
   // your own legs face where you're running, else where you look
   const yo = models.you, ys = Math.hypot(you.vx, you.vz);
@@ -245,7 +266,7 @@ const loop = startLoop(renderer, (dt, t) => {
 
   stadium.update(dt, t);
   updateHud();
-  radar.draw(world);
+  radar.draw(world, match.goals, match.points);
   if (raw.vr) placeOnHands();
   renderer.render(scene, camera);
 }, { onFps: fps => { $('fps').textContent = `${fps} FPS`; } });
@@ -266,8 +287,6 @@ function updateHud() {
   hud.scoreboard(match.goals, clockText(match.clock), match.points, flashT > 0 ? 'GOAL!' : '');
   // browser HUD
   $('hClock').textContent = clockText(match.clock);
-  $('hGoals').textContent = match.goals;
-  $('hPts').textContent = match.points;
   const pw = $('power');
   pw.hidden = !shotHold;
   if (shotHold) { $('powerFill').style.width = `${chargeOf(shotHold.t) * 100}%`; pw.classList.toggle('over', overcharge(shotHold.t) > 0); }
@@ -279,12 +298,12 @@ function placeOnHands() {
   const R = b.userData.hand === 'right' ? b : a, L = R === a ? b : a;
   if (hud.power.parent !== R) R.add(hud.power);
   hud.power.position.set(0, 0.03, -0.02);
-  if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.05, 0.06); radar.mesh.rotation.set(-1.0, 0, 0); }
+  if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.06, 0.06); radar.mesh.rotation.set(-1.0, 0, 0); }
 }
 
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, desk, kickOff, loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, kickOff, loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

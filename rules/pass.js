@@ -47,6 +47,43 @@ export function passVelocity(from, target, grade, rnd = Math.random) {
   return { vx: dir.x * speed, vy: g.lift, vz: dir.z * speed, speed, lead: p };
 }
 
+// Is a defender standing in the passing lane? True when one is within r of the line from `from` to `to`,
+// somewhere between the first 15% and the last 10% of it.
+export function laneBlocked(from, to, defenders, r = 1.1) {
+  const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz;
+  if (L2 < 1e-6) return false;
+  for (const d of defenders) {
+    const t = ((d.x - from.x) * dx + (d.z - from.z) * dz) / L2;
+    if (t < 0.15 || t > 0.9) continue;
+    const px = from.x + dx * t, pz = from.z + dz * t;
+    if (Math.hypot(d.x - px, d.z - pz) < r) return true;
+  }
+  return false;
+}
+
+// How far off a lob lands, as a fraction of its length, per grade.
+const LOB_ERR = { perfect: 0, good: 0.05, poor: 0.18, miss: 0.3 };
+
+// A lofted pass that drops onto the receiver's run. Flight time grows with distance.
+export const lobTime = d => clamp(0.75 + d * 0.05, 1.0, 1.7);
+export function lobVelocity(from, target, grade, rnd = Math.random) {
+  const g = GRADES[grade];
+  let p = { x: target.x, z: target.z }, T = lobTime(dist(from, p));
+  for (let i = 0; i < 3; i++) {
+    p = { x: target.x + (target.vx || 0) * T, z: target.z + (target.vz || 0) * T };
+    T = lobTime(dist(from, p));
+  }
+  const d = dist(from, p), long = 1 + (rnd() * 2 - 1) * LOB_ERR[grade] - (grade === 'miss' ? 0.2 : 0);
+  const dir = rot(norm(p.x - from.x, p.z - from.z), (rnd() * 2 - 1) * g.err * 0.6);
+  const vh = d * long / T;
+  return { vx: dir.x * vh, vy: 0.5 * 9.81 * T, vz: dir.z * vh, speed: vh, lead: p, lob: true, T };
+}
+
+// Ground pass when the lane is clear, a lob over anyone in the way.
+export function choosePass(from, target, defenders, grade, rnd = Math.random) {
+  return laneBlocked(from, target, defenders) ? lobVelocity(from, target, grade, rnd) : passVelocity(from, target, grade, rnd);
+}
+
 // Pick the teammate the player is looking at: smallest angle off the gaze, any distance.
 // mates: [{ id, x, z }], from: {x, z}, gaze: ground {x, z} (normalized).
 export function pickTarget(from, gaze, mates) {

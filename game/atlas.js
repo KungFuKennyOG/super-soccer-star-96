@@ -25,8 +25,9 @@ export const SLEEVE_DY = -0.254;                       // where the sleeve ends 
 
 const cache = new Map();
 
-export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false }) {
-  const key = `${kit}|${num}|${skin}|${hair}|${style}|${stubble}`;
+// feetOnly: everything above the lower sock is see-through (your own body in first person).
+export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false, feetOnly = false }) {
+  const key = `${kit}|${num}|${skin}|${hair}|${style}|${stubble}|${feetOnly}`;
   if (cache.has(key)) return cache.get(key);
   const k = KITS[kit];
   const c = canvasTex(SIZE, SIZE, ctx => {
@@ -36,6 +37,12 @@ export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false }
     ctx.drawImage(leg(k, skin), 64, 64);
     ctx.drawImage(arm(k, skin, kit === 'keeper'), 96, 64);
     ctx.drawImage(boot(), 0, 64);
+    if (feetOnly) {
+      ctx.clearRect(0, 0, 128, 64);                                      // torso, head
+      ctx.clearRect(96, 64, 32, 64);                                     // arms
+      ctx.clearRect(64, 64, 32, legRow(0.2));                            // legs down to the lower sock
+      ctx.clearRect(0, 96, 64, 32);                                      // spare
+    }
   });
   const t = pixelTex(c);
   cache.set(key, t);

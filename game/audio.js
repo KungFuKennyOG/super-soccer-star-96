@@ -12,6 +12,9 @@ export function startAudio() {
 
 const now = () => ctx.currentTime;
 
+// For the music player: the shared context and master bus (null until startAudio ran).
+export const audioOut = () => (ctx ? { ctx, master } : null);
+
 function noiseBuffer(secs) {
   const b = ctx.createBuffer(1, ctx.sampleRate * secs, ctx.sampleRate), d = b.getChannelData(0);
   let last = 0;

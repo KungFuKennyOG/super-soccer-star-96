@@ -44,3 +44,35 @@ test('pass target is the teammate closest to where you look', () => {
   assert.equal(pickTarget({ x: 0, z: 0 }, { x: 0.7, z: -0.7 }, mates).id, 'b');
   assert.equal(pickTarget({ x: 0, z: 0 }, { x: -1, z: 0 }, mates).id, 'a');
 });
+
+import { laneBlocked, lobVelocity, choosePass } from '../../rules/pass.js';
+import { makeBall, stepBall } from '../../rules/ball.js';
+
+test('a defender between passer and receiver blocks the lane; one off to the side does not', () => {
+  const from = { x: 0, z: 0 }, to = { x: 0, z: -12 };
+  assert.ok(laneBlocked(from, to, [{ x: 0.5, z: -6 }]));
+  assert.ok(!laneBlocked(from, to, [{ x: 4, z: -6 }]));
+  assert.ok(!laneBlocked(from, to, [{ x: 0, z: 2 }])); // behind the passer
+});
+
+test('a perfect lob lands on the receiver', () => {
+  const v = lobVelocity({ x: 0, z: 0 }, { x: 0, z: -14 }, 'perfect', () => 0.5);
+  const b = makeBall(0, 0); Object.assign(b, { vx: v.vx, vy: v.vy, vz: v.vz });
+  let t = 0;
+  while (t < v.T - 1e-6) { stepBall(b, 1 / 240, []); t += 1 / 240; }
+  assert.ok(Math.abs(b.z + 14) < 0.3, `landed at ${b.z}`);
+  assert.ok(b.y < 0.5);
+});
+
+test('a lob clears a defender standing in the lane', () => {
+  const v = lobVelocity({ x: 0, z: 0 }, { x: 0, z: -14 }, 'perfect', () => 0.5);
+  const b = makeBall(0, 0); Object.assign(b, { vx: v.vx, vy: v.vy, vz: v.vz });
+  while (b.z > -7) stepBall(b, 1 / 240, []);
+  assert.ok(b.y > 2, `only ${b.y.toFixed(2)} m up over the defender`);
+});
+
+test('choosePass goes along the ground when it can and over the top when it must', () => {
+  const t = { x: 0, z: -12 };
+  assert.ok(!choosePass({ x: 0, z: 0 }, t, [{ x: 5, z: -6 }], 'good', () => 0.5).lob);
+  assert.ok(choosePass({ x: 0, z: 0 }, t, [{ x: 0.3, z: -6 }], 'good', () => 0.5).lob);
+});

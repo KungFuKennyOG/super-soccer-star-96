@@ -1,8 +1,9 @@
 // Raw controls for both ways to play. read() returns the same shape for the headset and the browser:
 // { move: {x, y} (x right, y forward), turn, sprint, shoot, pass (held), knock, drag, restart, start (edges) }
 //
-// Quest:   left stick run · left grip or stick click sprint · right stick turn, flick up knock-on, flick down drag-back
-//          right trigger shoot (aim with your head) · left trigger pass (timing ring) / call for it · Y restart
+// Quest:   left stick run · left grip or stick click sprint · right stick turn (it's only for turning)
+//          right trigger shoot (aim with your head) · left trigger pass (timing ring) / call for it
+//          A knock-on · B drag-back · Y restart
 // Browser: WASD run · mouse look · Shift sprint · left click shoot · right click or E pass · Space knock-on
 //          C drag-back · Q/Z turn without a mouse · R restart · Enter start
 import { setupControllers, controllers, pressed, readStick, BTN, createDesktopInput } from '../engine/input.js';
@@ -16,7 +17,7 @@ export function createControls({ renderer, rig, canvas, isPlaying, onUnlock }) {
   addEventListener('blur', () => { mouse.left = mouse.right = false; });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-  const prevKeys = {}, st = { x: 0, y: 0 }, flick = { zone: 0 };
+  const prevKeys = {}, st = { x: 0, y: 0 };
   const edgeKey = code => { const on = !!desk.keys[code], was = prevKeys[code]; prevKeys[code] = on; return on && !was; };
   const btn = (c, i) => { const b = c && c.userData.gamepad && c.userData.gamepad.buttons[i]; return !!(b && b.pressed); };
   const hand = h => controllers.find(c => c.userData.hand === h && c.userData.gamepad);
@@ -31,15 +32,10 @@ export function createControls({ renderer, rig, canvas, isPlaying, onUnlock }) {
         out.sprint = btn(L, BTN.GRIP) || btn(L, BTN.STICK);
         out.pass = btn(L, BTN.TRIGGER);
         out.shoot = btn(R, BTN.TRIGGER);
-        if (R && readStick(R, st)) {
-          out.turn = Math.abs(st.x) > 0.25 && Math.abs(st.x) > Math.abs(st.y) ? st.x : 0;
-          const zone = st.y < -0.75 ? -1 : st.y > 0.75 ? 1 : Math.abs(st.y) < 0.35 ? 0 : flick.zone;
-          if (zone !== flick.zone && zone === -1) out.knock = true;
-          if (zone !== flick.zone && zone === 1) out.drag = true;
-          flick.zone = zone;
-        }
+        if (R && readStick(R, st)) out.turn = Math.abs(st.x) > 0.2 ? st.x : 0;
         out.restart = L ? pressed(L, BTN.B) : false;
         const a = R ? pressed(R, BTN.A) : false, rt = R ? pressed(R, BTN.TRIGGER) : false;
+        out.knock = a; out.drag = R ? pressed(R, BTN.B) : false;
         out.start = a || rt;
         return out;
       }

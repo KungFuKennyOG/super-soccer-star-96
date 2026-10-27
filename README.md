@@ -12,10 +12,11 @@ You plus two teammates attack one goal against three defenders and a keeper. You
 | Sprint | Left grip or left stick click | Shift |
 | Turn | Right stick | Mouse (Q/Z without one) |
 | Shoot | Hold right trigger, **look where you want it**, let go | Hold left click or F |
-| Pass | Hold left trigger at a teammate, let go when the shrinking ring meets the circle | Hold right click or E |
+| Pass | Hold left trigger at a teammate, let go when the shrinking ring meets the circle. It goes along the ground when the lane is clear and lobs over anyone in the way. | Hold right click or E |
 | Call for it | Pass button when a teammate has the ball | Same |
-| Knock-on | Flick right stick up | Space |
-| Drag-back | Flick right stick down (shakes the defender pressing you) | C |
+| Knock-on | A | Space |
+| Drag-back | B (shakes the defender pressing you) | C |
+| Goal dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
 | Restart the attack | Y | R |
 
 ## Scoring
@@ -28,14 +29,15 @@ You plus two teammates attack one goal against three defenders and a keeper. You
 | One-two (you score straight after a pass back) | +300 |
 | Pass chain (perfect passes before the goal) | +100 each |
 | Perfect pass | +50 |
+| Goal dance | +150 per perfect move, +75 good, +300 full combo |
 
 Shot power fills in about a second. Hold too long and it starts to sky. A quick tap is a chip.
 
 ## Look
 
-The game renders at 360 lines in the browser and at half resolution in the headset. Vertices snap to a coarse grid (the PS1 wobble), textures warp across polygons, and colors are cut to 15 bits with an ordered dither.
+A softened PS1 look: the game renders at 480 lines in the browser and at 0.7 resolution in the headset, vertices snap to a fine grid (a light wobble), textures warp a little across polygons, and colors get a gentle ordered dither.
 
-Players are single skinned meshes on an 18-bone skeleton, wearing a painted 128 px texture sheet. One team plays in all white, the other in blue-and-garnet stripes. Kits use colors only, with no crests, sponsors or club names.
+Chiptune music plays on the menu and during the goal dance. Players are single skinned meshes on an 18-bone skeleton, wearing a painted 128 px texture sheet. One team plays in all white, the other in blue-and-garnet stripes. Kits use colors only, with no crests, sponsors or club names.
 
 ## Development
 

@@ -81,7 +81,7 @@ button:focus-visible{outline:3px solid var(--red);outline-offset:4px}
 #power.over #powerFill{background:repeating-linear-gradient(90deg,#ff2020 0 8px,#fff 8px 16px)}
 #keys{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;font-size:8px;color:var(--muted);pointer-events:none;line-height:1.8;padding:0 16px}
 #radar{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(40px + env(safe-area-inset-bottom,0px));border:3px solid #fff;box-shadow:4px 4px 0 var(--red);line-height:0;background:#05072a}
-#radar canvas{width:144px;height:120px;image-rendering:pixelated;display:block}
+#radar canvas{width:192px;height:180px;image-rendering:pixelated;display:block}
 #fps{position:fixed;right:10px;bottom:10px;font-size:8px;color:var(--muted);pointer-events:none}
 </style>
 <script type="importmap">
@@ -96,12 +96,10 @@ button:focus-visible{outline:3px solid var(--red);outline-offset:4px}
 
 <div id="hud" hidden>
   <div class="box clock"><span id="hClock">2:00</span></div>
-  <div class="box"><small>GOALS</small><span id="hGoals">0</span></div>
-  <div class="box"><small>PTS</small><span id="hPts">0</span></div>
   <span id="cross"></span>
   <div id="power" hidden><div id="powerFill"></div></div>
   <div id="radar"></div>
-  <p id="keys">WASD RUN · MOUSE LOOK/AIM · HOLD CLICK SHOOT · HOLD RIGHT CLICK OR E PASS · SPACE KNOCK-ON · C DRAG-BACK · R RESTART</p>
+  <p id="keys">WASD RUN · MOUSE LOOK/AIM · HOLD CLICK SHOOT · HOLD RIGHT CLICK OR E PASS · SPACE KNOCK-ON · C DRAG-BACK · ARROWS DANCE · R RESTART</p>
 </div>
 
 <main id="overlay">
@@ -126,13 +124,15 @@ button:focus-visible{outline:3px solid var(--red);outline-offset:4px}
       <dt>RUN</dt><dd>Left stick · WASD</dd>
       <dt>SPRINT</dt><dd>Left grip or stick click · Shift</dd>
       <dt>TURN</dt><dd>Right stick · mouse</dd>
+      <dt>PASS</dt><dd>Lobs over defenders in the way, along the ground when it's clear</dd>
       <dt>SHOOT</dt><dd>Hold right trigger, look where you want it, let go · hold click</dd>
     </dl>
     <dl>
       <dt>PASS</dt><dd>Hold left trigger at a teammate, let go when the ring meets the circle · right click / E</dd>
       <dt>CALL</dt><dd>Pass button without the ball · get it back</dd>
-      <dt>KNOCK-ON</dt><dd>Flick right stick up · Space</dd>
-      <dt>DRAG-BACK</dt><dd>Flick right stick down · C · shakes the presser</dd>
+      <dt>KNOCK-ON</dt><dd>A · Space</dd>
+      <dt>DRAG-BACK</dt><dd>B · C · shakes the presser</dd>
+      <dt>GOAL DANCE</dt><dd>Strike each pose on the beat: left hand up, right hand up, both up, arms out · arrow keys</dd>
     </dl>
   </section>
 </main>

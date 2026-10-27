@@ -13,7 +13,7 @@
 import { MOVE, AI, GOAL, PITCH, BALL } from './tuning.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, predictCross, ballSpeed } from './ball.js';
-import { gradePass, passVelocity } from './pass.js';
+import { gradePass, choosePass } from './pass.js';
 import { shotVelocity, ballistic } from './shot.js';
 import { defenderTargets, mateTarget, mateDecision, keeperSpot, keeperSave, closest } from './ai.js';
 
@@ -47,7 +47,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
-    kick: null, shot: null, pendingPass: null, lastAssist: null, perfectChain: 0,
+    kick: null, shot: null, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
 }
 
@@ -110,12 +110,12 @@ function shoot(w, p, eye, dir, holdT, rnd, ev) {
 }
 
 function pass(w, from, to, grade, rnd, ev) {
-  const v = passVelocity({ x: w.ball.x, z: w.ball.z }, to, grade, rnd);
+  const v = choosePass({ x: w.ball.x, z: w.ball.z }, to, defenders(w), grade, rnd);
   launch(w, from, v);
-  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead };
+  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob };
   if (grade !== 'perfect') w.perfectChain = 0;
   w.called = false;
-  ev.push({ type: 'pass', by: from.id, to: to.id, grade });
+  ev.push({ type: 'pass', by: from.id, to: to.id, grade, lob: !!v.lob });
 }
 
 function knock(w, ev) {
@@ -150,6 +150,16 @@ function startShot(w, p, ev, power) {
   ev.push({ type: 'kick', by: p.id, power });
 }
 
+// After a goal: your teammates run over and line up in front of you for the dance.
+export function startCelebration(w) {
+  const y = w.you;
+  w.celebrate = { x: y.x + y.fx * 2.6, z: y.z + y.fz * 2.6, rx: -y.fz, rz: y.fx };
+}
+function celebrationSpot(w, p) {
+  const c = w.celebrate, side = p.lane || 1;
+  return { x: c.x + c.rx * 1.3 * side, z: c.z + c.rz * 1.3 * side, speed: 6.5 };
+}
+
 /* ---------- the computer players ---------- */
 
 function updateAI(w, dt, rnd, ev) {
@@ -162,7 +172,8 @@ function updateAI(w, dt, rnd, ev) {
     if (p.role === 'you') continue;
     p.stun = Math.max(0, p.stun - dt);
     let t = null;
-    if (w.dead) t = { x: p.x, z: p.z, speed: 0 };
+    if (w.dead && w.celebrate && p.role === 'mate') t = celebrationSpot(w, p);
+    else if (w.dead) t = { x: p.x, z: p.z, speed: 0 };
     else if (p.role === 'def') t = dtargets.get(p.id);
     else if (p.role === 'gk') t = keeperTarget(w, p);
     else if (w.owner === p.id) t = mateOnBall(w, p, rnd, ev);
@@ -176,7 +187,8 @@ function updateAI(w, dt, rnd, ev) {
     steer(p, d > 1e-6 ? dx / d * speed : 0, d > 1e-6 ? dz / d * speed : 0, p.role === 'gk' ? 40 : 18, dt);
     p.x += p.vx * dt; p.z += p.vz * dt;
     const s = Math.hypot(p.vx, p.vz);
-    if (s > 0.4) { p.fx = p.vx / s; p.fz = p.vz / s; }
+    if (w.celebrate && p.role === 'mate' && s < 0.6) { const f = norm(you.x - p.x, you.z - p.z); p.fx = f.x; p.fz = f.z; }
+    else if (s > 0.4) { p.fx = p.vx / s; p.fz = p.vz / s; }
     else if (p.role === 'gk' || p.role === 'def') { const f = norm(b.x - p.x, b.z - p.z); p.fx = f.x; p.fz = f.z; }
     bound(p);
   }
@@ -191,7 +203,7 @@ function runOntoPass(p, b, lead) {
 function keeperTarget(w, gk) {
   if (w.owner === 'gk') return { x: gk.x, z: gk.z, speed: 0 };
   const s = w.shot;
-  if (s && s.cross && s.decision !== 'wide' && !s.done && w.time >= s.t0 + 0.22) {
+  if (s && s.cross && s.decision !== 'wide' && !s.done && w.time >= s.t0 + AI.gkReact) {
     gk.dive = Math.sign(s.cross.x - gk.x) || 1;
     return { x: s.cross.x, z: gk.z, speed: AI.gkDive };
   }
@@ -220,7 +232,7 @@ function mateOnBall(w, p, rnd, ev) {
 
 function carry(w, dt) {
   const p = w.byId[w.owner], b = w.ball;
-  if (p.role === 'gk') { b.x = p.x; b.z = p.z + 0.4; b.y = 1.1; b.vx = b.vy = b.vz = 0; return; }
+  if (p.role === 'gk') { b.x = p.x; b.z = p.z + 0.35; b.y = Math.max(BALL.r, b.y - 2 * dt); b.vx = b.vy = b.vz = 0; return; } // smothered, settles to the grass
   const s = Math.hypot(p.vx, p.vz);
   const d = s > 0.6 ? { x: p.vx / s, z: p.vz / s } : { x: p.fx, z: p.fz };
   const k = Math.min(1, 20 * dt);

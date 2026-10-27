@@ -1,10 +1,15 @@
-// The PS1 look on a modern renderer: vertices snap to a coarse screen grid (the wobble),
-// textures warp across big polygons (affine mapping), and every pixel is cut to 15-bit color
-// with a 4x4 ordered dither. Use ps1() instead of new MeshLambertMaterial / MeshBasicMaterial.
+// The PS1 look on a modern renderer, dialled down from the real thing: vertices snap to a screen
+// grid (a light wobble), textures warp a little across big polygons (affine mapping), and colors are
+// cut to 18-bit with a soft 4x4 ordered dither. Use ps1() instead of new MeshLambertMaterial / MeshBasicMaterial.
 import * as THREE from 'three';
 
 // Shared by every PS1 material. snap = the virtual screen the vertices snap to (PS1 was 320x240).
-export const PS1 = { snap: { value: new THREE.Vector2(320, 240) } };
+// levels: color steps per channel (PS1 had 32; 64 is gentler). dither: how strong the pattern is (0..1).
+export const PS1 = {
+  snap: { value: new THREE.Vector2(640, 480) },
+  levels: { value: 63 },
+  dither: { value: 0.6 },
+};
 
 const VERT_PARS = 'varying float vAffW;\nuniform vec2 uSnap;\n';
 const VERT_SNAP = `
@@ -19,6 +24,8 @@ const VERT_SNAP = `
   #endif
 `;
 const FRAG_PARS = `varying float vAffW;
+uniform float uLevels;
+uniform float uDither;
 float bayer4(vec2 f) {
   int x = int(mod(f.x, 4.0)), y = int(mod(f.y, 4.0));
   int i = x + y * 4;
@@ -31,12 +38,12 @@ const FRAG_MAP = `#ifdef USE_MAP
   diffuseColor *= sampledDiffuseColor;
 #endif`;
 const FRAG_DITHER = `
-  gl_FragColor.rgb = floor(clamp(gl_FragColor.rgb, 0.0, 1.0) * 31.0 + bayer4(gl_FragCoord.xy)) / 31.0;
+  gl_FragColor.rgb = floor(clamp(gl_FragColor.rgb, 0.0, 1.0) * uLevels + 0.5 + (bayer4(gl_FragCoord.xy) - 0.5) * uDither) / uLevels;
 `;
 
 function patch(mat) {
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uSnap = PS1.snap;
+    sh.uniforms.uSnap = PS1.snap; sh.uniforms.uLevels = PS1.levels; sh.uniforms.uDither = PS1.dither;
     sh.vertexShader = VERT_PARS + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT_SNAP);
     sh.fragmentShader = FRAG_PARS + sh.fragmentShader
       .replace('#include <map_fragment>', FRAG_MAP)

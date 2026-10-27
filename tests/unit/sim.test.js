@@ -80,3 +80,16 @@ test('calling for it gets the ball back from a teammate', () => {
   assert.ok(ev.some(e => e.type === 'pass' && e.by === 'm1' && e.to === 'you'));
   assert.ok(ev.some(e => e.type === 'received' && e.id === 'you'));
 });
+
+import { startCelebration } from '../../rules/sim.js';
+test('after a goal, teammates gather in front of you facing you', () => {
+  const w = createWorld(fixed);
+  w.dead = true;
+  startCelebration(w);
+  run(w, 5);
+  for (const id of ['m1', 'm2']) {
+    const m = w.byId[id];
+    assert.ok(Math.hypot(m.x - w.you.x, m.z - w.you.z) < 3.5, `${id} came over`);
+    assert.ok(m.fx * (w.you.x - m.x) + m.fz * (w.you.z - m.z) > 0, `${id} faces you`);
+  }
+});

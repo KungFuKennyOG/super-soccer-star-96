@@ -154,21 +154,21 @@ export function buildPanel(scene) {
   };
 }
 
-// The 90s radar: a little map of the half pitch. One canvas, shown on your left wrist in VR
-// and in the corner in the browser.
+// The 90s radar: a little map of the half pitch with your goals and points along the bottom.
+// One canvas, shown on your left wrist in VR and in the corner in the browser.
 export function buildRadar() {
-  const W = 48, H = 40, c = canvasTex(W, H, () => {}), ctx = c.getContext('2d');
+  const W = 64, MAP = 46, H = 60, c = canvasTex(W, H, () => {}), ctx = c.getContext('2d');
   const t = pixelTex(c);
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.144, 0.12), ps1({ map: t, lit: false, transparent: true, fog: false }));
-  // world x -22..22 → 2..46, z goal line → 2, halfway → 38
-  const px = x => Math.round(24 + x / 22 * 22), pz = z => Math.round(2 + (z - GOAL.z) / -GOAL.z * 36);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.15), ps1({ map: t, lit: false, transparent: true, fog: false }));
+  // world x -22..22 → 3..61, z goal line → 2, halfway → 44
+  const px = x => Math.round(W / 2 + x / 22 * (W / 2 - 3)), pz = z => Math.round(2 + (z - GOAL.z) / -GOAL.z * (MAP - 4));
   return {
     canvas: c, mesh,
-    draw(world) {
+    draw(world, goals = 0, points = 0) {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = 'rgba(16,60,20,.85)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(16,60,20,.88)'; ctx.fillRect(0, 0, W, MAP);
       ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1;
-      ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+      ctx.strokeRect(1.5, 1.5, W - 3, MAP - 3);
       ctx.strokeRect(px(-16) + 0.5, 1.5, px(16) - px(-16), pz(GOAL.z + 16.5) - 1);
       ctx.fillStyle = '#ffffff'; ctx.fillRect(px(-3.66), 0, px(3.66) - px(-3.66), 2);
       for (const p of world.players) {
@@ -177,6 +177,12 @@ export function buildRadar() {
         if (p.role === 'def') { ctx.fillStyle = '#c8102e'; ctx.fillRect(px(p.x), pz(p.z), 1, 1); }
       }
       ctx.fillStyle = '#ff40ff'; ctx.fillRect(px(world.ball.x), pz(world.ball.z), 1, 1);
+      // score strip
+      ctx.fillStyle = '#05072a'; ctx.fillRect(0, MAP, W, H - MAP);
+      ctx.fillStyle = '#c8102e'; ctx.fillRect(0, MAP, W, 1);
+      drawText(ctx, `G${goals}`, 2, MAP + 4, '#f2c21a');
+      const pts = String(points);
+      drawText(ctx, pts, W - 2 - textWidth(pts), MAP + 4, '#ffffff');
       t.needsUpdate = true;
     },
   };

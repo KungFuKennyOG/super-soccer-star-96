@@ -11,20 +11,20 @@ const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
 
 // kit: 'white' | 'stripes' | 'keeper'; look picks skin, hair, hairstyle and stubble.
-export function buildPlayer(kit, num, look = 0) {
+export function buildPlayer(kit, num, look = 0, { feetOnly = false } = {}) {
   const skin = SKINS[look % SKINS.length], hair = HAIRS[(look * 3 + 1) % HAIRS.length];
   const style = look % 3, stubble = look % 4 === 1;
-  const tex = playerAtlas({ kit, num, skin, hair, style, stubble });
-  const material = mat(tex.uuid, () => ps1({ map: tex }));
+  const tex = playerAtlas({ kit, num, skin, hair, style, stubble, feetOnly });
+  const material = mat(tex.uuid, () => ps1(feetOnly ? { map: tex, alphaTest: 0.5 } : { map: tex }));
   const { mesh, bone } = buildBody(material, style);
   const root = new THREE.Group();
   root.add(mesh);
   return { root, mesh, bone, shadow: blob(), phase: Math.random() * 6, kickT: 9 };
 }
 
-// You, in first person: the same body with everything above the waist folded away.
+// You, in first person: the same body, but only your boots and lower socks are drawn.
 export function buildYou(kit) {
-  const m = buildPlayer(kit, 7, 1);
+  const m = buildPlayer(kit, 7, 1, { feetOnly: true });
   m.firstPerson = true;
   return m;
 }
@@ -32,7 +32,7 @@ export function buildYou(kit) {
 /* ---------- animation ---------- */
 
 // Run cycle with bent running arms and counter-twist, kick, keeper dive, celebration. p is the sim player.
-export function animate(m, p, dt, t, celebrate) {
+export function animate(m, p, dt, t, celebrate, guide = null) {
   const bn = m.bone;
   restPose(bn);
   const s = Math.hypot(p.vx, p.vz);
@@ -63,23 +63,82 @@ export function animate(m, p, dt, t, celebrate) {
   }
   bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -(0.25 + 1.2 * run);
 
-  if (p.role === 'gk' && p.dive) { // full stretch toward the shot
-    bn.hips.rotation.z = -p.dive * 1.15; bn.hips.position.y += 0.35;
-    bn.upperArmL.rotation.set(0, 0, 2.7); bn.upperArmR.rotation.set(0, 0, -2.7);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = 0;
-    bn.upperLegL.rotation.z = 0.3; bn.upperLegR.rotation.z = -0.3;
-  } else if (p.role === 'gk' && s < 1) { // set, hands ready
+  if (p.role === 'gk') {
+    if (p.dive && !m.dive) m.dive = { dir: p.dive, t: 0 };
+    if (m.dive) {
+      m.dive.t += dt;
+      poseDive(bn, m.dive);
+      if (m.dive.t > DIVE.end) m.dive = null;
+      return;
+    }
+  }
+  if (p.role === 'gk' && s < 1) { // set, hands ready
     bn.upperArmL.rotation.set(-0.5, 0, 0.4); bn.upperArmR.rotation.set(-0.5, 0, -0.4);
     bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -1.0;
     bn.upperLegL.rotation.set(-0.25, 0, 0.12); bn.upperLegR.rotation.set(-0.25, 0, -0.12);
     bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.45;
     bn.hips.position.y -= 0.07; bn.spine.rotation.x = 0.25;
   }
+  if (guide && p.role === 'mate') { dancePose(bn, guide); return; }
   if (celebrate) {
     bn.hips.position.y += Math.abs(Math.sin(t * 7 + m.phase)) * 0.45;
     bn.upperArmL.rotation.set(0, 0, 2.6); bn.upperArmR.rotation.set(0, 0, -2.6);
     bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.3;
   }
+}
+
+// Teammates lead the goal dance facing you, so they mirror the move: your "left" is their right arm.
+const ARM = { up: 2.8, down: 0.2, out: 1.55 };
+function dancePose(bn, g) {
+  const bounce = Math.abs(Math.sin(Math.PI * g.beat));
+  bn.hips.position.y -= 0.09 * bounce;
+  bn.upperLegL.rotation.set(-0.25 * bounce, 0, 0.1); bn.upperLegR.rotation.set(-0.25 * bounce, 0, -0.1);
+  bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.5 * bounce;
+  bn.chest.rotation.y = 0.15 * Math.sin(Math.PI * g.beat);
+  bn.neck.rotation.z = 0.12 * Math.sin(Math.PI * g.beat);
+  let l = 'down', r = 'down';                       // the mate's own arms
+  if (g.move === 'left') r = 'up';
+  if (g.move === 'right') l = 'up';
+  if (g.move === 'up') l = r = 'up';
+  if (g.move === 'out') l = r = 'out';
+  bn.upperArmL.rotation.set(0, 0, ARM[l]); bn.upperArmR.rotation.set(0, 0, -ARM[r]);
+  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = 0;
+}
+
+// The keeper's dive, timed from the moment he commits: a quick load, a launch that rolls the body
+// flat with both arms stretched past the head, a landing on his side, then he gets back up.
+const DIVE = { load: 0.12, fly: 0.5, ground: 1.0, end: 1.6 };
+const ease = x => x * x * (3 - 2 * Math.min(1, Math.max(0, x)));
+function poseDive(bn, d) {
+  const t = d.t, dir = d.dir;
+  let roll, drop, reach;
+  if (t < DIVE.load) {
+    const f = t / DIVE.load;
+    roll = 0; drop = -0.14 * f; reach = 0.2 * f;
+    bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.7 * f;
+    bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = -0.35 * f;
+  } else if (t < DIVE.fly) {
+    const f = (t - DIVE.load) / (DIVE.fly - DIVE.load);
+    roll = 1.45 * ease(f); drop = -0.14 + 0.34 * Math.sin(f * Math.PI) - 0.54 * f; reach = 0.2 + 0.8 * ease(f * 1.6);
+  } else if (t < DIVE.ground) {
+    roll = 1.5; drop = -0.68; reach = 1;
+  } else {
+    const g = ease((t - DIVE.ground) / (DIVE.end - DIVE.ground));
+    roll = 1.5 * (1 - g); drop = -0.68 * (1 - g); reach = 1 - g;
+  }
+  bn.hips.rotation.set(0, 0, -dir * roll);
+  bn.hips.position.y += drop;
+  bn.spine.rotation.set(0, 0, 0); bn.chest.rotation.set(0, 0, 0);
+  if (t >= DIVE.load) { bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = 0; }
+  // arms swing from the sides up past the head, along the dive
+  bn.upperArmL.rotation.set(0, 0, 0.15 + 2.75 * reach); bn.upperArmR.rotation.set(0, 0, -0.15 - 2.75 * reach);
+  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.2 * (1 - reach);
+  // legs trail, the take-off leg kicks out a little
+  if (t >= DIVE.load) {
+    bn.upperLegL.rotation.z = 0.12 + (dir > 0 ? 0 : 0.25) * reach; bn.upperLegR.rotation.z = -0.12 - (dir > 0 ? 0.25 : 0) * reach;
+    bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.15;
+  }
+  bn.neck.rotation.z = dir * 0.3 * reach;
 }
 
 // Shadows fall away from the floodlight behind your left shoulder, stretched like the PS2-era ones.

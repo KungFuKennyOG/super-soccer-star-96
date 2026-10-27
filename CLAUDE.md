@@ -29,12 +29,12 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Game rules stay pure (no three, no DOM) so they're testable. Every new rules module gets a test file.
 - Keep files under about 400 lines.
 - `npm run check` must pass before committing. Run `npm run smoke` when a page changes.
-- PS1 look: use `ps1()` from `game/ps1.js` for every material (vertex snap, affine textures, 15-bit dither). Textures are painted in code at small sizes with nearest filtering.
+- PS1 look: use `ps1()` from `game/ps1.js` for every material (vertex snap, affine textures, dither). Its strength is tunable in `PS1` (snap grid, color levels, dither amount); Kenny asked for it softer than the real PS1. Textures are painted in code at small sizes with nearest filtering.
 - Kits are colors only: no real crests, sponsors, club or player names.
 
 ## Quest 3 budgets
 
-72 fps minimum. Each player is one draw call (a SkinnedMesh). The headset renders at framebuffer scale 0.5.
+72 fps minimum. Each player is one draw call (a SkinnedMesh). The headset renders at framebuffer scale 0.7.
 
 ## Decision log
 
@@ -42,6 +42,11 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Comfort isn't a constraint (Kenny's call: it's just for him). Smooth turning is fine.
 - Controls: sticky-ball dribbling, head-aimed shooting, timing-ring passes (hold, release when the ring meets the circle).
 - First mode: 3 v 3 plus keeper on a half pitch, 2-minute arcade score attack.
+- Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass).
+- After every goal: a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`). Teammates face you and mirror the moves.
+- Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
+- Your own body in first person shows only boots and lower socks.
+- Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).
 - Players are code-built skinned meshes for now. The planned upgrade is a real rigged model (Mixamo or a CC0 pack) with real run, kick and dive animations, with kits repainted on its UVs.
 
 ## Asking for a headset check
