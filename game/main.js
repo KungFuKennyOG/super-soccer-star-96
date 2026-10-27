@@ -4,9 +4,9 @@ import { createStage } from '../engine/stage.js';
 import { vrSupported, enterVR } from '../engine/xr.js';
 import { buzz } from '../engine/input.js';
 import { startLoop } from '../engine/loop.js';
-import { createWorld, stepSim, resetPlay, startCelebration } from '../rules/sim.js';
+import { createWorld, stepSim, resetPlay, startCelebration, defenders } from '../rules/sim.js';
 import { createMatch, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
-import { ringScale, gradePass, pickTarget } from '../rules/pass.js';
+import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
 import { PASS, GOAL, MATCH } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
@@ -280,7 +280,7 @@ function updateHud() {
   let aim = null;
   if (shotHold) aim = assist(aimPoint(headW, dirW));
   hud.update(1 / 72, {
-    mate: target,
+    mate: target, lob: !!target && laneBlocked(world.ball, target, defenders(world)),
     pass: passHold ? { target: world.byId[passHold.target], scale: ringScale(passHold.t), grade: gradePass(passHold.t) } : null,
     aim, charge: shotHold ? chargeOf(shotHold.t) : null, over: shotHold ? overcharge(shotHold.t) : 0,
   });

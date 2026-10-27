@@ -40,6 +40,9 @@ export const PASS = {
   ringStart: 3,     // ring size when you start holding (the target circle is 1)
   perfect: 0.18,    // |ring - 1| at release for a perfect pass
   good: 0.45,
+  // a lob is chosen when a defender is inside this corridor along the pass: it widens from `near`
+  // metres beside the passer to `far` metres at the receiver's end
+  lobNear: 1.4, lobFar: 2.4,
 };
 
 export const SHOT = {

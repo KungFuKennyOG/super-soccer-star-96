@@ -4,7 +4,7 @@
 // controllers (or arrow keys) every frame.
 
 export const MOVES = ['left', 'right', 'up', 'out'];   // left hand up, right hand up, both up, arms out wide
-export const DANCE = { bpm: 104, count: 6, leadBeats: 2, window: 0.22, perfect: 0.1, points: { perfect: 150, good: 75 }, fullCombo: 300 };
+export const DANCE = { bpm: 88, count: 6, leadBeats: 2, window: 0.25, perfect: 0.11, points: { perfect: 150, good: 75 }, fullCombo: 300 };
 
 export const beatLen = () => 60 / DANCE.bpm;
 

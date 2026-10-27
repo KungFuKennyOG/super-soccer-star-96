@@ -42,8 +42,8 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - Comfort isn't a constraint (Kenny's call: it's just for him). Smooth turning is fine.
 - Controls: sticky-ball dribbling, head-aimed shooting, timing-ring passes (hold, release when the ring meets the circle).
 - First mode: 3 v 3 plus keeper on a half pitch, 2-minute arcade score attack.
-- Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass).
-- After every goal: a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`). Teammates face you and mirror the moves.
+- Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass). The lane is a corridor that widens toward the receiver (`PASS.lobNear`/`lobFar` in tuning). A blue ring and a LOB tag show it before you pass.
+- On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
 - Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
 - Your own body in first person shows only boots and lower socks.
 - Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).

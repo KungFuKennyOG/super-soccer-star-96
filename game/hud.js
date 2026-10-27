@@ -75,6 +75,10 @@ export function buildHud(scene, camera) {
   // ground ring under who you'd pass to
   const groundRing = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), ps1({ map: ringTex(), alphaTest: 0.5, lit: false, color: '#f2c21a' }));
   groundRing.rotation.x = -Math.PI / 2; groundRing.visible = false; scene.add(groundRing);
+  // "LOB" over the target when a defender is in the lane (the pass will go over the top)
+  const lobC = canvasTex(24, 9, c => { drawText(c, 'LOB', 2, 1, '#5ad0ff', 1, '#000'); });
+  const lobTag = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.27), ps1({ map: pixelTex(lobC), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
+  lobTag.renderOrder = 11; lobTag.visible = false; scene.add(lobTag);
 
   /* shot: a reticle on the goal mouth and a power bar */
   const reticle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), ps1({ map: reticleTex(), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
@@ -91,7 +95,7 @@ export function buildHud(scene, camera) {
   return {
     scoreboard, banner, power,
     // per frame. pass: { target: {x,z}, scale (live ring), grade window color } or null.
-    update(dt, { pass, aim, charge, over, mate }) {
+    update(dt, { pass, aim, charge, over, mate, lob }) {
       camera.getWorldPosition(headPos); camera.getWorldDirection(headDir);
       // banner pops in, then holds level in front of the face
       bnT += dt;
@@ -106,7 +110,9 @@ export function buildHud(scene, camera) {
       } else bnYaw = null;
 
       groundRing.visible = !!mate;
-      if (mate) groundRing.position.set(mate.x, 0.03, mate.z);
+      if (mate) { groundRing.position.set(mate.x, 0.03, mate.z); groundRing.material.color.set(lob ? '#5ad0ff' : '#f2c21a'); }
+      lobTag.visible = !!(mate && lob);
+      if (lobTag.visible) { lobTag.position.set(mate.x, pass ? 3.15 : 2.3, mate.z); lobTag.lookAt(headPos); }
 
       ringTarget.visible = ringLive.visible = !!pass;
       if (pass) {

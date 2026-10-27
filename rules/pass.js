@@ -47,16 +47,17 @@ export function passVelocity(from, target, grade, rnd = Math.random) {
   return { vx: dir.x * speed, vy: g.lift, vz: dir.z * speed, speed, lead: p };
 }
 
-// Is a defender standing in the passing lane? True when one is within r of the line from `from` to `to`,
-// somewhere between the first 15% and the last 10% of it.
-export function laneBlocked(from, to, defenders, r = 1.1) {
+// Is a defender close enough to the passing lane to cut a ground pass out? The lane is a corridor
+// from `from` to `to` that widens from PASS.lobNear to PASS.lobFar metres, from just past the passer
+// to just short of the receiver.
+export function laneBlocked(from, to, defenders, near = PASS.lobNear, far = PASS.lobFar) {
   const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz;
   if (L2 < 1e-6) return false;
   for (const d of defenders) {
     const t = ((d.x - from.x) * dx + (d.z - from.z) * dz) / L2;
-    if (t < 0.15 || t > 0.9) continue;
+    if (t < 0.08 || t > 0.92) continue;
     const px = from.x + dx * t, pz = from.z + dz * t;
-    if (Math.hypot(d.x - px, d.z - pz) < r) return true;
+    if (Math.hypot(d.x - px, d.z - pz) < near + (far - near) * t) return true;
   }
   return false;
 }

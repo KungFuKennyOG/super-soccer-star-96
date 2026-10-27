@@ -55,6 +55,12 @@ test('a defender between passer and receiver blocks the lane; one off to the sid
   assert.ok(!laneBlocked(from, to, [{ x: 0, z: 2 }])); // behind the passer
 });
 
+test('the lob corridor widens toward the receiver', () => {
+  const from = { x: 0, z: 0 }, to = { x: 0, z: -12 };
+  assert.ok(!laneBlocked(from, to, [{ x: 1.8, z: -2 }]));  // near the passer the corridor is narrow
+  assert.ok(laneBlocked(from, to, [{ x: 1.8, z: -9 }]));   // near the receiver it's wide
+});
+
 test('a perfect lob lands on the receiver', () => {
   const v = lobVelocity({ x: 0, z: 0 }, { x: 0, z: -14 }, 'perfect', () => 0.5);
   const b = makeBall(0, 0); Object.assign(b, { vx: v.vx, vy: v.vy, vz: v.vz });
