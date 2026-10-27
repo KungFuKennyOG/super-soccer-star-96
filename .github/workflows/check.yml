@@ -1,0 +1,25 @@
+name: Checks
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Lint and unit tests
+        run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - name: Smoke tests (every page in headless Chromium)
+        run: npm run smoke
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: tests/smoke/out/

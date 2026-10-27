@@ -1,0 +1,51 @@
+// Every number that sets how the game feels, in one place. Pure data: no three, no DOM.
+// Units: metres, seconds, m/s. The pitch lies on X/Z with the attacking goal toward -Z.
+
+export const PITCH = { halfW: 22, halfwayZ: 0 };
+
+// Real goal size. z is the goal line; the net is depth metres behind it.
+export const GOAL = { z: -34, halfW: 3.66, h: 2.44, depth: 2.0, post: 0.06 };
+
+export const BALL = {
+  r: 0.12,         // a touch bigger than real so it reads in the headset
+  g: 9.81,
+  rollFric: 1.3,   // m/s² lost every second while rolling
+  rollDrag: 0.32,  // plus this much per m/s of speed
+  bounce: 0.55,    // vertical speed kept on a bounce
+  curlDecay: 1.4,
+};
+
+export const MOVE = {
+  run: 6.4, sprint: 8.4,           // no ball
+  dribble: 5.8, dribbleSprint: 7.6, // with the ball at your feet
+  accel: 24,                        // how fast you reach top speed
+  knockBoost: 1.4, knockTime: 1.0, // extra speed after a knock-on
+  knockKick: 6.5,                   // how far ahead a knock-on pushes the ball (m/s above your speed)
+  ballLead: 0.62,                   // ball distance ahead of your feet while dribbling
+};
+
+export const AI = {
+  press: 6.6, mark: 5.8, chase: 7.0,         // defenders
+  mateRun: 6.0, mateDribble: 5.6,             // your teammates
+  gkMove: 3.4, gkDive: 5.0, gkReact: 0.18, gkReach: 1.0, gkCatchBelow: 19,
+  tackleRange: 0.85, tackleTime: 0.22,        // a defender must stay this close to the ball this long to win it
+  interceptSlow: 1.0, interceptFast: 0.45, fastPass: 15,
+  receive: 1.3,                               // how close the ball must come to be controlled
+  separation: 0.75,
+  dragGrace: 0.6, dragStun: 0.6,              // drag-back: defenders can't tackle, the presser stumbles
+};
+
+export const PASS = {
+  ringTime: 0.95,   // seconds for the ring to shrink from ringStart to nothing
+  ringStart: 3,     // ring size when you start holding (the target circle is 1)
+  perfect: 0.18,    // |ring - 1| at release for a perfect pass
+  good: 0.45,
+};
+
+export const SHOT = {
+  chargeTime: 0.9,  // hold this long for full power
+  overTime: 1.25,   // hold past this and the shot starts skying
+  minSpeed: 13, maxSpeed: 31,
+};
+
+export const MATCH = { duration: 120, deadTime: 2.4 };
