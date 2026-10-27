@@ -7,31 +7,59 @@ import { ps1, pixelTex, canvasTex } from './ps1.js';
 import { drawText, textWidth } from './tex.js';
 import { buildPlayer, animate } from './actors.js';
 import { sfx } from './audio.js';
+import { buildHand } from './hands.js';
 import { playMusic } from './music.js';
 
-const GOLD = () => ps1({ color: '#e8b830', emissive: '#3a2600', flatShading: true });
-const SILVER = () => ps1({ color: '#d8dce8', emissive: '#22242c', flatShading: true });
+// Trophies the PS1 way: few sides, flat shading, metal from a tiny dithered texture, and an engraved band.
+function metalTex(base, hi, lo) {
+  return pixelTex(canvasTex(16, 16, c => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const band = (x + (y >> 2)) % 8;                         // slanted streaks, like a cheap reflection
+      c.fillStyle = band < 2 ? hi : band > 5 ? lo : base;
+      if ((x * 7 + y * 3) % 11 === 0) c.fillStyle = hi;       // sparkle pixels
+      c.fillRect(x, y, 1, 1);
+    }
+  }), [3, 2]);
+}
+const GOLD = () => ps1({ map: metalTex('#d8a428', '#fff1a0', '#8a5a10'), emissive: '#2a1a00', flatShading: true });
+const SILVER = () => ps1({ map: metalTex('#c4c8d4', '#ffffff', '#6a6e7c'), emissive: '#16181e', flatShading: true });
 
-// Generic trophies, not real ones: a golden globe on a column, and a big-handled silver cup.
+function plate(text, color, bg) {
+  const w = 128;
+  return ps1({ map: pixelTex(canvasTex(w, 12, c => {
+    c.fillStyle = bg; c.fillRect(0, 0, w, 12);
+    drawText(c, text, Math.round((w - textWidth(text)) / 2), 3, color);
+  })), flatShading: true });
+}
+
 function buildTrophy(kind) {
   const g = new THREE.Group();
-  const lathe = (pts, mat) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 14), mat);
+  const lathe = (pts, mat, seg) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg), mat);
+  const add = (m, y = 0) => { m.position.y = y; g.add(m); return m; };
   if (kind === 'world') {
     const gold = GOLD();
-    g.add(lathe([[0.001, 0], [0.09, 0], [0.09, 0.03], [0.08, 0.035]], gold));
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.081, 0.081, 0.03, 14), ps1({ color: '#1b7a3a' }));
-    band.position.y = 0.05; g.add(band);
-    g.add(lathe([[0.08, 0.065], [0.07, 0.09], [0.045, 0.16], [0.035, 0.24], [0.05, 0.31], [0.07, 0.35]], gold));
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), gold);
-    globe.position.y = 0.43; g.add(globe);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.035, 6), gold));                       // foot
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.092, 0.05, 6, 1, true), plate("WORLD CUP '96", '#f2c21a', '#1b6b3a')), 0.04);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.1, 0.02, 6), gold), 0.075);
+    g.add(lathe([[0.075, 0.085], [0.06, 0.12], [0.038, 0.19], [0.032, 0.25], [0.05, 0.3], [0.072, 0.34], [0.078, 0.375], [0.07, 0.385]], gold, 6));
+    // the globe sits down in the cradle at the top of the column (an icosahedron's faces sit well
+    // inside its corner radius, so it goes lower than the radius suggests)
+    add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 0), gold), 0.425);
   } else {
     const silver = SILVER();
     silver.side = THREE.DoubleSide;
-    g.add(lathe([[0.001, 0], [0.1, 0], [0.1, 0.04], [0.06, 0.06], [0.04, 0.16], [0.05, 0.22], [0.12, 0.3], [0.17, 0.42], [0.17, 0.5], [0.155, 0.52]], silver));
-    for (const s of [-1, 1]) {
-      const h = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.014, 6, 12, Math.PI * 1.35), silver);
-      h.position.set(s * 0.19, 0.38, 0); h.rotation.set(0, s > 0 ? Math.PI : 0, -Math.PI * 0.68);
-      g.add(h);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.04, 8), silver));
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 8, 1, true), plate('CHAMPIONS CUP', '#ffffff', '#20264a')), 0.045);
+    g.add(lathe([[0.1, 0.07], [0.06, 0.09], [0.035, 0.17], [0.045, 0.23], [0.11, 0.3], [0.165, 0.42], [0.175, 0.52], [0.16, 0.53]], silver, 8));
+    // the big ears: a loop of chunky boxes on each side
+    for (const side of [-1, 1]) {
+      for (let i = 0; i <= 6; i++) {
+        const a = -0.4 + i / 6 * Math.PI * 1.2;
+        const seg = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.03), silver);
+        seg.position.set(side * (0.19 + Math.cos(a) * 0.1), 0.39 + Math.sin(a) * 0.13, 0);
+        seg.rotation.z = side * a;
+        g.add(seg);
+      }
     }
   }
   return g;
@@ -68,7 +96,7 @@ export function createCeremony(scene, camera) {
   let trophy = null, squad = [], state = null, lifted = false, liftT = 0, palette = [], nextBurst = 0;
   const head = new THREE.Vector3(), dir = new THREE.Vector3(), hand = new THREE.Vector3(), tw = new THREE.Vector3();
   const rest = new THREE.Vector3(0, 1.02, 0.9);
-  let held = { left: false, right: false }, deskHold = false, deskY = 1.25;
+  let held = { left: false, right: false }, deskHold = false, deskY = 1.25, deskHands = [];
 
   function burst(at) {
     const c = palette[Math.floor(Math.random() * palette.length)];
@@ -87,6 +115,10 @@ export function createCeremony(scene, camera) {
     start(kind, team) {
       if (trophy) root.remove(trophy);
       trophy = buildTrophy(kind); trophy.position.copy(rest); root.add(trophy);
+      // in the browser your hands appear on the cup once you pick it up
+      deskHands = [buildHand('left', 'fist', team.kit), buildHand('right', 'fist', team.kit)];
+      // left hand on the viewer's left (+x here), fingers wrapping in toward the stem
+      deskHands.forEach((h, i) => { const s = i ? -1 : 1; h.position.set(s * 0.13, kind === 'world' ? 0.2 : 0.16, -0.02); h.rotation.set(0, s * Math.PI / 2, 0); h.visible = false; trophy.add(h); });
       for (const m of squad) root.remove(m.root);
       squad = [];
       for (let i = 0; i < 6; i++) {
@@ -128,7 +160,7 @@ export function createCeremony(scene, camera) {
           trophy.position.lerp(p, Math.min(1, dt * 20));
         } else trophy.position.lerp(rest, Math.min(1, dt * 6));
       } else {
-        if (keys.KeyE && !deskHold) deskHold = true;
+        if (keys.KeyE && !deskHold) { deskHold = true; deskHands.forEach(h => { h.visible = true; }); }
         if (deskHold) {
           if (keys.ArrowUp || keys.KeyW) deskY = Math.min(head.y + 0.45, deskY + dt * 0.9);
           trophy.position.lerp(new THREE.Vector3(0, deskY, 0.55), Math.min(1, dt * 8));

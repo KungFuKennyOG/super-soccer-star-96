@@ -19,6 +19,7 @@ import { buildBall, buildArrow, animate, placeModel } from './actors.js';
 import { createSquads } from './squad.js';
 import { createMenus } from './menus.js';
 import { createCeremony } from './trophy.js';
+import { createHands } from './hands.js';
 import { buildHud, buildRadar } from './hud.js';
 import { createControls } from './controls.js';
 import { startAudio, sfx } from './audio.js';
@@ -49,6 +50,7 @@ const celebration = createCelebration(scene, camera);
 const menus = createMenus(scene, camera);
 const ceremony = createCeremony(scene, camera);
 const squads = createSquads(scene);
+const hands = createHands(renderer, rig);
 $('radar').appendChild(radar.canvas);
 
 // what's being played: the mode, your team, the opponent, and the cup run if there is one
@@ -126,6 +128,7 @@ function startMatch() {
   world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s));
   match = game.scenario ? createScenarioMatch(game.scenario) : createMatch();
   models = squads.dress(world, game.team, game.opp);
+  hands.setKit(game.team.kit);
   lastHead = null; shotHold = passHold = null; armed = false;
   menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
   mode = 'play'; hudEl.hidden = renderer.xr.isPresenting;
@@ -179,6 +182,7 @@ function startCeremony() {
   for (const m of Object.values(models)) { m.root.visible = m.shadow.visible = false; }
   ball.mesh.visible = ball.shadow.visible = arrow.visible = false;
   stadium.cheer(true);
+  hands.setKit(game.team.kit);
   ceremony.start(game.cup.kind, game.team);
 }
 function endCeremony() {
@@ -325,7 +329,7 @@ const loop = startLoop(renderer, (dt, t) => {
   stadium.update(dt, t);
   updateHud();
   radar.draw(world, match.goals, match.points);
-  if (raw.vr) placeOnHands();
+  if (raw.vr) { placeOnHands(); hands.update(); }
   renderer.render(scene, camera);
 }, { onFps: fps => { $('fps').textContent = `${fps} FPS`; } });
 

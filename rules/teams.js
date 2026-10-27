@@ -83,7 +83,7 @@ export function nationToward(fromId, dir, ids = NATIONS.map(n => n.id)) {
 export const CLUBS = [
   { id: 'MAD', name: 'MADRID', s: 5, kit: k('solid', W, null, W, W, '#2b2f6b', '#2b2f6b', { trim2: '#d9b23a' }) },
   { id: 'BAR', name: 'BARCELONA', s: 5, kit: k('stripes', '#1d3f94', '#9a1c3c', NAVY, NAVY, NAVY, GOLD, { band: '#9a1c3c', sleeve: '#9a1c3c', outline: NAVY, trim2: GOLD }) },
-  { id: 'MUN', name: 'MUNICH', s: 5, kit: k('solid', '#d00027', null, W, '#d00027', W, W) },
+  { id: 'MUN', name: 'MUNICH', s: 5, kit: k('solid', '#d00027', null, '#162a6b', '#d00027', W, W, { trim2: '#162a6b' }) }, // red and navy, so it never reads as Liverpool
   { id: 'MRB', name: 'MILAN RED/BLACK', s: 5, kit: k('stripes', '#c4161c', BLK, W, BLK, W, W, { outline: BLK }) },
   { id: 'MAN', name: 'MANCHESTER', s: 4, kit: k('solid', '#d0101e', null, W, BLK, BLK, W, { trim2: W }) },
   { id: 'LIV', name: 'LIVERPOOL', s: 4, kit: k('solid', RED, null, RED, RED, W, W) },
