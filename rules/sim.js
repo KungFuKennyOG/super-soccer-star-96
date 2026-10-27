@@ -9,13 +9,16 @@
 //   knock, drag, call: bool (true on the frame pressed)
 //   shot: { eye, dir, holdT } on the frame the shot is released
 //   pass: { holdT, targetId } on the frame the pass is released
+//   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
+//   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
 // }
-import { MOVE, AI, GOAL, PITCH, BALL } from './tuning.js';
+import { MOVE, AI, GOAL, PITCH, BALL, AIR } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, predictCross, ballSpeed } from './ball.js';
 import { gradePass, choosePass } from './pass.js';
 import { shotVelocity, ballistic } from './shot.js';
+import { ballOnHead, canVolley, canBicycle, headerVelocity, volleyVelocity, bicycleVelocity, inBox, crossVelocity, flickVelocity } from './aerial.js';
 import { defenderTargets, mateTarget, mateDecision, keeperSpot, keeperSave, closest } from './ai.js';
 
 export const DEAD = new Set(['goal', 'saved', 'out', 'tackled', 'intercepted']);
@@ -64,6 +67,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
   w.dragGrace = Math.max(0, w.dragGrace - dt);
 
   moveYou(w, it, dt);
+  if (it.head) w.headY = it.head.y;
 
   if (!w.dead && w.owner === 'you') {
     if (it.shot) shoot(w, you, it.shot.eye, it.shot.dir, it.shot.holdT, rnd, ev);
@@ -80,7 +84,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
 
   if (!w.dead) {
     keeperCheck(w, rnd, ev);
-    if (!w.owner) looseBall(w, rnd, ev);
+    if (!w.owner) { if (!aerial(w, it, rnd, ev)) looseBall(w, rnd, ev); }
     else tackles(w, dt, ev);
   }
   separate(w);
@@ -122,6 +126,12 @@ function pass(w, from, to, grade, rnd, ev) {
 
 function knock(w, ev) {
   const p = w.you, s = Math.hypot(p.vx, p.vz);
+  if (s < 0.8) {                                    // standing: flick it up to volley
+    launch(w, p, flickVelocity(p));
+    w.knockCD = 0.5;
+    ev.push({ type: 'flick' });
+    return;
+  }
   const d = s > 0.5 ? norm(p.vx, p.vz) : { x: p.fx, z: p.fz };
   launch(w, p, { vx: d.x * (s + MOVE.knockKick), vy: 0, vz: d.z * (s + MOVE.knockKick) });
   w.knockCD = 0.35; w.boostT = MOVE.knockTime;
@@ -144,12 +154,29 @@ function launch(w, p, v) {
   w.kick = { by: p.id, t: w.time };
 }
 
-function startShot(w, p, ev, power) {
+// kind: null for a normal shot, or 'header' | 'volley' | 'bicycle'.
+function startShot(w, p, ev, power, kind = null) {
   const cross = predictCross(w.ball);
   const gk = w.byId.gk;
   const decision = cross ? keeperSave(gk, cross, ballSpeed(w.ball), w.tune.ai) : 'wide';
-  w.shot = { by: p.id, from: { x: p.x, z: p.z }, t0: w.time, cross, decision, done: false };
-  ev.push({ type: 'kick', by: p.id, power });
+  w.shot = { by: p.id, from: { x: p.x, z: p.z }, t0: w.time, cross, decision, done: false, kind };
+  ev.push({ type: 'kick', by: p.id, power, kind });
+}
+
+// Headers, volleys and bicycle kicks (rules/aerial.js) on a loose ball in the air. True if you hit it.
+function aerial(w, it, rnd, ev) {
+  const b = w.ball, you = w.you;
+  if (b.y < AIR.volleyLow || (w.kick && w.kick.by === 'you' && w.time - w.kick.t < 0.3)) return false;
+  const head = it.head || { x: you.x, y: (w.headY || 1.65) - 0.08, z: you.z, vx: you.vx, vy: 0, vz: you.vz };
+  const gaze = it.gaze || { x: you.fx, y: 0, z: you.fz };
+  let kind = null, v = null;
+  if (it.strike && canBicycle(b, you, it.strike.dir)) { kind = 'bicycle'; v = bicycleVelocity(b, rnd); }
+  else if (it.strike && canVolley(b, you)) { kind = 'volley'; v = volleyVelocity(b, it.strike.eye, it.strike.dir, rnd, w.tune.shotErr, w.tune.shotPower); }
+  else if (b.y > 1.05 && ballOnHead(b, head)) { kind = 'header'; v = headerVelocity(b, head, gaze, rnd); }
+  if (!kind) return false;
+  launch(w, you, v);
+  startShot(w, you, ev, v.power, kind);
+  return true;
 }
 
 // After a goal: your teammates run over and line up in front of you for the dance.
@@ -222,6 +249,15 @@ function keeperTarget(w, gk) {
 function mateOnBall(w, p, rnd, ev) {
   const choice = mateDecision(p, defenders(w), w.ownT, w.called);
   if (choice === 'pass') {
+    // you're in the box: whip a cross in for a header or a volley instead of passing to feet
+    if (inBox(w.you) && (Math.abs(p.x) > 5 || w.called) && dist(p, w.you) > 6) {
+      const v = crossVelocity(w.ball, w.you, w.headY || 1.65, rnd);
+      launch(w, p, v);
+      w.pendingPass = { from: p.id, to: 'you', grade: 'good', t: w.time, lead: v.lead, lob: true, cross: true };
+      w.called = false;
+      ev.push({ type: 'pass', by: p.id, to: 'you', grade: 'good', lob: true, cross: true });
+      return null;
+    }
     pass(w, p, w.you, rnd() < w.tune.matePerfect ? 'perfect' : 'good', rnd, ev);
     return null;
   }
@@ -256,7 +292,7 @@ function onBallEvent(w, e, ev) {
   if (e.type === 'goal') {
     const by = s ? s.by : w.kick ? w.kick.by : 'you';
     const a = w.lastAssist && w.lastAssist.to === by && w.time - w.lastAssist.t < 4 ? w.lastAssist : null;
-    ev.push({ ...e, by, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain });
+    ev.push({ ...e, by, kind: s ? s.kind : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain });
   } else ev.push({ ...e, by: s ? s.by : null });
   if (s) s.done = true;
   if (e.type === 'post') w.shot = null;
@@ -302,7 +338,7 @@ function looseBall(w, rnd, ev) {
   let best = null, bd = Infinity;
   for (const p of homePlayers(w)) {
     if (w.kick && w.kick.by === p.id && w.time - w.kick.t < 0.3) continue;
-    if (p.role === 'you' && w.knockCD > 0) continue;
+    if (p.role === 'you' && (w.knockCD > 0 || b.y > AIR.trapBelow)) continue;   // a dropping ball is yours to head or volley first
     const d = dist(p, b), r = p.role === 'you' ? AI.receive : 1.2;
     if (d < r && d < bd) { bd = d; best = p; }
   }

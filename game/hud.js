@@ -120,6 +120,8 @@ export function buildHud(scene, camera) {
 
   return {
     scoreboard, banner, power, placeScoreboard,
+    // everything the HUD floats in the world, hidden while the replay camera films
+    overlays: [bn.m, ringTarget, ringLive, groundRing, lobTag, reticle],
     // per frame. pass: { target: {x,z}, scale (live ring), grade window color } or null.
     update(dt, { pass, aim, charge, over, mate, lob }) {
       camera.getWorldPosition(headPos); camera.getWorldDirection(headDir);

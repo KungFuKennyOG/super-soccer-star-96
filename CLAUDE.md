@@ -10,17 +10,17 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 | --- | --- |
 | `index.html` | Title screen, browser HUD, import map |
 | `engine/` | Stage (renderer, rig), WebXR session, controllers and desktop input, frame loop (copied from Last Call) |
-| `rules/` | **Pure game rules, no three.js**: tuning numbers, ball physics, passing, shooting, AI, the sim, match scoring, the dance, teams and kits (`teams.js`), cup runs (`cup.js`). Unit tested in Node. |
-| `game/` | Everything that draws or sounds: PS1 materials, textures, stadium, skinned players (`body.js`, `atlas.js`, `actors.js`, `squad.js`), HUD, menus (`menus.js`), trophy lift (`trophy.js`), dance (`celebration.js`), audio and music, controls, `main.js` |
+| `rules/` | **Pure game rules, no three.js**: tuning numbers, ball physics, passing, shooting, headers/volleys/bicycle kicks (`aerial.js`), AI, the sim, match scoring, what the commentator says (`commentary.js`), the dance, teams and kits (`teams.js`), cup runs (`cup.js`). Unit tested in Node. |
+| `game/` | Everything that draws or sounds: PS1 materials, textures, stadium, skinned players (`body.js`, `head.js`, `hair.js`, `atlas.js`, `actors.js`, `squad.js`), HUD, menus (`menus.js`), trophy lift (`trophy.js`), dance (`celebration.js`), commentator (`commentary.js`, voice clips in `assets/voice`), goal replays (`replay.js`), audio and music, controls and intents (`controls.js`, `intent.js`), `main.js` |
 | `tests/unit/` | Node tests for every module in `rules/` |
 | `tests/smoke/` | Headless Chromium play-through with screenshots |
-| `tools/serve.mjs` | Local no-cache server |
+| `tools/` | `serve.mjs` local no-cache server, `lab.html` model lineup, `build-voice.py` renders the commentator's lines |
 
 ## How it fits together
 
-- `rules/sim.js` owns the match: `stepSim(world, intent, dt)` takes one intent per frame (move, facing, shot, pass, knock, drag, call) and returns events (`kick`, `pass`, `received`, `goal`, `saved`, `post`, `out`, `tackled` and so on). The page never moves the ball or players itself.
+- `rules/sim.js` owns the match: `stepSim(world, intent, dt)` takes one intent per frame (move, facing, shot, pass, knock, drag, call, strike, head) and returns events (`kick`, `pass`, `received`, `goal`, `saved`, `post`, `out`, `tackled` and so on). The page never moves the ball or players itself.
 - `rules/match.js` turns events into points and banners and runs the 2-minute clock.
-- `game/main.js` reads controls, builds the intent (head-aim shooting, pass ring holds), steps the sim, then poses models and HUD.
+- `game/main.js` reads controls, builds the intent (`game/intent.js`: head-aim shooting, pass ring holds, your head for headers), steps the sim, records it for replays, then poses models and HUD.
 - All feel numbers live in `rules/tuning.js`.
 
 ## Rules
@@ -53,13 +53,16 @@ The owner is Kenny. He plays every change on a Quest 3, so make each change easy
 - The keeper always faces the ball in a crouched ready stance and side-steps instead of running; he hugs the ball after a catch and eases into position (no twitching).
 - Passes lob over defenders in the lane, otherwise go along the ground (`rules/pass.js` choosePass). The lane is a corridor that widens toward the receiver (`PASS.lobNear`/`lobFar` in tuning). A blue ring and a LOB tag show it before you pass.
 - On a hat trick (your 3rd, 6th... goal): a rhythm dance mini-game (`rules/dance.js`, `game/celebration.js`) at 88 bpm, one move per beat. Teammates face you and mirror the moves.
-- Right stick is only for turning. Skills are on buttons: A knock-on, B drag-back, Y restart.
+- Right stick is only for turning. Skills are on buttons: A knock-on (standing still: flick-up), B drag-back, Y restart.
 - Your own body in first person shows only boots and lower socks, plus low-poly hands on the controller grips (`game/hands.js`): open by default, pointing while you squeeze the grip, a fist on the trigger, sweatband in your kit. They follow the WebXR grip-space spec (origin mid-fist, -Z along the handle toward the thumb, palm toward -X on the right hand, +Y back to the wrist).
 - Trophies are deliberately PS1: few sides, flat shading, dithered metal textures, engraved plates. While you grip a hand-hold, a posed hand on the cup replaces your controller hand; each hand takes its own side (left hand on the cup's left).
 - Every club has its own ground (`game/grounds.js` recipes: stand tiers, corners, roof, lights, time of day, mowing, seat colors, extras like Liverpool's single big end, Dortmund's wall, Turin's track, Milan's towers; the two Milan clubs share a ground). Champions Cup alternates: home in R16 and SF, away in QF and the final. Nations and the World Cup use the national stadium.
 - The crowd is ~10k instanced fan dots in both teams' colors; they bob all game, yours jump when your team scores, theirs when they score on the counter (vertex shader, one draw call).
 - Music: original chiptune tracks sequenced in `game/music.js` (menu, dance).
 - Players are code-built low-poly skinned meshes measured against Kenny's FIFA 98 / Virtua Striker 2 screenshots (`game/body.js`, measurements in `P`): realistic athletic male proportions (1.82 m, about 8 heads), broad shoulders, straight torso and narrow hips (no waist, or they read as women), a thick neck carried forward, shirt tucked into long wide 90s shorts, socks to the knee, big calves, chunky boots. The face is sculpted in the geometry (`game/head.js`: brow ridge, deep-set eyes, nose, muzzle, chin, cheekbones, jaw corners). Textures are never flat: blotchy photo-like cloth with folds, skin tone variation and painted muscle light, V-necks, raglan shoulder stripes (`game/atlas.js`, 256 sheet). Mostly short hair (`game/hair.js`), most players stubbled. Gouraud shading, baked ambient occlusion, extra contrast (`ps1({ pop: true })`). Chunky stylised proportions and a realistic CC0 rigged model (Quaternius) were both tried and rejected. `tools/lab.html` shows a lineup for checking models.
+- Aerial play (`rules/aerial.js`, numbers in `AIR`): headers use your real head (position and speed from the headset); pull the trigger on a dropping ball for a volley, or look up and pull it for a bicycle kick (always on target, slow motion). Teammates cross it in when you're in the box; A while standing flicks the ball up. A dropping ball isn't trapped above waist height, so it can be headed or volleyed. Goal bonuses: header +500, volley +600, bicycle +1500.
+- Commentator (setting OFF / TEXT / VOICE, default VOICE): a British TV voice, pre-recorded lines in `game/assets/voice` (Kokoro TTS voice bm_george, rendered by `tools/build-voice.py` from hand-written phonemes in `lines.json`; add a line there and re-run it). Subtitles float just below your view. `rules/commentary.js` picks lines by event and priority.
+- Goal replays (setting OFF / ON): the last ~4 s before a goal replay with copies of the players, slowing for the finish, filmed from a touchline gantry into a render target shown on a floating CRT in front of you and on the stadium's big screen. A or B skips. No replay on a hat trick (the dance goes instead).
 
 ## Asking for a headset check
 

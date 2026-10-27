@@ -78,6 +78,7 @@ export function ps1(opts = {}) {
 export function pixelTex(src, repeat) {
   const t = src.isTexture ? src : new THREE.CanvasTexture(src);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  if (t.isRenderTargetTexture) return t;              // drawn by the GPU (the replay screen): nothing to upload
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   t.needsUpdate = true;
   return t;

@@ -28,6 +28,9 @@ export const isTopBins = e => e.y > 1.55 && Math.abs(e.x) > GOAL.halfW - 1.4;
 // Your third goal (and sixth, ninth...) is a hat trick. Call after scoreEvent has counted the goal.
 export const isHatTrick = (m, e) => e.type === 'goal' && e.by === 'you' && m.yourGoals > 0 && m.yourGoals % 3 === 0;
 
+// Goals from the air are worth more: headers, volleys, and the bicycle kick most of all.
+export const KIND_BONUS = { header: { name: 'HEADER', pts: 500 }, volley: { name: 'VOLLEY', pts: 600 }, bicycle: { name: 'BICYCLE KICK', pts: 1500 } };
+
 // Scores one sim event. Returns a banner { text, sub, tone, big } or null. tone: 'good' | 'bad' | 'info'.
 export function scoreEvent(m, e) {
   switch (e.type) {
@@ -42,8 +45,10 @@ export function scoreEvent(m, e) {
       if (e.dist >= 24) { pts += 500; bonus.push('WORLDIE +500'); }
       if (e.assist && e.assist.from !== e.by) { pts += 300; bonus.push(e.by === 'you' ? 'ONE-TWO +300' : 'ASSIST +300'); }
       if (e.chain > 1) { pts += e.chain * 100; bonus.push(`PASS CHAIN x${e.chain} +${e.chain * 100}`); }
+      const k = KIND_BONUS[e.kind];
+      if (k) { pts += k.pts; bonus.push(`${k.name} +${k.pts}`); }
       m.points += pts;
-      const text = isHatTrick(m, e) ? 'HAT TRICK!' : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
+      const text = isHatTrick(m, e) ? 'HAT TRICK!' : k ? `${k.name}!` : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
       const sub = (m.scenario ? `${m.us} - ${m.them}\n` : '') + (bonus.join('\n') || `+${pts}`);
       return { text, sub, tone: 'good', big: true };
     }

@@ -3,8 +3,10 @@
 //
 // Quest:   left stick run · left grip or stick click sprint · right stick turn (it's only for turning)
 //          right trigger shoot (aim with your head) · left trigger pass (timing ring) / call for it
-//          A knock-on · B drag-back · Y restart
-// Browser: WASD run · mouse look · Shift sprint · left click shoot · right click or E pass · Space knock-on
+//          A knock-on (standing still: flick it up) · B drag-back · Y restart
+//          a dropping ball: trigger to volley it, look up and trigger for an overhead kick; headers are
+//          your actual head (A or B also skip a goal replay)
+// Browser: WASD run · mouse look · Shift sprint · left click shoot / volley · right click or E pass · Space knock-on / flick up
 //          C drag-back · Q/Z turn without a mouse · R restart · Enter start
 import { setupControllers, controllers, pressed, readStick, BTN, createDesktopInput } from '../engine/input.js';
 

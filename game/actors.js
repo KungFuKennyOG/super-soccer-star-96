@@ -61,6 +61,8 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
     bn.footR.rotation.x = 0.3;
     bn.upperArmL.rotation.z = 0.8; bn.spine.rotation.y = -0.25 * Math.sin(k * Math.PI);
   }
+  if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
+  if (m.special && m.special.kind === 'bicycle') { specialPose(bn, m.special); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
   // bounce at each push-off, hips and shoulders twisting against each other, a forward lean that grows
@@ -78,6 +80,7 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
   bn.foreArmR.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, ph) * swing + 0.15 * still);
   bn.chest.rotation.x += 0.07 * still; bn.neck.rotation.x += 0.02 * still;   // shoulders forward, head carried forward and level: the FIFA 98 stance
 
+  if (m.special && m.special.kind === 'header') specialPose(bn, m.special);
   if (p.role === 'gk') {
     if (p.dive && !m.dive) m.dive = { dir: p.dive, t: 0 };
     if (m.dive) {
@@ -93,6 +96,22 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
     bn.hips.position.y += Math.abs(Math.sin(t * 7 + m.phase)) * 0.45;
     bn.upperArmL.rotation.set(0, 0, 2.6); bn.upperArmR.rotation.set(0, 0, -2.6);
     bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.3;
+  }
+}
+
+// Moves from the air (m.special = { kind, t }, set when the kick happens): the bicycle kick throws the
+// body back and swings the striking leg over the head; a header is a hop with the neck snapping forward.
+function specialPose(bn, sp) {
+  const k = Math.min(1, sp.t / 0.9), up = Math.sin(Math.PI * Math.min(1, k * 1.4));
+  if (sp.kind === 'bicycle') {
+    bn.hips.rotation.x = -1.5 * up; bn.hips.position.y += 0.55 * up;
+    bn.upperLegR.rotation.x = -2.7 * up; bn.lowerLegR.rotation.x = 0.3 * (1 - up);
+    bn.upperLegL.rotation.x = -0.9 * up; bn.lowerLegL.rotation.x = 1.2 * up;
+    bn.upperArmL.rotation.set(0, 0, 1.4 * up); bn.upperArmR.rotation.set(0, 0, -1.4 * up);
+    bn.neck.rotation.x = 0.4 * up;
+  } else if (sp.kind === 'header') {
+    bn.hips.position.y += 0.16 * up; bn.spine.rotation.x += 0.25 * up; bn.neck.rotation.x = 0.5 * Math.sin(Math.PI * k);
+    bn.upperArmL.rotation.z = 0.5 * up; bn.upperArmR.rotation.z = -0.5 * up;
   }
 }
 

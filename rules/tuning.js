@@ -52,3 +52,16 @@ export const SHOT = {
 };
 
 export const MATCH = { duration: 120, deadTime: 2.4 };
+
+// Headers, volleys and bicycle kicks (rules/aerial.js). Heights are of the ball's centre (m).
+export const AIR = {
+  headR: 0.3,                          // the ball meets your head inside this distance of its centre
+  headMin: 6, headMax: 21,             // header speed: a still head nods it, a lunge into it powers it
+  headLunge: 2.4,                      // m/s of header speed per m/s your head is moving
+  volleyLow: 0.22, volleyHigh: 1.4, volleyReach: 1.15,
+  bikeLow: 0.95, bikeHigh: 2.4, bikeReach: 1.35, bikeLook: 0.4,   // look up at least this much (dir.y)
+  trapBelow: 0.55,                     // you only bring a dropping ball down once it's below this
+  boxDepth: 17, boxHalfW: 12,          // you're "in the box" for a cross inside this
+  crossSpeed: 15.5,                    // horizontal speed of a teammate's cross
+  flick: { up: 5.2, fwd: 0.6 },        // knock-on while standing: flick it up for a volley or an overhead
+};
