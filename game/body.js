@@ -6,11 +6,12 @@
 import * as THREE from 'three';
 import { REGIONS, SIZE, TORSO_Y, LEG_Y, ARM_DY, SLEEVE_DY, SHORTS_Y, SHIRT_HEM, LIMB_A0, headU } from './atlas.js';
 import { hairShell } from './hair.js';
+import { faceSculpt } from './head.js';
 
 // Key heights and widths (metres; the player faces +z, +x is his left). 1.82 m tall.
 export const P = {
-  crown: 1.82, chin: 1.592,
-  shoulderY: 1.468, shoulderX: 0.185, hipY: 0.95, hipX: 0.092, kneeY: 0.5, ankleY: 0.08,
+  crown: 1.845, chin: 1.58,
+  shoulderY: 1.468, shoulderX: 0.205, hipY: 0.95, hipX: 0.09, kneeY: 0.52, ankleY: 0.085,
   elbowDY: -0.31, wristDY: -0.56,
 };
 
@@ -177,26 +178,25 @@ export function bodyGeometry(style = 0) {
 
   // torso, neck to crotch: [y, half width, half depth, z offset, squareness, weights]
   const T = [
-    [1.625, 0.05, 0.056, 0.012, 2, { neck: 0.5, head: 0.5 }],
-    [1.57, 0.06, 0.065, 0.006, 2, { neck: 1 }],
-    [1.54, 0.07, 0.072, 0, 2, { neck: 0.7, chest: 0.3 }],                                               // neck base
-    [1.512, 0.135, 0.088, -0.008, 2.2, { chest: 0.5, neck: 0.2, clavicleL: 0.15, clavicleR: 0.15 }],      // trapezius slope
-    [1.47, 0.176, 0.102, -0.01, 2.4, { chest: 0.6, clavicleL: 0.2, clavicleR: 0.2 }],                     // top of the shoulders
-    [1.42, 0.183, 0.118, 0.004, 2.5, { chest: 1 }],                                                       // armpits
-    [1.35, 0.177, 0.122, 0.012, 2.5, { chest: 1 }],                                                       // chest
-    [1.27, 0.166, 0.116, 0.012, 2.4, { chest: 0.7, spine: 0.3 }],
-    [1.18, 0.153, 0.106, 0.008, 2.3, { spine: 0.6, chest: 0.4 }],
-    [1.09, 0.149, 0.102, 0.004, 2.3, { spine: 0.7, hips: 0.3 }],                                          // waist
-    [1.015, 0.157, 0.106, 0, 2.3, { hips: 0.6, spine: 0.4 }],
-    [SHIRT_HEM, 0.162, 0.108, 0, 2.3, { hips: 0.8, spine: 0.2 }],                                         // shirt tucked in
-    [0.93, 0.17, 0.112, 0, 2.2, { hips: 1 }],                                                             // shorts
-    [0.87, 0.163, 0.1, 0, 2.2, { hips: 1 }],
-    [0.83, 0.11, 0.07, 0, 2, { hips: 1 }],
+    [1.625, 0.052, 0.058, 0.03, 2, { neck: 0.5, head: 0.5 }],
+    [1.57, 0.066, 0.07, 0.02, 2, { neck: 1 }],                                                          // thick neck, carried forward
+    [1.54, 0.078, 0.078, 0.01, 2, { neck: 0.7, chest: 0.3 }],                                           // neck base
+    [1.512, 0.145, 0.09, -0.008, 2.2, { chest: 0.5, neck: 0.2, clavicleL: 0.15, clavicleR: 0.15 }],       // trapezius slope
+    [1.47, 0.198, 0.114, -0.004, 2.5, { chest: 0.6, clavicleL: 0.2, clavicleR: 0.2 }],                    // top of the broad shoulders
+    [1.42, 0.21, 0.134, 0.012, 2.9, { chest: 1 }],                                                        // armpits
+    [1.35, 0.2, 0.136, 0.018, 3, { chest: 1 }],                                                           // broad, flat-fronted chest
+    [1.27, 0.188, 0.13, 0.016, 2.9, { chest: 0.7, spine: 0.3 }],
+    [1.18, 0.18, 0.124, 0.01, 2.8, { spine: 0.6, chest: 0.4 }],                                           // a man's straight torso: no waist
+    [SHIRT_HEM, 0.174, 0.118, 0.004, 2.6, { spine: 0.7, hips: 0.3 }],                                     // shirt tucked in
+    [SHIRT_HEM - 0.008, 0.17, 0.114, 0.004, 2.6, { spine: 0.6, hips: 0.4 }],                              // high-waisted shorts
+    [0.98, 0.172, 0.116, 0, 2.6, { hips: 0.7, spine: 0.3 }],                                              // narrow hips
+    [0.9, 0.17, 0.112, 0, 2.6, { hips: 1 }],
+    [0.83, 0.16, 0.1, 0, 2.6, { hips: 1 }],
+    [0.79, 0.14, 0.09, 0, 2.6, { hips: 1 }],
   ];
   b.tube(T.map(([y, rx, rz, z, n, w]) => ({ c: [0, y, z], rx, rz, n, v: tv(y), w })), REGIONS.torso, {
     seg: 16, capBottom: true,
     shape: muscles([                                    // under a baggy shirt, so only a hint
-      { a: 0.45, aw: 0.55, y: 1.36, yw: 0.06, d: 0.01 }, { a: -0.45, aw: 0.55, y: 1.36, yw: 0.06, d: 0.01 },     // pecs
       { a: 2.0, aw: 0.6, y: 1.3, yw: 0.09, d: 0.007 }, { a: -2.0, aw: 0.6, y: 1.3, yw: 0.09, d: 0.007 },         // lats
       { a: 2.6, aw: 0.45, y: 1.41, yw: 0.06, d: 0.007 }, { a: -2.6, aw: 0.45, y: 1.41, yw: 0.06, d: 0.007 },     // shoulder blades
       { a: Math.PI, aw: 0.3, y: 1.25, yw: 0.2, d: -0.005 },                                                     // spine
@@ -205,34 +205,27 @@ export function bodyGeometry(style = 0) {
   });
   // polo collar: a band standing round the neck with a folded lip
   b.tube([
-    { c: [0, 1.566, 0.008], rx: 0.072, rz: 0.077, v: 0.02, w: { neck: 0.8, chest: 0.2 } },
-    { c: [0, 1.559, 0.008], rx: 0.067, rz: 0.072, v: 0.4, w: { neck: 0.7, chest: 0.3 } },
-    { c: [0, 1.526, -0.002], rx: 0.1, rz: 0.086, n: 2.2, v: 0.98, w: { chest: 0.6, neck: 0.4 } },
+    { c: [0, 1.566, 0.02], rx: 0.075, rz: 0.08, v: 0.02, w: { neck: 0.8, chest: 0.2 } },
+    { c: [0, 1.559, 0.02], rx: 0.07, rz: 0.075, v: 0.4, w: { neck: 0.7, chest: 0.3 } },
+    { c: [0, 1.526, 0.008], rx: 0.102, rz: 0.09, n: 2.2, v: 0.98, w: { chest: 0.6, neck: 0.4 } },
   ], REGIONS.collar, { seg: 12 });
 
-  // head: an egg, a little big for the body, with brow, nose, cheekbones, ears and a square jaw
-  const H = { cx: 0, cy: (P.crown + P.chin) / 2, cz: 0.014, rx: 0.085, ry: (P.crown - P.chin) / 2, rz: 0.104 };
-  const rows = 12, headRings = [];
+  // head: an oval skull with the face sculpted into it (head.js), a little big for the body
+  const H = { cx: 0, cy: (P.crown + P.chin) / 2, cz: 0.032, rx: 0.094, ry: (P.crown - P.chin) / 2, rz: 0.114 };
+  const rows = 18, headRings = [];
   for (let j = 0; j <= rows; j++) {
     const t = j / rows * Math.PI, s = Math.sin(t);
     headRings.push({ c: [H.cx, H.cy + Math.cos(t) * H.ry, H.cz], rx: Math.max(1e-4, s * H.rx), rz: Math.max(1e-4, s * H.rz), v: j / rows, w: { head: 1 }, t });
   }
   b.tube(headRings, REGIONS.head, {
-    seg: 16, a0: Math.PI, uOf: headU,
+    seg: 24, a0: Math.PI, uOf: headU,
     shape: (i, a, r) => {
-      const fx = Math.sin(a) * r.rx, front = Math.cos(a), side = Math.abs(Math.sin(a)), t = r.t / Math.PI;
-      let dx = 0, dy = 0, dz = 0;
-      if (t > 0.6) {                                                // jaw narrows to the chin
-        const k = (t - 0.6) / 0.4;
-        dx -= fx * 0.2 * k;
-        if (front > 0) { dz += 0.012 * k * front; dy -= 0.006 * k * front; }
-      }
-      if (front < -0.3 && t > 0.55) dz += 0.012 * (t - 0.55) * -front;  // the back of the skull tucks in to the neck
-      if (front > 0.8 && Math.abs(t - 0.42) < 0.06) dz += 0.006;    // brow
-      if (front > 0.95 && t > 0.46 && t < 0.62) dz += t < 0.56 ? 0.017 : 0.01; // nose
-      if (front > 0.4 && front < 0.95 && Math.abs(t - 0.55) < 0.07) dx += Math.sign(fx) * 0.004;   // cheekbones
-      if (side > 0.95 && Math.abs(t - 0.52) < 0.07) dx += Math.sign(fx) * 0.012;  // ears
-      return [dx, dy, dz];
+      const t = r.t / Math.PI, phi = Math.atan2(Math.sin(a), Math.cos(a)), fx = Math.sin(a) * r.rx;
+      let dx = 0, dz = 0;
+      if (t > 0.66) dx -= fx * 0.1 * (t - 0.66) / 0.34;             // a broad jaw narrows to the chin
+      if (Math.cos(a) < -0.3 && t > 0.6) dz += 0.014 * (t - 0.6) * -Math.cos(a);  // the skull tucks in to the neck
+      const [out, dy] = faceSculpt(phi, t), k = Math.min(1, Math.sin(r.t) * 3);
+      return [dx + Math.sin(a) * out * k, dy, dz + Math.cos(a) * out * k];
     },
   });
   hairShell(b, style, H, REGIONS.hair, { head: 1 });
@@ -242,58 +235,58 @@ export function bodyGeometry(style = 0) {
     // leg: [y, r, z offset, weights]. Short baggy shorts flare to the hem, then a thick thigh, a
     // knee, the sock turned over below it, a big calf and a slim ankle.
     const L = [
-      [0.97, 0.095, 0, { hips: 0.5, [up]: 0.5 }],
-      [0.89, 0.104, 0, { hips: 0.2, [up]: 0.8 }],
-      [SHORTS_Y, 0.114, 0.004, { [up]: 1 }],                           // short shorts, a little flared
-      [SHORTS_Y - 0.006, 0.087, 0.006, { [up]: 1 }],
-      [0.66, 0.083, 0.01, { [up]: 1 }],
-      [0.58, 0.071, 0.012, { [up]: 1 }],
-      [0.525, 0.061, 0.012, { [up]: 0.7, [lo]: 0.3 }],
-      [P.kneeY, 0.058, 0.012, { [up]: 0.5, [lo]: 0.5 }],
-      [0.474, 0.057, 0.006, { [lo]: 1 }],
-      [0.458, 0.062, 0.004, { [lo]: 1 }],                              // sock turned over below the knee
-      [0.428, 0.062, 0, { [lo]: 1 }],
-      [0.37, 0.068, -0.01, { [lo]: 1 }],                               // calf
-      [0.31, 0.065, -0.012, { [lo]: 1 }],
-      [0.24, 0.052, -0.006, { [lo]: 1 }],
-      [0.16, 0.039, -0.002, { [lo]: 1 }],
-      [0.11, 0.034, 0, { [lo]: 1 }],
-      [P.ankleY, 0.036, 0, { [lo]: 0.5, [ft]: 0.5 }],
+      [0.96, 0.092, 0, { hips: 0.5, [up]: 0.5 }],
+      [0.86, 0.106, 0, { hips: 0.2, [up]: 0.8 }],                       // straight down from narrow hips, flaring only at the hem
+      [SHORTS_Y, 0.138, 0.004, { [up]: 1 }],                           // long, wide, flared shorts
+      [SHORTS_Y - 0.006, 0.1, 0.008, { [up]: 1 }],                     // thick thighs
+      [0.63, 0.094, 0.012, { [up]: 1 }],
+      [0.58, 0.08, 0.012, { [up]: 1 }],
+      [0.545, 0.065, 0.012, { [up]: 0.7, [lo]: 0.3 }],
+      [P.kneeY, 0.064, 0.012, { [up]: 0.5, [lo]: 0.5 }],
+      [0.494, 0.063, 0.006, { [lo]: 1 }],
+      [0.478, 0.07, 0.004, { [lo]: 1 }],                               // sock turned over below the knee
+      [0.448, 0.072, 0, { [lo]: 1 }],
+      [0.39, 0.082, -0.012, { [lo]: 1 }],                              // big calves
+      [0.33, 0.079, -0.014, { [lo]: 1 }],
+      [0.26, 0.062, -0.008, { [lo]: 1 }],
+      [0.18, 0.047, -0.002, { [lo]: 1 }],
+      [0.12, 0.042, 0, { [lo]: 1 }],
+      [P.ankleY, 0.044, 0, { [lo]: 0.5, [ft]: 0.5 }],
     ];
     b.tube(L.map(([y, r, z, w]) => ({ c: [lx, y, z], rx: r, rz: r * 0.95, n: 2.2, v: lv(y), w })), REGIONS.leg, {
       seg: 10, a0: LIMB_A0, capBottom: true,
       shape: muscles([
-        { a: 0, aw: 1.2, y: 0.65, yw: 0.09, d: 0.01 },                       // quads
-        { a: -s * 0.55, aw: 0.7, y: 0.55, yw: 0.045, d: 0.009 },            // teardrop above the knee
-        { a: s * 1.3, aw: 0.8, y: 0.66, yw: 0.09, d: 0.005 },               // outer thigh
-        { a: Math.PI, aw: 1.1, y: 0.66, yw: 0.09, d: 0.005 },               // hamstrings
+        { a: 0, aw: 1.2, y: 0.64, yw: 0.09, d: 0.009 },                      // quads
+        { a: -s * 0.55, aw: 0.7, y: 0.57, yw: 0.045, d: 0.01 },             // teardrop above the knee
+        { a: s * 1.3, aw: 0.8, y: 0.66, yw: 0.08, d: 0.006 },               // outer thigh
+        { a: Math.PI, aw: 1.1, y: 0.66, yw: 0.08, d: 0.006 },               // hamstrings
         { a: 0, aw: 0.7, y: P.kneeY, yw: 0.022, d: 0.01 },                  // kneecap
-        { a: -s * 2.36, aw: 0.9, y: 0.35, yw: 0.07, d: 0.013 },             // inner calf
-        { a: s * 2.36, aw: 0.8, y: 0.37, yw: 0.06, d: 0.009 },              // outer calf
+        { a: -s * 2.36, aw: 0.9, y: 0.37, yw: 0.07, d: 0.018 },             // inner calf
+        { a: s * 2.36, aw: 0.8, y: 0.39, yw: 0.06, d: 0.013 },              // outer calf
         { a: 0, aw: 0.6, y: 0.27, yw: 0.09, d: -0.003 },                     // shin
         { a: Math.PI, aw: 0.8, y: 0.14, yw: 0.05, d: -0.005 },              // achilles
       ]),
     });
-    b.boot([lx, 0.04, 0.045], [0.094, 0.08, 0.27], REGIONS.boot, ft, 'toe' + n);
+    b.boot([lx, 0.05, 0.05], [0.104, 0.1, 0.3], REGIONS.boot, ft, 'toe' + n);   // big chunky boots
 
     const ua = 'upperArm' + n, fa = 'foreArm' + n, hd = 'hand' + n, cl = 'clavicle' + n, ax = s * P.shoulderX, ay = P.shoulderY;
     // arm: [dy below the shoulder, rx, rz, weights, x shift inward]. A rounded shoulder cap, a thick
     // upper arm in a baggy sleeve that flares to just above the elbow, a strong forearm, mitt hands.
     const A = [
-      [0.035, 0.05, 0.056, { chest: 0.4, [cl]: 0.4, [ua]: 0.2 }, -0.03],   // deltoid
-      [0.005, 0.072, 0.077, { [cl]: 0.4, [ua]: 0.6 }, -0.008],
-      [-0.05, 0.076, 0.077, { [ua]: 1 }],
-      [-0.12, 0.074, 0.073, { [ua]: 1 }],
-      [SLEEVE_DY + 0.004, 0.072, 0.071, { [ua]: 0.95, [fa]: 0.05 }],     // sleeve to mid upper arm
-      [SLEEVE_DY - 0.004, 0.051, 0.053, { [ua]: 1 }],
-      [-0.25, 0.048, 0.05, { [ua]: 1 }],
+      [0.03, 0.058, 0.062, { chest: 0.4, [cl]: 0.4, [ua]: 0.2 }, -0.03],   // the shoulder slopes into the sleeve
+      [0.0, 0.07, 0.075, { [cl]: 0.4, [ua]: 0.6 }, -0.01],
+      [-0.06, 0.074, 0.076, { [ua]: 1 }],
+      [-0.14, 0.076, 0.076, { [ua]: 1 }],
+      [SLEEVE_DY + 0.004, 0.078, 0.077, { [ua]: 0.92, [fa]: 0.08 }],     // loose sleeve to above the elbow
+      [SLEEVE_DY - 0.004, 0.054, 0.056, { [ua]: 1 }],
+      [-0.282, 0.047, 0.049, { [ua]: 1 }],
       [P.elbowDY, 0.041, 0.043, { [ua]: 0.5, [fa]: 0.5 }],
-      [-0.36, 0.046, 0.048, { [fa]: 1 }],
-      [-0.45, 0.037, 0.039, { [fa]: 1 }],
-      [P.wristDY + 0.012, 0.026, 0.03, { [fa]: 0.5, [hd]: 0.5 }],
-      [P.wristDY - 0.02, 0.022, 0.044, { [hd]: 1 }],                       // the hand: palm toward the body
-      [P.wristDY - 0.085, 0.022, 0.046, { [hd]: 1 }],
-      [P.wristDY - 0.15, 0.012, 0.03, { [hd]: 1 }],
+      [-0.36, 0.051, 0.053, { [fa]: 1 }],                                 // strong forearms
+      [-0.45, 0.041, 0.043, { [fa]: 1 }],
+      [P.wristDY + 0.012, 0.029, 0.033, { [fa]: 0.5, [hd]: 0.5 }],
+      [P.wristDY - 0.02, 0.024, 0.048, { [hd]: 1 }],                       // big hands, palm toward the body
+      [P.wristDY - 0.09, 0.024, 0.05, { [hd]: 1 }],
+      [P.wristDY - 0.165, 0.013, 0.032, { [hd]: 1 }],
     ];
     b.tube(A.map(([dy, rx, rz, w, ox = 0]) => ({ c: [ax + s * ox, ay + dy, 0], rx, rz, n: 2.2, v: av(dy), w })), REGIONS.arm, {
       seg: 10, a0: LIMB_A0, capBottom: true,

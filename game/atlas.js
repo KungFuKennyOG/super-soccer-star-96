@@ -24,12 +24,12 @@ export const REGIONS = {
 export const SIZE = 128;                                 // the sheet in base units (UVs are fractions of it)
 
 // Rows where things change, shared with body.js so the paint lines up with the geometry.
-export const TORSO_Y = { top: 1.64, bottom: 0.82 };   // world heights covered by the torso region
+export const TORSO_Y = { top: 1.64, bottom: 0.79 };   // world heights covered by the torso region
 export const LEG_Y = { top: 0.97, bottom: 0.08 };
-export const ARM_DY = { top: 0.04, bottom: -0.71 };
-export const SLEEVE_DY = -0.17;                        // where the sleeve ends, below the shoulder
-export const SHIRT_HEM = 0.995;                        // where the shirt tucks into the shorts (world height)
-export const SHORTS_Y = 0.75;                          // where the shorts end (world height)
+export const ARM_DY = { top: 0.04, bottom: -0.73 };
+export const SLEEVE_DY = -0.25;                        // where the sleeve ends, below the shoulder
+export const SHIRT_HEM = 1.045;                        // where the shirt tucks into the shorts (world height)
+export const SHORTS_Y = 0.72;                          // where the shorts end (world height)
 export const LIMB_A0 = Math.PI / 6;                    // where u = 0 sits round the 6-sided legs and arms
 
 const cache = new Map();
@@ -83,9 +83,31 @@ const armRow = dy => (ARM_DY.top - dy) / (ARM_DY.top - ARM_DY.bottom) * 64;
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const near = (v, c, r) => clamp01(1 - Math.abs(v - c) / r);      // 1 at c, 0 beyond r
 
-// Kit cloth: bold flat color with a soft light-to-shade round the body; tiny texel noise.
-function cloth(base, light, px, py) {
-  return mul(base, light * (0.985 + 0.03 * hash(px, py)));
+// Smooth value noise, wrapping every `period` cells across x so it has no seam round a limb.
+function vnoise(x, y, seed, period) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, w = v => ((v % period) + period) % period;
+  const sm = t => t * t * (3 - 2 * t), u = sm(fx), v = sm(fy);
+  const a = hash(w(xi), yi, seed), b = hash(w(xi + 1), yi, seed), c = hash(w(xi), yi + 1, seed), d = hash(w(xi + 1), yi + 1, seed);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+// Layered noise in base units round a region `W` wide: 0..1, mostly broad blotches with finer grain.
+function fbm(x, y, W, seed, cell = 6) {
+  const p = Math.max(1, Math.round(W / cell)), k = p / W;
+  return 0.55 * vnoise(x * k, y * k, seed, p) + 0.3 * vnoise(x * k * 2, y * k * 2, seed + 3, p * 2) + 0.15 * vnoise(x * k * 4, y * k * 4, seed + 7, p * 4);
+}
+
+// Kit cloth the FIFA 98 way: the color is never flat. Soft blotchy light and shade like a photo of
+// fabric, folds that catch the light, and fine weave grain on top. x, y in base units, W the region width.
+function cloth(base, light, x, y, W, px, py, folds = 1) {
+  const blot = fbm(x, y, W, 11, 7);
+  const fold = Math.sin((x * 0.9 + fbm(x, y, W, 23, 10) * 9) * 0.8);
+  const l = light * (0.88 + 0.24 * blot) * (1 + 0.1 * folds * fold) * (0.975 + 0.05 * hash(px, py));
+  return mul(base, l);
+}
+// Skin with a little colour variation and soft muscle tone, never flat.
+function skinTone(sk, light, x, y, W, px, py) {
+  const m = fbm(x, y, W, 41, 5);
+  return mul(sk, light * (0.93 + 0.12 * m) * (0.985 + 0.03 * hash(px, py)));
 }
 const roundLight = front => 0.74 + 0.18 * Math.abs(front) + 0.08 * front;
 
@@ -110,25 +132,26 @@ function torso(k, num, skinHex) {
     if (y < band) return mul(trim, 0.85 + 0.1 * front);                                     // neckband under the collar
     if (y >= shortsTop) {
       if (y < shortsTop + 1.8) return mul(trim, 0.8);                                       // waistband
-      return cloth(shorts, roundLight(front) * (0.92 - 0.1 * clamp01((y - shortsTop - 3) / 5)), px, py); // shade toward the crotch
+      return cloth(shorts, roundLight(front) * (0.92 - 0.12 * clamp01((y - shortsTop - 3) / 5)), x, y, W, px, py); // shade toward the crotch
     }
     const ax = Math.min(x, W - x);                                                           // distance round from the chest centre
     let col = shirtColor(k, x, y, band);
     // a short V-neck insert under the collar, edged in the second trim color
     const vee = (band + 4.5 - y) * 0.55;
-    if (ax < vee) col = ax > vee - 0.6 ? trim2 : mul(trim, 0.9);
+    if (ax < vee) col = ax > vee - 0.7 ? trim : mul(trim2, 0.35);                            // V-neck: trim edge, dark inside
+    // 90s raglan stripes running from the collar over the shoulders (plain kits)
+    if ((k.pattern === 'solid' || k.pattern === 'sleeves') && Math.abs(side - 0.985) < 0.015 && y < band + 9) col = trim;
     // painted shading: lit upper chest, shade under the pecs and in the armpits, darker sides and hem
     let light = roundLight(front);
     light *= 1 + 0.06 * near(y, chestY - 6, 6) * clamp01(front);
     light *= 1 - 0.12 * near(y, chestY + 2.5, 1.6) * clamp01(front) * near(ax, 7, 5);
     light *= 1 - 0.22 * near(y, band + 6, 6) * near(side, 1, 0.25);
-    // a few long creases from the armpits down to the waist, and bunching at the waist
-    const cr = (Math.abs(ax - 10) + (y - band) * 0.32) % 9;
-    if (y > band + 10 && side < 0.95 && cr < 0.9) light *= 0.9;
-    else if (y > band + 10 && side < 0.95 && cr < 1.8) light *= 1.04;
+    // broad soft folds hanging from the chest, like the painted FIFA 98 shirts
+    const fold = Math.sin(ax * 0.62 + Math.sin(y * 0.18) * 1.4);
+    light *= 1 + 0.12 * fold * clamp01((y - band - 8) / 10);
     if (y > shortsTop - 6 && Math.sin(x * 1.3) > 0.7) light *= 0.92;
     if (y > shortsTop - 2) light *= 0.78;                                                      // loose hem
-    return cloth(col, light, px, py);
+    return cloth(col, light, x, y, W, px, py);
   });
   const ctx = c.getContext('2d');
   // a small plain shield badge on the left chest (no real crest)
@@ -141,8 +164,6 @@ function torso(k, num, skinHex) {
   const edge = '#' + mul(rgb(k.number), 0.35).map(v => v.toString(16).padStart(2, '0')).join('');
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawText(ctx, s, x0 + dx * S / 2, y0 + dy * S / 2, edge, sc);
   drawText(ctx, s, x0, y0, k.number, sc);
-  // small number on the front of the shorts
-  drawText(ctx, s, 6 * S, Math.round((shortsTop + 4) * S), k.number === k.shorts ? k.trim : k.number, S);
   return c;
 }
 
@@ -167,43 +188,48 @@ function head(skinHex, hairHex, style, stubble) {
       if (style === 2) return mul(sk, 0.66 * (0.9 + 0.2 * hash(px, py)));
       return mul(hr, (0.8 + 0.25 * (1 - y / hairBack)) * (0.88 + 0.24 * hash(px, 0, 1)));
     }
-    // a broad, evenly lit face that turns darker toward the ears and under the jaw
-    let col = sk, light = 1.04 - 0.24 * clamp01((ax - 5) / 11) ** 2;
-    if (y < hairTop + 1.2) light *= 0.9;                                                      // under the hairline
-    if (Math.abs(ax - 16) < 1.4 && y > 13 && y < 18.5) light *= ax > 16 ? 0.7 : Math.abs(ax - 15.6) < 0.4 ? 0.75 : 0.88; // ears
-    const ex = Math.abs(ax - 3.7);                                                            // distance from an eye centre
-    if (ax < 9) {
-      const browY = 12.1 + 0.18 * Math.max(0, ax - 3.4);                                      // brows dip a little at the ends
-      if (Math.abs(y - browY) < 0.65 && ex < 2.3) return brow;
-      if (y > browY + 0.6 && y < 13.8 && ex < 2.4) light *= 0.64;                             // brow shadow
-      if (y > 12.6 && y < 16.2 && ex < 2.8) light *= 0.9;                                     // eye sockets
-      if (y > 13.6 && y < 15.3 && ex < 2 - 1.2 * (y - 14.45) ** 2) {                         // almond eyes
-        if (y < 14.05) return mul(sk, 0.4);                                                   // upper lid
-        if (ex < 0.8) return ex < 0.3 && y < 14.7 ? [236, 236, 230] : iris;                    // iris and a glint
-        return deep ? [212, 204, 190] : [234, 228, 216];
+    // Soft, photo-like modelling of the face, as on the FIFA 98 heads: the front planes catch the
+    // light, the brow ridge throws a deep shadow into the eye sockets, the nose has a lit ridge and a
+    // shadowed side, the cheekbones stand out over hollow cheeks, and the jaw falls into shadow.
+    let col = sk, light = 1.05 - 0.3 * clamp01((ax - 4.5) / 11) ** 1.6;
+    light *= 1 - 0.12 * near(y, hairTop + 1, 2.5);                                            // under the hairline
+    light *= 1 + 0.06 * near(y, hairTop + 3.5, 2.5) * near(ax, 0, 6);                          // forehead
+    light *= 1 - 0.14 * near(ax, 9.5, 2.5) * near(y, 12, 3.5);                                 // temples
+    if (Math.abs(ax - 16) < 1.6 && y > 12.5 && y < 19) light *= ax > 16 ? 0.68 : Math.abs(ax - 15.5) < 0.5 ? 0.72 : 0.86; // ears
+    const ex = Math.abs(ax - 3.6);                                                            // distance from an eye centre
+    if (ax < 10) {
+      const browY = 12.1 + 0.16 * Math.max(0, ax - 3.4);
+      light *= 1 + 0.08 * near(y, browY - 1.1, 1) * near(ex, 0, 3);                           // brow ridge catches the light
+      light *= 1 - 0.34 * near(y, 14.2, 1.9) * near(ex, 0, 2.9);                               // deep eye sockets
+      light *= 1 - 0.12 * near(ax, 1.6, 0.9) * near(y, 13.8, 1.6);                              // inner corners by the nose
+      if (Math.abs(y - browY) < 0.72 && ex < 2.4 - 0.3 * Math.max(0, ax - 3.6)) return mul(brow, 0.85);
+      if (y > 13.8 && y < 15.05 && ex < 1.75 - 1.6 * (y - 14.4) ** 2) {                        // almond eyes
+        if (y < 14.15) return mul(sk, 0.32);                                                  // upper lid
+        if (ex < 0.85) return ex < 0.25 && y < 14.6 ? [200, 200, 196] : mul(iris, 0.8);
+        return mul(deep ? [196, 186, 172] : [218, 210, 198], 0.72);                          // whites, in the socket's shade
       }
-      if (y > 15.2 && y < 15.9 && ex < 1.9) light *= 0.88;                                    // under the eye
-      if (y > 14 && y < 19 && dx < -0.5 && dx > -1.8) light *= 0.78;                           // nose shadow
-      if (y > 14.5 && y < 18.4 && dx > -0.4 && dx < 0.8) light *= 1.08;                        // nose ridge
-      if (y > 18.5 && y < 19.3 && ax > 0.5 && ax < 1.7) light *= 0.58;                          // nostrils
-      if (y > 16 && y < 21 && Math.abs(ax - 6.4) < 1.6) light *= 0.84;                         // under the cheekbones
-      if (y > 15 && y < 17 && Math.abs(ax - 5.4) < 1.6) light *= 1.06;                         // cheekbones
-      if (y > 19.4 && y < 20.4 && ax < 0.6) light *= 0.9;                                      // philtrum
-      if (y > 20.4 && y < 21.1 && ax < 2.9 - (ax > 2.5 ? 0.3 : 0)) return mul(lips, 0.6);     // mouth
-      if (y > 21.1 && y < 22.2 && ax < 2.3) col = y < 21.5 ? mul(lips, 1.08) : lips;           // lower lip
-      if (y > 22.5 && y < 23.4 && ax < 1.6) light *= 0.86;                                     // under the lip
-      if (y > 25.5 && ax < 2.6) light *= 1.04;                                                 // chin
+      light *= 1 + 0.14 * near(dx, 0.3, 0.7) * near(y, 16.5, 2.6);                              // lit nose ridge
+      light *= 1 - 0.26 * near(dx, -1.4, 0.8) * near(y, 16.8, 2.6);                             // shadowed side of the nose
+      light *= 1 - 0.3 * near(y, 19.1, 0.5) * near(ax, 1.1, 0.7);                               // nostrils
+      light *= 1 - 0.16 * near(y, 19.6, 0.7) * near(ax, 0, 2);                                  // under the nose
+      light *= 1 + 0.08 * near(y, 16, 1.6) * near(ax, 5.6, 1.8);                                // cheekbones
+      light *= 1 - 0.18 * near(y, 19.5, 2.4) * near(ax, 6.6, 1.8);                              // hollow cheeks
+      light *= 1 - 0.14 * near(y, 20, 1.8) * near(ax, 3.4, 0.5);                                // lines from nose to mouth
+      if (y > 20.5 && y < 21.15 && ax < 2.8 - (ax > 2.4 ? 0.3 : 0)) return mul(lips, 0.55);    // mouth
+      if (y > 21.15 && y < 22.2 && ax < 2.2) col = y < 21.5 ? mul(lips, 1.06) : lips;          // lower lip
+      light *= 1 - 0.16 * near(y, 22.9, 0.8) * near(ax, 0, 1.8);                                // under the lip
+      light *= 1 + 0.08 * near(y, 25, 1.5) * near(ax, 0, 2.8);                                  // chin
     }
-    if (y > 26) light *= 0.74;                                                                 // under the jaw
-    if (ax > 7 && ax < 12 && y > 9 && y < 13) light *= 0.88;                                    // temples
-    if (stubble && y > 19.6 && y < 27.5 && ax < 11.5 && !(y < 22.3 && ax < 2.9) && hash(px, py, 3) < 0.55) light *= 0.8;
+    light *= 1 - 0.32 * clamp01((y - 25) / 3);                                                 // jaw falls into shadow
+    light *= 0.97 + 0.06 * hash(Math.floor(px / 2), Math.floor(py / 2), 9);                    // skin grain
+    if (stubble && y > 19.8 && y < 27.5 && ax < 11.5 && !(y < 22.3 && ax < 2.9) && hash(px, py, 3) < 0.55) light *= 0.8;
     return mul(col, light);
   });
 }
 
 function leg(k, skinHex) {
   const W = 32, H = 64, sk = rgb(skinHex), shorts = rgb(k.shorts), socks = rgb(k.socks), band = rgb(k.band), trim = rgb(k.trim);
-  const hem = legRow(SHORTS_Y - 0.003), sockTop = legRow(0.457), turn = legRow(0.424), knee = legRow(0.5);
+  const hem = legRow(SHORTS_Y - 0.003), sockTop = legRow(0.477), turn = legRow(0.444), knee = legRow(0.52);
   return paintS(W, H, (x, y, px, py) => {
     const th = x / W * Math.PI * 2 + LIMB_A0, front = Math.cos(th), out = Math.sin(th);
     if (y < hem) {
@@ -211,15 +237,16 @@ function leg(k, skinHex) {
       let light = roundLight(front);
       if (y > hem - 2) light *= 0.8;                                                         // hem turned up
       if (y < 4 && Math.sin(x * 2.1) > 0.6) light *= 0.92;                                   // gathered at the waist
-      return cloth(shorts, light, px, py);
+      return cloth(shorts, light, x, y, W, px, py, 1.3);
     }
     if (y < sockTop) {
       let light = 0.8 + 0.15 * Math.abs(front) + 0.06 * front;
       light *= 1 + 0.1 * near(y, knee, 1.6) * clamp01(front);                                 // kneecap
       light *= 1 - 0.08 * near(y, knee + 1.8, 0.8) * clamp01(front);
       if (y < hem + 3) light *= 0.8;                                                         // shadow under the shorts
-      light *= 1 + 0.06 * near(y, (hem + knee) / 2, 5) * near(front, 0.5, 0.4);               // thigh muscle
-      return mul(sk, light * (0.975 + 0.05 * hash(px, py)));
+      light *= 1 + 0.1 * near(y, (hem + knee) / 2, 5) * near(front, 0.45, 0.45);              // quads catch the light
+      light *= 1 - 0.1 * near(front, -0.3, 0.4) * near(y, (hem + knee) / 2, 6);                // shade between the muscles
+      return skinTone(sk, light, x, y, W, px, py);
     }
     // sock: turned-over top band with a stripe, then ribbed sock with the shin pad showing
     if (y < turn) {
@@ -241,15 +268,18 @@ function arm(k, skinHex, gloves) {
     const th = x / W * Math.PI * 2 + LIMB_A0, front = Math.cos(th), out = Math.sin(th);
     if (y < hem - 2.2) {
       let light = roundLight(front);
-      if (y > 8 && (x * 0.9 + y * 0.6) % 7 < 0.9) light *= 0.9;                              // creases
-      return cloth(sleeve, light, px, py);
+      light *= 1 - 0.14 * near(Math.sin(x * 0.55 + y * 0.12), 1, 0.35) * clamp01(y / 6);   // soft folds
+      if (Math.abs(out - 1) < 0.05 && y < hem - 4) return cloth(trim, light, x, y, W, px, py); // stripe down the top of the sleeve
+      return cloth(sleeve, light, x, y, W, px, py);
     }
     if (y < hem + 0.8) return Math.abs(y - hem + 0.7) < 0.5 ? trim2 : trim;                   // cuff with a stripe
     if (y < wrist) {
       let light = 0.8 + 0.15 * Math.abs(front) + 0.06 * front;
       if (y < hem + 2.5) light *= 0.82;
       light *= 1 - 0.1 * near(y, elbow, 1.2) * clamp01(-front);                               // elbow
-      return mul(sk, light * (0.975 + 0.05 * hash(px, py)));
+      light *= 1 + 0.1 * near(y, elbow + 5, 4) * near(out * Math.sign(front || 1), 0.7, 0.5);   // forearm muscle
+      light *= 1 + 0.08 * near(y, hem + 2.5, 2.5) * clamp01(front);                            // biceps
+      return skinTone(sk, light, x, y, W, px, py);
     }
     if (gloves) return mul([236, 236, 236], (0.8 + 0.2 * Math.abs(front)) * (y > wrist + 9 && Math.floor(x) % 4 === 0 ? 0.85 : 1));
     let light = 0.8 + 0.14 * Math.abs(front);
@@ -266,8 +296,8 @@ function hairTex(hairHex, style) {
     let k = 0.78 + 0.3 * (1 - y / 32);
     if (style === 1) k *= (Math.sin(x * 2.1) * Math.sin(y * 2.3) > 0.2 ? 1.18 : 0.82) * (0.9 + 0.2 * hash(px, py, 7));
     else {
-      k *= 0.86 + 0.28 * hash(px, 0, 5) * (0.85 + 0.15 * Math.sin(y * 0.7 + x));             // strands
-      if (Math.abs(y - 4 - (x % 12) * 0.2) < 1.1) k *= 1.22;                                  // sheen
+      k *= 0.93 + 0.12 * hash(Math.floor(px / 2), 0, 5) * (0.85 + 0.15 * Math.sin(y * 0.7 + x)); // fine strands
+      k *= 1 + 0.12 * near(y, 6 + Math.sin(x * 0.4) * 1.5, 2.5);                                // soft sheen
     }
     return mul(hr.map(v => v + 10), k);
   });

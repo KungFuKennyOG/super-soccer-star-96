@@ -6,7 +6,7 @@
 // front, side, back: where the hair stops, as a fraction of the way from the crown (0) to the chin (1)
 // off: how far it stands off the skull. tail: how far it hangs below that at the back (m); sides: at the sides.
 export const HAIR_STYLES = [
-  { name: 'crop', off: 0.01, front: 0.3, side: 0.44, back: 0.62 },
+  { name: 'crop', off: 0.008, front: 0.29, side: 0.42, back: 0.62 },
   { name: 'curly', off: 0.034, front: 0.27, side: 0.48, back: 0.64, curls: 0.011 },
   { name: 'shaved', none: true },
   { name: 'mullet', off: 0.014, front: 0.3, side: 0.45, back: 0.66, tail: 0.2 },
@@ -19,7 +19,7 @@ export const HAIR_STYLES = [
 export function hairShell(b, style, H, region, w) {
   const st = HAIR_STYLES[style % HAIR_STYLES.length];
   if (st.none) return;
-  const seg = 12, rows = 5, extra = st.tail ? 2 : 0, total = rows + extra;
+  const seg = 16, rows = 6, extra = st.tail ? 2 : 0, total = rows + extra;
   const start = b.pos.length / 3;
   for (let j = 0; j <= total; j++) {
     for (let i = 0; i <= seg; i++) {

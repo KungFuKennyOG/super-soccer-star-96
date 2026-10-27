@@ -13,7 +13,7 @@ const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); 
 // kit: a kit spec from rules/teams.js; look picks skin, hair, hairstyle and stubble.
 export function buildPlayer(kit, num, look = 0, { feetOnly = false } = {}) {
   const skin = SKINS[look % SKINS.length], hair = HAIRS[(look * 3 + 1) % HAIRS.length];
-  const style = [0, 0, 1, 2, 3, 4, 5, 0, 3, 2, 0][look % 11], stubble = look % 4 === 1;
+  const style = [0, 0, 2, 0, 5, 1, 0, 2, 3, 0, 5, 0, 2, 4][look % 14], stubble = look % 3 !== 0;   // mostly short hair, most with stubble
   const tex = playerAtlas({ kit, num, skin, hair, style, stubble, feetOnly });
   const material = mat(tex.uuid, () => ps1(feetOnly ? { map: tex, alphaTest: 0.5, vertexColors: true, pop: true } : { map: tex, vertexColors: true, pop: true }));
   const { mesh, bone } = buildBody(material, style);
@@ -69,13 +69,14 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
   bn.hips.rotation.y = ph * 0.14 * swing;
   bn.spine.rotation.x = Math.min(0.26, s * 0.034) + 0.05 * still + 0.015 * Math.sin(t * 2.2 + m.phase) * still;
   bn.chest.rotation.y = -ph * 0.26 * swing;
-  bn.neck.rotation.x = -bn.spine.rotation.x * 0.8;
+  bn.neck.rotation.x = -bn.spine.rotation.x * 0.6;
   bn.neck.rotation.y = ph * 0.12 * swing;
   if (m.kickT >= 0.32) {
-    bn.upperArmL.rotation.set(ph * swing * 0.95 - 0.1 * run, 0, 0.14); bn.upperArmR.rotation.set(-ph * swing * 0.95 - 0.1 * run, 0, -0.14);
+    bn.upperArmL.rotation.set(ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, 0.14 + 0.06 * still); bn.upperArmR.rotation.set(-ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, -0.14 - 0.06 * still);
   }
-  bn.foreArmL.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, -ph) * swing);
-  bn.foreArmR.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, ph) * swing);
+  bn.foreArmL.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, -ph) * swing + 0.15 * still);
+  bn.foreArmR.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, ph) * swing + 0.15 * still);
+  bn.chest.rotation.x += 0.07 * still; bn.neck.rotation.x += 0.02 * still;   // shoulders forward, head carried forward and level: the FIFA 98 stance
 
   if (p.role === 'gk') {
     if (p.dive && !m.dive) m.dive = { dir: p.dive, t: 0 };
