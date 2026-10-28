@@ -61,6 +61,7 @@ export const AIR = {
   headR: 0.3,                          // the ball meets your head inside this distance of its centre
   headMin: 6, headMax: 21,             // header speed: a still head nods it, a lunge into it powers it
   headLunge: 2.4,                      // m/s of header speed per m/s your head is moving
+  headAuto: 22,                        // headers within this distance of goal always go on target
   volleyLow: 0.22, volleyHigh: 1.4, volleyReach: 1.15,
   bikeLow: 0.95, bikeHigh: 2.4, bikeReach: 1.35, bikeLook: 0.4,   // look up at least this much (dir.y)
   trapBelow: 0.55,                     // you only bring a dropping ball down once it's below this

@@ -184,7 +184,7 @@ function aerial(w, it, rnd, ev) {
   let kind = null, v = null;
   if (it.strike && canBicycle(b, you, it.strike.dir)) { kind = 'bicycle'; v = bicycleVelocity(b, rnd); }
   else if (it.strike && canVolley(b, you)) { kind = 'volley'; v = volleyVelocity(b, it.strike.eye, it.strike.dir, rnd, w.tune.shotErr, w.tune.shotPower); }
-  else if (b.y > 1.05 && ballOnHead(b, head)) { kind = 'header'; v = headerVelocity(b, head, gaze, rnd); }
+  else if (b.y > 1.05 && ballOnHead(b, head)) { kind = 'header'; v = headerVelocity(b, head, gaze, rnd, w.byId.gk.x); }
   if (!kind) return false;
   launch(w, you, v);
   startShot(w, you, ev, v.power, kind);

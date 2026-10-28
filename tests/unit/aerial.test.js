@@ -95,3 +95,20 @@ test('goals from the air score a bonus', () => {
   assert.equal(m.points, 1000 + 1500);
   assert.ok(AIR.trapBelow < AIR.volleyHigh);
 });
+
+test('headers near goal go on target even when you are not looking at the goal', () => {
+  const ball = { x: 3, y: 1.7, z: GOAL.z + 9 };
+  const head = { x: 3, y: 1.64, z: GOAL.z + 9.1, vx: 0, vy: 0, vz: -1 };
+  for (const dir of [{ x: 1, y: 0, z: 0 }, { x: 0, y: 0.6, z: 0.8 }, { x: -0.7, y: -0.2, z: 0.7 }]) {
+    const v = headerVelocity(ball, head, dir, seeded(3), 1.2);
+    // follow it to the goal line
+    const T = (ball.z - GOAL.z) / -v.vz;
+    assert.ok(T > 0, 'it goes toward goal');
+    const x = ball.x + v.vx * T, y = ball.y + v.vy * T - 0.5 * 9.81 * T * T;
+    assert.ok(Math.abs(x) < GOAL.halfW && y > 0 && y < GOAL.h, `on target: ${x.toFixed(2)}, ${y.toFixed(2)}`);
+    assert.ok(x < 0, 'away from a keeper standing to the right');
+  }
+  // far out, it's a flick-on the way you face
+  const far = headerVelocity({ x: 0, y: 1.7, z: GOAL.z + 30 }, { x: 0, y: 1.64, z: GOAL.z + 30.1, vx: 0, vy: 0, vz: 0 }, { x: 1, y: 0, z: 0 }, seeded(3));
+  assert.ok(far.vx > Math.abs(far.vz));
+});

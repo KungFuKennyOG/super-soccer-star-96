@@ -24,13 +24,20 @@ export const canVolley = (ball, you) =>
 export const canBicycle = (ball, you, dir) =>
   dir.y > AIR.bikeLook && ball.y > AIR.bikeLow && ball.y < AIR.bikeHigh && hdist(ball, you) < AIR.bikeReach;
 
-// The header: aimed by where you look (assisted onto the goal), powered by your head's speed.
-// head: { x, y, z, vx, vy, vz }, dir: gaze. Returns { vx, vy, vz, power }.
-export function headerVelocity(ball, head, dir, rnd = Math.random) {
+// The header: aimed at goal for you (aiming with your head while it hits your head is too much to ask
+// in VR). Inside AIR.headAuto metres of goal it always goes on target: where you look if that's at
+// the goal, otherwise a corner, away from the keeper (gkX) when he's off-centre. Your head's speed
+// powers it. Further out it goes the way you face, like a flick-on. head: { x, y, z, vx, vy, vz },
+// dir: gaze. Returns { vx, vy, vz, power }.
+export function headerVelocity(ball, head, dir, rnd = Math.random, gkX = 0) {
   const hs = Math.hypot(head.vx || 0, head.vy || 0, head.vz || 0);
   const speed = clamp(AIR.headMin + hs * AIR.headLunge, AIR.headMin, AIR.headMax);
   const power = (speed - AIR.headMin) / (AIR.headMax - AIR.headMin);
   let p = assist(aimPoint(head, dir));
+  if (!p && Math.hypot(ball.x, ball.z - GOAL.z) < AIR.headAuto) {
+    const side = Math.abs(gkX) > 0.3 ? -Math.sign(gkX) : (rnd() < 0.5 ? -1 : 1);
+    p = { x: side * (GOAL.halfW - 0.8), y: 0.5 + rnd() * 1.2, z: GOAL.z };
+  }
   if (p) {
     const d = hdist(ball, p), err = 0.05 + 0.04 * power;
     p = { x: p.x + (rnd() * 2 - 1) * d * err, y: clamp(p.y + (rnd() * 2 - 1) * d * err * 0.5, 0.1, 3), z: p.z };
