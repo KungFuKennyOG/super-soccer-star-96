@@ -6,7 +6,7 @@ from the kokoro-onnx releases on GitHub, and the phoneme vocabulary from that re
   kokoro-v1.0.onnx, voices-v1.0.bin   (model-files-v1.0)
   config.json                         (src/kokoro_onnx/config.json)
 
-  python3 tools/build-voice.py <dir with the two model files>
+  python3 tools/build-voice.py <dir with the model files> [line ids...]   (no ids: render them all)
 
 The lines carry hand-written phonemes (misaki British set), so no phonemizer is needed. Each line is
 rendered, trimmed, and run through a light "90s TV broadcast" filter (band-limited, compressed).
@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SR = 24000
 
 
-def main(model_dir):
+def main(model_dir, only=()):
     spec = json.load(open(os.path.join(ROOT, 'game/assets/voice/lines.json'), encoding='utf-8'))
     cfg = json.load(open(os.path.join(model_dir, 'config.json'), encoding='utf-8')) if os.path.exists(os.path.join(model_dir, 'config.json')) else None
     vocab = cfg['vocab'] if cfg else None
@@ -33,6 +33,8 @@ def main(model_dir):
     os.makedirs(out_dir, exist_ok=True)
     tmp = os.path.join(out_dir, '_tmp.wav')
     for lid, text, ph in spec['lines']:
+        if only and lid not in only:
+            continue
         missing = sorted({c for c in ph if c not in vocab})
         if missing:
             print(f'{lid}: dropping unknown phonemes {missing}')
@@ -59,4 +61,4 @@ def main(model_dir):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    main(sys.argv[1])
+    main(sys.argv[1], set(sys.argv[2:]))

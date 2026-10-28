@@ -2,15 +2,16 @@
 // stars set how hard their defenders press and tackle and how good their keeper is; yours set how
 // quick your teammates are, how often their passes are perfect, and a little of your own pace and
 // shooting. Everything moves at most ±SPREAD (10%) between 1 and 5 stars, so a giant is tougher, not unbeatable.
-import { AI, MOVE } from './tuning.js';
+import { AI, MOVE, BRAIN } from './tuning.js';
 
 export const SPREAD = 0.1;
 const f = s => (Math.max(1, Math.min(5, s)) - 3) / 2;       // 1 star → -1, 3 → 0, 5 → +1
 
-export function tuneFor(home = 3, away = 3) {
+// level: how cleverly they defend (BRAIN in tuning.js), from levelFor.
+export function tuneFor(home = 3, away = 3, level = 0) {
   const h = f(home), a = f(away), k = SPREAD;
   return {
-    home, away,
+    home, away, level, brain: BRAIN[Math.max(0, Math.min(BRAIN.length - 1, level))],
     ai: {
       ...AI,
       // their defence
@@ -33,4 +34,12 @@ export function tuneFor(home = 3, away = 3) {
     shotErr: -0.008 * h,                // radians added to your shot spread (negative = tighter)
     shotPower: 1 + 0.5 * k * h,         // your shot speed multiplier
   };
+}
+
+// How cleverly the opposition defends. kind: 'attack' | 'world' | 'club' | 'training'; stage: the cup
+// round ('group', 'r16', 'qf', 'sf', 'final'); oppStars 1..5.
+export function levelFor(kind, stage, oppStars = 3) {
+  if (kind === 'attack') return oppStars >= 5 ? 1 : 0;
+  if (kind === 'training') return 0;
+  return { qf: 1, sf: 2, final: 3 }[stage] || 0;
 }

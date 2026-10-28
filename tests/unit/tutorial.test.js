@@ -127,3 +127,16 @@ test('skipping moves on, and the last step finishes training', () => {
   assert.deepEqual(res, ['finished']);
   assert.ok(tut.finished);
 });
+
+test('chip drill: the keeper comes out, and only a chip over him counts', () => {
+  const w = createWorld(fixed), tut = createTutorial();
+  tut.i = STEPS.indexOf(step('chip'));
+  setupDrill(w, step('chip'));
+  play(w, tut, 1.2, idle({ move: { x: 0, z: -0.3 } }));                 // walk in; he comes off his line
+  assert.ok(w.byId.gk.z - (-34) > 2.5, `keeper out ${w.byId.gk.z}`);
+  const eye = { x: w.you.x, y: 1.7, z: w.you.z }, aim = { x: 1.4, y: 1.5, z: -34 };
+  const l = Math.hypot(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z);
+  const dir = { x: (aim.x - eye.x) / l, y: (aim.y - eye.y) / l, z: (aim.z - eye.z) / l };
+  const res = play(w, tut, 3, t => idle(t < DT ? { shot: { eye, dir, holdT: 0.1 } } : {}));
+  assert.ok(res.includes('done'));
+});

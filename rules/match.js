@@ -29,7 +29,7 @@ export const isTopBins = e => e.y > 1.55 && Math.abs(e.x) > GOAL.halfW - 1.4;
 export const isHatTrick = (m, e) => e.type === 'goal' && e.by === 'you' && m.yourGoals > 0 && m.yourGoals % 3 === 0;
 
 // Goals from the air are worth more: headers, volleys, and the bicycle kick most of all.
-export const KIND_BONUS = { header: { name: 'HEADER', pts: 500 }, volley: { name: 'VOLLEY', pts: 600 }, bicycle: { name: 'BICYCLE KICK', pts: 1500 } };
+export const KIND_BONUS = { header: { name: 'HEADER', pts: 500 }, volley: { name: 'VOLLEY', pts: 600 }, bicycle: { name: 'BICYCLE KICK', pts: 1500 }, chip: { name: 'CHIP', pts: 400 } };
 
 // Scores one sim event. Returns a banner { text, sub, tone, big } or null. tone: 'good' | 'bad' | 'info'.
 export function scoreEvent(m, e) {
@@ -52,7 +52,7 @@ export function scoreEvent(m, e) {
       const sub = (m.scenario ? `${m.us} - ${m.them}\n` : '') + (bonus.join('\n') || `+${pts}`);
       return { text, sub, tone: 'good', big: true };
     }
-    case 'saved': return { text: 'SAVED', sub: 'keeper holds it', tone: 'bad' };
+    case 'saved': return e.claim ? { text: 'CLAIMED', sub: 'keeper came out for it', tone: 'bad' } : { text: 'SAVED', sub: 'keeper holds it', tone: 'bad' };
     case 'parried': return { text: 'PARRIED!', sub: 'loose ball', tone: 'info' };
     case 'blocked': return { text: 'BLOCKED', sub: 'loose ball', tone: 'info' };
     case 'post': return { text: e.bar ? 'OFF THE BAR!' : 'OFF THE POST!', sub: '', tone: 'info' };
@@ -60,7 +60,8 @@ export function scoreEvent(m, e) {
       if (e.where === 'byline') return { text: e.high ? 'OVER THE BAR' : 'WIDE', sub: '', tone: 'bad' };
       return { text: e.where === 'cleared' ? 'CLEARED' : 'OUT OF PLAY', sub: '', tone: 'bad' };
     case 'tackled': return { text: 'TACKLED', sub: 'they win it back', tone: 'bad' };
-    case 'intercepted': return { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
+    case 'intercepted': return e.read ? { text: 'READ IT!', sub: 'you looked too long', tone: 'bad' } : { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
+    case 'drag': return e.read ? { text: 'NOT AGAIN', sub: 'he read the drag-back', tone: 'bad' } : null;
     case 'pass': {
       if (e.by !== 'you') return null;
       m.points += GRADES[e.grade].points;

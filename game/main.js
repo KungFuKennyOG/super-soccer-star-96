@@ -8,12 +8,12 @@ import { createWorld, stepSim, resetPlay, startCelebration, defenders } from '..
 import { createMatch, createScenarioMatch, counterAttack, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
 import { ALL, NATIONS, byId, teamsFor } from '../rules/teams.js';
 import { createCup, currentFixture, scenarioFor, playUser, STAGE_NAMES } from '../rules/cup.js';
-import { tuneFor } from '../rules/skill.js';
+import { tuneFor, levelFor } from '../rules/skill.js';
 import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
-import { GOAL, MATCH } from '../rules/tuning.js';
+import { GOAL, MATCH, LEVEL_NAMES } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
-import { PS1 } from './ps1.js';
+import { loadSettings, saveSettings as saveSet, applyWobble as applyWob, lowRes as lowR } from './display.js';
 import { buildStadium } from './stadium.js';
 import { buildBall, buildArrow, animate, placeModel } from './actors.js';
 import { createSquads } from './squad.js';
@@ -34,40 +34,18 @@ import { createTraining } from './training.js';
 import { createJuice } from './juice.js';
 import { LINE_IDS } from '../rules/commentary.js';
 
-const LINES = 480;          // browser render height: a little chunky, clearly readable
 const VR_SCALE = 0.7;       // headset framebuffer scale: soft retro, still sharp
-const BEST_KEY = 'sss96.best', SETTINGS_KEY = 'sss96.settings';
+const BEST_KEY = 'sss96.best';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c');
 const { renderer, scene, camera, rig } = createStage({ canvas, far: 260, antialias: false });
 renderer.xr.setFramebufferScaleFactor(VR_SCALE);
 
-// settings: match length (index into LENGTHS), PS1 wobble (0 off, 1 low, 2 full), commentary
-// (0 off, 1 text, 2 voice), goal replays and hit effects (0 off, 1 on)
-const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1 };
 const settings = loadSettings();
-function loadSettings() {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('sss96.settings') || '{}') }; } catch (e) { return { ...DEFAULTS }; }
-}
-function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
-
-// Vertex wobble: the snap grid in screen lines (smaller = wobblier). In the headset the texture warp
-// stays off except at FULL, since it swims as your head moves.
-function applyWobble() {
-  const vr = renderer.xr.isPresenting, w = settings.wobble;
-  const lines = vr ? [8192, 1500, 900][w] : [8192, LINES * 2.5, LINES * 1.5][w];
-  const aspect = vr ? 1 : innerWidth / innerHeight;
-  PS1.snap.value.set(Math.round(lines * aspect), lines);
-  PS1.affine.value = w === 0 || (vr && w < 2) ? 0 : 1;
-}
-
-function lowRes() {
-  if (renderer.xr.isPresenting) return;
-  renderer.setPixelRatio(LINES / innerHeight);
-  renderer.setSize(innerWidth, innerHeight, false);
-  applyWobble();
-}
+const saveSettings = () => saveSet(settings);
+const applyWobble = () => applyWob(renderer, settings);
+const lowRes = () => lowR(renderer, settings);
 lowRes(); addEventListener('resize', lowRes);
 
 const stadium = buildStadium(scene);
@@ -163,7 +141,9 @@ let menuNext = null;
 function message(title, lines, next, ok) { menuNext = next; openMenu('message', { title, lines, ok }); }
 
 function startMatch() {
-  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s));
+  // how cleverly they defend: later cup rounds (and 5-star sides in Score Attack) are smarter
+  const level = levelFor(game.kind, game.fixture && game.fixture.stage, game.opp.s);
+  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s, level));
   const drills = game.kind === 'training';
   match = game.scenario ? createScenarioMatch(game.scenario) : createMatch(drills ? 99 * 60 : Math.round(MATCH.duration * LENGTHS[settings.length].mul));
   models = squads.dress(world, game.team, game.opp);
@@ -178,6 +158,7 @@ function startMatch() {
   if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
   sfx('whistle', 1.4);
   setTimeout(() => commentary.event({ type: 'kickoff' }), 900);
+  if (LEVEL_NAMES[level]) setTimeout(() => { if (mode === 'play') hud.banner({ text: 'SCOUTING REPORT', sub: LEVEL_NAMES[level], tone: 'info' }); }, 3200);
   const s = game.scenario;
   if (drills) hud.banner({ text: 'TRAINING', sub: `LEARN EVERY MOVE\n${renderer.xr.isPresenting ? 'X' : 'N'} SKIPS A DRILL`, tone: 'info', big: true });
   else if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
@@ -390,7 +371,7 @@ function updateHud() {
   let aim = null;
   if (intents.shotHold) aim = assist(aimPoint(headW, dirW));
   hud.update(1 / 72, {
-    mate: target, lob: !!target && laneBlocked(world.ball, target, defenders(world)),
+    mate: target, lob: !!target && laneBlocked(world.ball, target, defenders(world)), read: !!target && world.brain.read === target.id,
     pass: intents.passHold ? { target: world.byId[intents.passHold.target], scale: ringScale(intents.passHold.t), grade: gradePass(intents.passHold.t) } : null,
     aim, charge: intents.shotHold ? chargeOf(intents.shotHold.t) : null, over: intents.shotHold ? overcharge(intents.shotHold.t) : 0,
   });

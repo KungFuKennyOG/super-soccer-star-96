@@ -49,6 +49,9 @@ export const SHOT = {
   chargeTime: 0.9,  // hold this long for full power
   overTime: 1.25,   // hold past this and the shot starts skying
   minSpeed: 13, maxSpeed: 31,
+  chipBelow: 0.22,  // let go before this and it's a chip: a slow, high ball that drops over a keeper who's come out
+  chipTime: 1.3,    // seconds a chip takes to reach the goal (within chipSpeed limits)
+  chipSpeed: [5.5, 10],
 };
 
 export const MATCH = { duration: 120, deadTime: 2.4 };
@@ -65,3 +68,25 @@ export const AIR = {
   crossSpeed: 15.5,                    // horizontal speed of a teammate's cross
   flick: { up: 5.2, fwd: 0.6 },        // knock-on while standing: flick it up for a volley or an overhead
 };
+
+// How the opposition thinks, by level (rules/brain.js, rules/keeper.js). Level comes from the match:
+// cup rounds get smarter (group/R16 0, QF 1, SF 2, final 3); Score Attack is 0, or 1 against 5 stars.
+//   read       seconds you can look at one teammate before a defender steps into that passing lane
+//   readGap    how far in front of that teammate (toward the ball) his marker steps to cut it out
+//   readSteal  pass to him anyway and his marker nips in front if he's within this many metres of him
+//   double     a second defender closes you down inside doubleRange metres of goal
+//   stepUp     the defence steps up together when you turn back or drag back
+//   dragBite   drag-backs in a row (within 3 s) the presser falls for; after that he reads it
+//   gkOut      how far (0..1 of 4 m) the keeper comes off his line to narrow the angle when you're through
+//   gkRush     the keeper races out to claim through-balls he can reach first
+export const BRAIN = [
+  { read: 2.0, readGap: 1.5, readSteal: 2.4, double: false, doubleRange: 0, stepUp: false, dragBite: 3, gkOut: 0.35, gkRush: false },
+  { read: 1.6, readGap: 1.35, readSteal: 2.8, double: true, doubleRange: 19, stepUp: false, dragBite: 3, gkOut: 0.6, gkRush: true },
+  { read: 1.35, readGap: 1.2, readSteal: 3.1, double: true, doubleRange: 21, stepUp: true, dragBite: 2, gkOut: 0.85, gkRush: true },
+  { read: 1.15, readGap: 1.05, readSteal: 3.4, double: true, doubleRange: 23, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true },
+];
+// The scouting report shown a few seconds into a match at each level (banner lines, 31 characters max).
+export const LEVEL_NAMES = ['',
+  'THEY DOUBLE-TEAM NEAR THE BOX\nTHE KEEPER SWEEPS UP BEHIND',
+  'THEY PUSH UP WHEN YOU GO BACK\nDRAG-BACKS ONLY WORK TWICE',
+  'THEY READ EVERYTHING\nPASS QUICK, CHIP THE KEEPER'];

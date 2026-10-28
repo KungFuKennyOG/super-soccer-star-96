@@ -10,13 +10,13 @@
 //   'reset'     the same drill again (the cross missed, the pass arrived): set it up again
 //   'finished'  that was the last step
 //   null        nothing to do
-import { MOVE } from './tuning.js';
+import { MOVE, BRAIN } from './tuning.js';
 import { makeBall } from './ball.js';
 import { resetPlay } from './sim.js';
 
 const PARK = [['d1', -17, 1], ['d2', -19.5, 1], ['d3', -22, 1]];
 
-// drill: you [x, z]; place [[id, x, z]]; frozen ids (stand still); owner id (who starts on the ball);
+// drill: you [x, z]; brain (borrow that level's opposition); place [[id, x, z]]; frozen ids (stand still); owner id (who starts on the ball);
 // mateHold (teammates wait on the ball until you call); crossHead (crosses come at head height);
 // resetOn 'mate' | 'you' | 'any': set the drill up again a moment after that player receives the ball.
 export const STEPS = [
@@ -56,6 +56,10 @@ export const STEPS = [
     vr: ['HOLD RIGHT TRIGGER TO CHARGE', 'LOOK WHERE YOU WANT IT, LET GO', 'SCORE ONE! (A TAP IS A CHIP)'],
     pc: ['HOLD LEFT CLICK (OR F) TO CHARGE', 'LOOK WHERE YOU WANT IT, LET GO', 'SCORE ONE! (A TAP IS A CHIP)'],
     drill: { you: [0, -15] } },
+  { id: 'chip', title: 'CHIP', need: 1,
+    vr: ['RUN AT GOAL: THE KEEPER COMES OUT', 'JUST TAP THE RIGHT TRIGGER AND', 'LOOK OVER HIM. IT DROPS IN'],
+    pc: ['RUN AT GOAL: THE KEEPER COMES OUT', 'JUST TAP LEFT CLICK (OR F) AND', 'LOOK OVER HIM. IT DROPS IN'],
+    drill: { you: [0, -21], brain: 3 } },
   { id: 'flick', title: 'FLICK UP', need: 2,
     vr: ['STAND STILL AND PRESS A', 'TO FLICK THE BALL UP'],
     pc: ['STAND STILL AND PRESS SPACE', 'TO FLICK THE BALL UP'],
@@ -97,6 +101,8 @@ export function setupDrill(w, step) {
   at('you', d.you[0], d.you[1]);
   for (const [id, x, z] of d.place || []) at(id, x, z);
   const placed = new Set((d.place || []).map(p => p[0]));
+  // a drill can borrow a level's opposition (the chip needs a keeper who comes out)
+  w.tune = { ...w.tune, brain: BRAIN[d.brain !== undefined ? d.brain : w.tune.level || 0] };
   w.drill = {
     frozen: new Set([...PARK.map(p => p[0]).filter(id => !placed.has(id) || (d.frozen || []).includes(id)), ...(d.frozen || [])]),
     mateHold: !!d.mateHold, crossHead: !!d.crossHead,
@@ -139,6 +145,7 @@ export function stepTutorial(tut, f) {
     if (s.id === 'call' && e.type === 'called' && (!f.vr || e.hand)) gain += 1;
     if (s.id === 'lob' && e.type === 'pass' && mine && e.lob) gain += 1;
     if (s.id === 'shoot' && e.type === 'goal' && mine) gain += 1;
+    if (s.id === 'chip' && e.type === 'goal' && mine && e.kind === 'chip') gain += 1;
     if (s.id === 'flick' && e.type === 'flick') gain += 1;
     if (['volley', 'header', 'bicycle'].includes(s.id) && e.type === 'kick' && mine && e.kind === s.id) gain += 1;
     // drills that need the ball back where it started

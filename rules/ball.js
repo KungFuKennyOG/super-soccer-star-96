@@ -81,6 +81,20 @@ function netStop(b) {
   if (b.z > GOAL.z - BALL.r) { b.z = GOAL.z - BALL.r; b.vz = -Math.abs(b.vz) * 0.2; }
 }
 
+// Where a loose ball will pass the plane z = zp (heading toward goal), within maxT: { x, y, t } or null.
+// Used for a keeper who has come off his line: what height is it when it reaches him?
+export function predictPlane(b, zp, maxT = 2.5, dt = 1 / 120) {
+  const c = { ...b, inNet: false };
+  if (c.z <= zp) return null;
+  for (let t = 0; t < maxT; t += dt) {
+    const pz = c.z, py = c.y, px = c.x;
+    stepBall(c, dt, []);
+    if (c.z <= zp) { const k = (pz - zp) / ((pz - c.z) || 1); return { x: px + (c.x - px) * k, y: py + (c.y - py) * k, t: t + dt * k }; }
+    if (groundSpeed(c) < 0.3 && c.y <= BALL.r + 1e-3) return null;
+  }
+  return null;
+}
+
 // Where a loose ball will cross the goal line, if it does within maxT seconds: { x, y, t } or null.
 export function predictCross(b, maxT = 2.5, dt = 1 / 120) {
   const c = { ...b, inNet: false };

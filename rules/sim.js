@@ -15,11 +15,13 @@
 import { MOVE, AI, GOAL, PITCH, BALL, AIR } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
-import { makeBall, stepBall, predictCross, ballSpeed } from './ball.js';
+import { makeBall, stepBall, ballSpeed } from './ball.js';
 import { gradePass, choosePass } from './pass.js';
 import { shotVelocity, ballistic } from './shot.js';
 import { ballOnHead, canVolley, canBicycle, headerVelocity, volleyVelocity, bicycleVelocity, inBox, crossVelocity, flickVelocity } from './aerial.js';
-import { defenderTargets, mateTarget, mateDecision, keeperSpot, keeperSave, closest } from './ai.js';
+import { mateTarget, mateDecision, closest } from './ai.js';
+import { keeperTarget, keeperCheck, keeperClaim, shotPlan } from './keeper.js';
+import { initBrain, watchYou, dragFools, defenceTargets, mateSupport } from './brain.js';
 
 export const DEAD = new Set(['goal', 'saved', 'out', 'tackled', 'intercepted']);
 
@@ -54,6 +56,7 @@ export function resetPlay(w, rnd = Math.random) {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
     kick: null, shot: null, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
+  initBrain(w);
 }
 
 export const homePlayers = w => w.players.filter(p => p.team === 'home');
@@ -68,6 +71,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
 
   moveYou(w, it, dt);
   if (it.head) w.headY = it.head.y;
+  watchYou(w, it, dt);
 
   if (!w.dead && w.owner === 'you') {
     if (it.shot) shoot(w, you, it.shot.eye, it.shot.dir, it.shot.holdT, rnd, ev);
@@ -79,11 +83,12 @@ export function stepSim(w, it, dt, rnd = Math.random) {
 
   updateAI(w, dt, rnd, ev);
 
+  // the keeper gets there (if he does) before the ball moves on this step, so he's never late by a frame
+  if (!w.dead) keeperCheck(w, rnd, ev);
   if (w.owner) carry(w, dt);
   else for (const e of stepBall(b, dt, [])) onBallEvent(w, e, ev);
 
   if (!w.dead) {
-    keeperCheck(w, rnd, ev);
     if (!w.owner) { if (!aerial(w, it, rnd, ev)) looseBall(w, rnd, ev); }
     else tackles(w, dt, ev);
   }
@@ -118,7 +123,9 @@ function shoot(w, p, eye, dir, holdT, rnd, ev) {
 function pass(w, from, to, grade, rnd, ev) {
   const v = choosePass({ x: w.ball.x, z: w.ball.z }, to, defenders(w), grade, rnd);
   launch(w, from, v);
-  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob };
+  // a pass to the teammate they've read: his marker has stepped in and gets a long reach for it
+  const reader = from.role === 'you' && w.brain.read === to.id ? Object.keys(w.brain.roles).find(id => w.brain.roles[id] === 'read') : null;
+  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob, reader };
   if (grade !== 'perfect') w.perfectChain = 0;
   w.called = false;
   ev.push({ type: 'pass', by: from.id, to: to.id, grade, lob: !!v.lob });
@@ -141,10 +148,12 @@ function knock(w, ev) {
 function drag(w, ev) {
   const p = w.you;
   p.vx = p.vz = 0;
-  w.dragGrace = w.tune.ai.dragGrace;
+  // the same trick too often and the presser reads it: no stumble, no breathing space
+  const fooled = dragFools(w);
+  w.dragGrace = fooled ? w.tune.ai.dragGrace : 0.1;
   const d = closest(defenders(w), p);
-  if (d && dist(d, p) < 4) d.stun = w.tune.ai.dragStun;
-  ev.push({ type: 'drag' });
+  if (fooled && d && dist(d, p) < 4) d.stun = w.tune.ai.dragStun;
+  ev.push({ type: 'drag', read: !fooled });
 }
 
 function launch(w, p, v) {
@@ -156,10 +165,8 @@ function launch(w, p, v) {
 
 // kind: null for a normal shot, or 'header' | 'volley' | 'bicycle'.
 function startShot(w, p, ev, power, kind = null) {
-  const cross = predictCross(w.ball);
-  const gk = w.byId.gk;
-  const decision = cross ? keeperSave(gk, cross, ballSpeed(w.ball), w.tune.ai) : 'wide';
-  w.shot = { by: p.id, from: { x: p.x, z: p.z }, t0: w.time, cross, decision, done: false, kind };
+  const plan = shotPlan(w);           // rules/keeper.js: where it goes and whether he gets there
+  w.shot = { by: p.id, from: { x: p.x, z: p.z }, t0: w.time, ...plan, done: false, kind };
   ev.push({ type: 'kick', by: p.id, power, kind });
 }
 
@@ -192,11 +199,11 @@ function celebrationSpot(w, p) {
 /* ---------- the computer players ---------- */
 
 function updateAI(w, dt, rnd, ev) {
-  const b = w.ball, you = w.you, defs = defenders(w), home = homePlayers(w);
+  const b = w.ball, you = w.you, defs = defenders(w);
   const owner = w.owner ? w.byId[w.owner] : null;
   const ownerIsHome = !!owner && owner.team === 'home';
   const ai = w.tune.ai;
-  const dtargets = defenderTargets(defs, home, b, ownerIsHome ? owner.id : null, ai);
+  const dtargets = defenceTargets(w);
 
   for (const p of w.players) {
     if (p.role === 'you') continue;
@@ -216,6 +223,7 @@ function updateAI(w, dt, rnd, ev) {
     else if (p.role === 'gk') t = keeperTarget(w, p);
     else if (w.owner === p.id) t = mateOnBall(w, p, rnd, ev);
     else if (w.pendingPass && w.pendingPass.to === p.id) t = runOntoPass(p, b, w.pendingPass.lead, ai);
+    else if (w.owner === 'you') t = mateSupport(w, p, dt);
     else t = mateTarget(p, b, you, defs, ownerIsHome, !owner, ai);
     if (!t) continue;
     let speed = t.speed * (p.stun ? 0.25 : 1);
@@ -241,18 +249,6 @@ function runOntoPass(p, b, lead, ai) {
   return { x: lead.x, z: lead.z, speed: ai.mateRun + 0.6 };
 }
 
-function keeperTarget(w, gk) {
-  if (w.owner === 'gk') return { x: gk.x, z: gk.z, speed: 0 };
-  const s = w.shot;
-  const ai = w.tune.ai;
-  if (s && s.cross && s.decision !== 'wide' && !s.done && w.time >= s.t0 + ai.gkReact) {
-    gk.dive = Math.sign(s.cross.x - gk.x) || 1;
-    return { x: s.cross.x, z: gk.z, speed: ai.gkDive };
-  }
-  gk.dive = 0;
-  const k = keeperSpot(w.ball);
-  return { x: k.x, z: k.z, speed: ai.gkMove };
-}
 
 function mateOnBall(w, p, rnd, ev) {
   const choice = mateDecision(p, defenders(w), w.ownT, w.called, !!(w.drill && w.drill.mateHold));
@@ -301,28 +297,12 @@ function onBallEvent(w, e, ev) {
   if (e.type === 'goal') {
     const by = s ? s.by : w.kick ? w.kick.by : 'you';
     const a = w.lastAssist && w.lastAssist.to === by && w.time - w.lastAssist.t < 4 ? w.lastAssist : null;
-    ev.push({ ...e, by, kind: s ? s.kind : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain });
+    ev.push({ ...e, by, kind: s ? s.kind || (s.chipped ? 'chip' : null) : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain });
   } else ev.push({ ...e, by: s ? s.by : null });
   if (s) s.done = true;
   if (e.type === 'post') w.shot = null;
 }
 
-function keeperCheck(w, rnd, ev) {
-  const s = w.shot, b = w.ball, gk = w.byId.gk;
-  if (!s || s.done || !s.cross) return;
-  if (s.decision !== 'catch' && s.decision !== 'parry') return;
-  if (w.time < s.t0 + s.cross.t - 0.03) return;
-  s.done = true;
-  if (s.decision === 'catch') {
-    w.owner = 'gk'; w.ownT = 0;
-    ev.push({ type: 'saved', by: s.by, x: s.cross.x, y: s.cross.y });
-  } else {
-    b.x = clamp(s.cross.x, gk.x - 1.5, gk.x + 1.5); b.z = GOAL.z + 0.5; b.y = Math.max(BALL.r, s.cross.y);
-    b.vz = Math.abs(b.vz) * 0.25 + 3; b.vx = (rnd() - 0.5) * 9; b.vy = 2.5;
-    w.shot = null;
-    ev.push({ type: 'parried', by: s.by });
-  }
-}
 
 function looseBall(w, rnd, ev) {
   const b = w.ball, sp = ballSpeed(b), fresh = w.kick && w.time - w.kick.t < 0.12;
@@ -338,10 +318,22 @@ function looseBall(w, rnd, ev) {
     }
     return;
   }
+  if (keeperClaim(w, ev)) return;
   if (b.y > 1.6) return;
+  // a pass's receiver gets first touch unless a defender is clearly closer; a ball just lofted
+  // (a lob or cross on its way up) can't be cut out by the man next to the passer
+  const pp = w.pendingPass, rec = pp && w.byId[pp.to];
+  const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : 1.2;
+  const rising = b.vy > 0 && b.y > 0.45;
+  // a pass they've read: the man on your teammate's shoulder nips in front as it arrives
+  const reader = pp && pp.reader && w.byId[pp.reader];
+  if (reader && !reader.stun && rec && dist(reader, rec) < w.tune.brain.readSteal && recD < 1.8 && b.y < 1.6) {
+    ev.push({ type: 'intercepted', by: reader.id, read: true }); w.owner = reader.id; return;
+  }
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;
-    if (!fresh && !d.stun && dist(d, b) < range) { ev.push({ type: 'intercepted', by: d.id }); w.owner = d.id; return; }
+    const dd = dist(d, b);
+    if (!fresh && !rising && !d.stun && dd < range && !(recD < recR && recD <= dd + 0.2)) { ev.push({ type: 'intercepted', by: d.id }); w.owner = d.id; return; }
   }
   if (sp > 27) return;
   let best = null, bd = Infinity;
@@ -352,7 +344,6 @@ function looseBall(w, rnd, ev) {
     if (d < r && d < bd) { bd = d; best = p; }
   }
   if (!best) return;
-  const pp = w.pendingPass;
   const grade = pp && pp.to === best.id ? pp.grade : null;
   if (grade === 'perfect') w.perfectChain++;
   if (grade) w.lastAssist = { from: pp.from, to: best.id, grade, t: w.time };

@@ -9,11 +9,13 @@ You plus two teammates attack one goal against three defenders and a keeper.
 - **Score Attack:** two minutes, score as much as you can, beat your high score.
 - **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
 - **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
-- **Training:** 14 drills, one move each: dribble, sprint, turn, knock-on, drag-back, pass, calling for it, lob, shoot, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
+- **Training:** 15 drills, one move each: dribble, sprint, turn, knock-on, drag-back, pass, calling for it, lob, shoot, chip, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
 
 Every club has its own ground (Champions Cup ties alternate home and away), packed with fans in both teams' colors who jump when their side scores.
 
 Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win; fall short and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
+
+The opposition gets smarter through each cup: from the quarter-finals they double-team you near the box and the keeper sweeps up through-balls; in the semis they push up when you go backwards and stop falling for the same drag-back; in the final they read where you're looking. Look at a teammate too long and a red READ! appears over him: his marker has stepped in, so pass quickly or switch. When the keeper comes off his line, a quick tap of the trigger chips him.
 
 Teams are picked on a turntable that shows a player in the kit (on a world map for the World Cup). Stars matter: a 5-star side presses harder, tackles quicker and has a better keeper, and a 5-star team of your own runs and passes better. Kits are colors and patterns only; clubs go by city name.
 
@@ -44,13 +46,15 @@ On the mode screen (left/right to change): match length, PS1 wobble, commentary 
 | --- | --- |
 | Goal | 1000 |
 | Top bins (top corner) | +750 |
+| Header / volley / bicycle kick | +500 / +600 / +1500 |
+| Chip over the keeper | +400 |
 | Worldie (from 24 m+) | +500 |
 | One-two (you score straight after a pass back) | +300 |
 | Pass chain (perfect passes before the goal) | +100 each |
 | Perfect pass | +50 |
 | Hat-trick dance | +150 per perfect move, +75 good, +300 full combo |
 
-Shot power fills in about a second. Hold too long and it starts to sky. A quick tap is a chip.
+Shot power fills in about a second. Hold too long and it starts to sky. A quick tap is a chip: slow and high, it beats a keeper who has come off his line but not one standing on it.
 
 ## Look
 

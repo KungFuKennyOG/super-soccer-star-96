@@ -15,6 +15,10 @@ const POOLS = {
   header: ['header1', 'header2', 'header3'],
   volley: ['volley1', 'volley2'],
   bicycle: ['bicycle1', 'bicycle2'],
+  chip: ['chip1', 'chip2'],
+  claim: ['claim1', 'claim2'],
+  read: ['read1', 'read2'],
+  dragread: ['dragread1', 'dragread2'],
   hattrick: ['hattrick1', 'hattrick2'],
   shot: ['shot1', 'shot2', 'shot3'],
   saved: ['saved1', 'saved2', 'saved3'],
@@ -67,18 +71,18 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
       if (e.kind === 'header') return { id: 'try_header', priority: 2 };
       if (e.kind === 'volley') return { id: 'try_volley', priority: 2 };
       return say('shot', 1, 0.45);
-    case 'saved': return say('saved', 2);
+    case 'saved': return say(e.claim ? 'claim' : 'saved', 2);
     case 'parried': return say('parried', 2);
     case 'post': return say(e.bar ? 'bar' : 'post', 2);
     case 'out': return e.where === 'byline' ? say(e.high ? 'over' : 'wide', 2) : null;
     case 'blocked': return say('blocked', 2);
     case 'tackled': return say('tackled', 1);
-    case 'intercepted': return say('intercepted', 1);
+    case 'intercepted': return e.read ? say('read', 2) : say('intercepted', 1);
     case 'pass':
       if (e.cross) return say('cross', 2);
       return e.by === 'you' && e.grade === 'perfect' ? say('pass', 1, 0.5) : null;
     case 'flick': return say('skill', 1, 0.35);
-    case 'drag': return say('drag', 1, 0.4);
+    case 'drag': return e.read ? say('dragread', 2, 0.8) : say('drag', 1, 0.4);
     case 'last10': return say('last10', 3);
     case 'fulltime': return say('fulltime', 5);
     case 'combo': return say('combo', 3);

@@ -22,6 +22,15 @@ export function assist(p) {
   return { ...p };
 }
 
+// The chip: a quick tap. Floated high and slow so it drops under the bar, over a keeper off his line.
+export const isChip = holdT => holdT < SHOT.chipBelow;
+function chip(ball, p, d, rnd, extraErr) {
+  const err = 0.03 + extraErr;
+  const q = { x: p.x + (rnd() * 2 - 1) * d * err, y: clamp(p.y, 0.9, 1.9), z: p.z };
+  const v = ballistic(ball, q, clamp(d / SHOT.chipTime, SHOT.chipSpeed[0], SHOT.chipSpeed[1]));
+  return { vx: v.vx, vy: v.vy, vz: v.vz, power: 0.15, aim: q, chip: true };
+}
+
 // Velocity that carries the ball from `ball` through point p in a straight-ish arc at horizontal speed vh.
 export function ballistic(ball, p, vh) {
   const dx = p.x - ball.x, dz = p.z - ball.z, D = Math.hypot(dx, dz) || 1e-3;
@@ -41,6 +50,7 @@ export function shotVelocity(ball, eye, dir, holdT, rnd = Math.random, extraErr 
     return { vx: dir.x / h * speed * Math.cos(elev), vy: speed * Math.sin(elev), vz: dir.z / h * speed * Math.cos(elev), power, aim: null };
   }
   const d = Math.hypot(p.x - ball.x, p.z - ball.z);
+  if (holdT < SHOT.chipBelow) return chip(ball, p, d, rnd, extraErr);
   const errAng = Math.max(0.012, 0.026 + (1 - power) * 0.025 + over * 0.16 + extraErr);
   p = {
     x: p.x + (rnd() * 2 - 1) * d * errAng,
