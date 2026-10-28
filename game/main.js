@@ -375,17 +375,12 @@ function updateHud() {
     pass: intents.passHold ? { target: world.byId[intents.passHold.target], scale: ringScale(intents.passHold.t), grade: gradePass(intents.passHold.t) } : null,
     aim, charge: intents.shotHold ? chargeOf(intents.shotHold.t) : null, over: intents.shotHold ? overcharge(intents.shotHold.t) : 0,
   });
-  if (!renderer.xr.isPresenting && !hooks.vrHud) hud.power.visible = false;      // the browser shows its own bar
   const clock = training.active ? 'DRILL' : clockText(match.clock);
   hud.scoreboard(match.goals, clock, match.points, flashT > 0 ? 'GOAL!' : '',
     match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '');
   // browser HUD
   $('hClock').textContent = clock;
   $('hScore').textContent = match.scenario ? `${game.team.id} ${match.us} - ${match.them} ${game.opp.id}` : `V ${game.opp.id}`;
-  const pw = $('power');
-  const sh = intents.shotHold;
-  pw.hidden = !sh;
-  if (sh) { $('powerFill').style.width = `${chargeOf(sh.t) * 100}%`; pw.classList.toggle('over', overcharge(sh.t) > 0); }
 }
 
 // the radar floats over the left hand, high enough to clear it, and draws on top of the hand anyway
@@ -398,6 +393,6 @@ function placeOnHands() {
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, vrHud: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, training, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, training, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

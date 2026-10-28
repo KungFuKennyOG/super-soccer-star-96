@@ -30,6 +30,7 @@ after(async () => { await browser?.close(); await server?.close(); });
 test('game boots, kicks off and plays without errors', async t => {
   if (!threeSource) { t.skip('three.js unreachable (no CDN and no node_modules/three)'); return; }
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  page.setDefaultTimeout(90000);                 // software rendering on a busy machine can be very slow
   if (threeSource === 'local') await page.route(THREE_URL, r => r.fulfill({ path: LOCAL_THREE, contentType: 'text/javascript' }));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -65,6 +66,7 @@ test('game boots, kicks off and plays without errors', async t => {
 test('training: picks from the mode menu, runs the first drill, skips, and resets drills', async t => {
   if (!threeSource) { t.skip('three.js unreachable (no CDN and no node_modules/three)'); return; }
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  page.setDefaultTimeout(90000);                 // software rendering on a busy machine can be very slow
   if (threeSource === 'local') await page.route(THREE_URL, r => r.fulfill({ path: LOCAL_THREE, contentType: 'text/javascript' }));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));

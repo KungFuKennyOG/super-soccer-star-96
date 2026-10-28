@@ -1,5 +1,5 @@
 // Everything drawn on top of the match, all in-world so it works in the headset:
-// the stadium scoreboard, the event banner, the pass timing rings, the shot reticle and power bar.
+// the stadium scoreboard, the event banner, the pass timing rings, the shot reticle and its power ring.
 import * as THREE from 'three';
 import { GOAL } from '../rules/tuning.js';
 import { ps1, pixelTex, canvasTex } from './ps1.js';
@@ -94,24 +94,12 @@ export function buildHud(scene, camera) {
   const readTag = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.27), ps1({ map: pixelTex(readC), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
   readTag.renderOrder = 11; readTag.visible = false; scene.add(readTag);
 
-  /* shot: a reticle on the goal mouth and a power bar */
+  /* shot: a reticle on the goal mouth with a power ring */
   const reticle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), ps1({ map: reticleTex(), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
   reticle.renderOrder = 11; reticle.visible = false; scene.add(reticle);
-  // Shot power, where you're looking while you aim: a bar floating just below the middle of your view
-  // (headset; the browser has its own bar), and a ring round the reticle on the goal that fills up.
+  // Shot power: a ring round the reticle on the goal that fills up as you charge (Kenny dropped the
+  // separate power bar as redundant).
   const hudMat = color => ps1({ color, lit: false, depthTest: false, depthWrite: false, fog: false });
-  const power = new THREE.Group();
-  const bar = (w, h, color, z, order) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), hudMat(color)); m.position.z = z; m.renderOrder = order; power.add(m); return m; };
-  bar(0.29, 0.046, '#f2c21a', 0, 20);                            // gold frame
-  bar(0.28, 0.036, '#10122a', 0.001, 21);                        // dark well
-  const pFill = bar(0.27, 0.026, '#f2c21a', 0.002, 22);
-  pFill.geometry.translate(0.135, 0, 0); pFill.position.x = -0.135;
-  const lbl = canvasPlane(40, 8, 0.1, 0.02);
-  drawText(lbl.ctx, 'POWER', 5, 0, '#f2c21a'); lbl.t.needsUpdate = true;
-  lbl.m.material.depthTest = false; lbl.m.renderOrder = 23; lbl.m.position.set(-0.09, 0.036, 0.002); power.add(lbl.m);
-  power.position.set(0, -0.2, -0.7); power.rotation.x = 0.28;
-  power.visible = false;
-  camera.add(power);
   const ringSegs = [];
   for (let i = 0; i < 28; i++) {
     const a0 = Math.PI / 2 - (i / 28) * Math.PI * 2;                 // clockwise from the top
@@ -123,7 +111,7 @@ export function buildHud(scene, camera) {
   let bnYaw = null;
 
   return {
-    scoreboard, banner, power, placeScoreboard,
+    scoreboard, banner, placeScoreboard,
     // everything the HUD floats in the world, hidden while the replay camera films
     overlays: [bn.m, ringTarget, ringLive, groundRing, lobTag, readTag, reticle],
     // per frame. pass: { target: {x,z}, scale (live ring), grade window color } or null.
@@ -159,11 +147,8 @@ export function buildHud(scene, camera) {
       reticle.visible = !!aim;
       if (aim) { reticle.position.set(aim.x, aim.y, GOAL.z + 0.08); reticle.lookAt(tmp.set(aim.x, aim.y, 0)); }
 
-      power.visible = charge != null;
       if (charge != null) {
         const col = over > 0 ? (Math.floor(performance.now() / 80) % 2 ? '#ff2020' : '#ffffff') : charge >= 1 ? '#ff8020' : '#f2c21a';
-        pFill.scale.x = Math.max(0.02, charge);
-        pFill.material.color.set(col);
         const lit = Math.round(charge * ringSegs.length);
         ringSegs.forEach((sg, i) => { sg.visible = i < lit; sg.material.color.set(col); });
       }
