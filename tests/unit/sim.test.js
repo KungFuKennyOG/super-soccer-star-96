@@ -102,3 +102,12 @@ test('after a goal, teammates gather in front of you facing you', () => {
     assert.ok(m.fx * (w.you.x - m.x) + m.fz * (w.you.z - m.z) > 0, `${id} faces you`);
   }
 });
+
+test('a zero-length step (the hit-stop) changes nothing and stays finite', () => {
+  const w = createWorld(fixed);
+  stepSim(w, idle({ shot: { eye: { x: 0, y: 1.7, z: -3 }, dir: unit(0, -0.05, -1), holdT: 0.8 } }), DT, fixed);
+  const before = JSON.stringify(w.ball);
+  for (let i = 0; i < 5; i++) stepSim(w, idle(), 0, fixed);
+  assert.equal(JSON.stringify(w.ball), before);
+  for (const p of w.players) assert.ok(Number.isFinite(p.x) && Number.isFinite(p.z));
+});

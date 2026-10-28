@@ -96,5 +96,6 @@ export function sfx(name, strength = 1) {
     });
   } else if (name === 'roar') crowdSwell(0.9, 1100, 4);
   else if (name === 'ooh') crowdSwell(0.45, 500, 1.8);
+  else if (name === 'rise') crowdSwell(0.3, 650, 1.1);     // a shot flying on target: the crowd draws breath
   else if (name === 'groan') crowdSwell(0.3, 350, 1.4);
 }

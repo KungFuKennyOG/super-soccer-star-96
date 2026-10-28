@@ -31,6 +31,7 @@ import { createCommentary } from './commentary.js';
 import { createReplay } from './replay.js';
 import { createIntents } from './intent.js';
 import { createTraining } from './training.js';
+import { createJuice } from './juice.js';
 import { LINE_IDS } from '../rules/commentary.js';
 
 const LINES = 480;          // browser render height: a little chunky, clearly readable
@@ -43,8 +44,8 @@ const { renderer, scene, camera, rig } = createStage({ canvas, far: 260, antiali
 renderer.xr.setFramebufferScaleFactor(VR_SCALE);
 
 // settings: match length (index into LENGTHS), PS1 wobble (0 off, 1 low, 2 full), commentary
-// (0 off, 1 text, 2 voice) and goal replays (0 off, 1 on)
-const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1 };
+// (0 off, 1 text, 2 voice), goal replays and hit effects (0 off, 1 on)
+const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1 };
 const settings = loadSettings();
 function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('sss96.settings') || '{}') }; } catch (e) { return { ...DEFAULTS }; }
@@ -82,6 +83,8 @@ commentary.setMode(settings.commentary);
 const replay = createReplay(scene, renderer);
 const intents = createIntents(camera, rig);
 const training = createTraining(camera);
+const juice = createJuice(scene);
+juice.set(settings.juice);
 let slowT = 0, said10 = false, callT = 0;
 $('radar').appendChild(radar.canvas);
 
@@ -133,7 +136,7 @@ const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
 
 function onMenu(act) {
   const scr = menus.screen;
-  if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); if (!settings.replays) replay.stop(); return; }
+  if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); juice.set(settings.juice); if (!settings.replays) replay.stop(); return; }
   if (act.mode === 'training') { game.kind = 'training'; game.cup = null; game.scenario = null; game.opp = byId(game.team.id === 'BAR' ? 'MAD' : 'BAR'); startMatch(); }
   else if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
   else if (act.team) {
@@ -268,6 +271,7 @@ function headPosNow() { camera.getWorldPosition(headW); return headW; }
 function feedback(ev) {
   for (const e of ev) {
     const m = e.by && models[e.by];
+    juice.event(e, world);
     if ((e.type === 'kick' || e.type === 'pass') && m) m.kickT = 0;
     if (e.type === 'kick' && e.kind && m) m.special = { kind: e.kind, t: 0 };
     if (e.type === 'kick' && e.kind === 'bicycle') slowT = 1.3;               // slow motion for the overhead kick
@@ -302,7 +306,7 @@ function startDance(delay = 1.6) { startCelebration(world); celebration.start(de
 const loop = startLoop(renderer, (dt, t) => {
   const raw = controls.read();
   slowT = Math.max(0, slowT - dt);
-  const simDt = slowT > 0 ? dt * 0.35 : dt;
+  const simDt = (slowT > 0 ? dt * 0.35 : dt) * (mode === 'play' ? juice.simScale(dt) : 1);   // slow motion, hit-stop
 
   // the button that starts a match (A) is also knock-on: don't let that same press reach the match
   const wasPlaying = mode === 'play';
@@ -358,6 +362,7 @@ const loop = startLoop(renderer, (dt, t) => {
   const yo = models.you, ys = Math.hypot(you.vx, you.vz);
   yo.root.rotation.y = ys > 0.5 ? Math.atan2(you.vx, you.vz) : Math.atan2(you.fx, you.fz);
   ball.update(world.ball, simDt);
+  juice.update(dt, ball.mesh, world.ball);
   const carrier = world.owner && world.owner !== 'you' ? world.byId[world.owner] : null;
   callT = Math.max(0, callT - dt);
   arrow.visible = !!carrier;

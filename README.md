@@ -34,6 +34,10 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Skip a training drill | X | N |
 | Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 
+## Settings
+
+On the mode screen (left/right to change): match length, PS1 wobble, commentary (off, subtitles, voice), goal replays, and hit effects (hit-stop, haptics, turf and a streak on hard shots).
+
 ## Scoring
 
 | | Points |

@@ -23,6 +23,7 @@ export const LENGTHS = [{ name: 'SHORT', mul: 0.6 }, { name: 'NORMAL', mul: 1 },
 export const WOBBLES = ['OFF', 'LOW', 'FULL'];
 export const COMMENTARY = ['OFF', 'TEXT', 'VOICE'];
 export const REPLAYS = ['OFF', 'ON'];
+export const JUICE = ['OFF', 'ON'];
 const centre = (c, s, y, col, sc = 1, sh = '#000') => drawText(c, s, Math.round((W - textWidth(s, sc)) / 2), y, col, sc, sh);
 
 export function logo(c, y) {
@@ -82,17 +83,17 @@ export function createMenus(scene, camera) {
     logo(ctx, 8);
     // mode buttons; the picked one's description shows in the hint line
     MODES.forEach((m, i) => {
-      const y = 50 + i * 20, on = i === sel;
+      const y = 48 + i * 20, on = i === sel;
       ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 18);
       drawText(ctx, m.name, 38, y + 2, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
     });
     // settings rows: < value > when selected
     const st = data.settings;
     const rows = [['MATCH LENGTH', LENGTHS[st.length].name], ['PS1 WOBBLE', WOBBLES[st.wobble]],
-      ['COMMENTARY', COMMENTARY[st.commentary]], ['GOAL REPLAYS', REPLAYS[st.replays]]];
+      ['COMMENTARY', COMMENTARY[st.commentary]], ['GOAL REPLAYS', REPLAYS[st.replays]], ['HIT EFFECTS', JUICE[st.juice]]];
     rows.forEach(([k, v], i) => {
-      const y = 133 + i * 11, on = sel === MODES.length + i;
-      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(28, y - 2, W - 56, 11); }
+      const y = 131 + i * 10, on = sel === MODES.length + i;
+      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(28, y - 2, W - 56, 10); }
       drawText(ctx, k, 38, y, on ? '#f2c21a' : '#9aa8e0');
       const val = on ? `< ${v} >` : v;
       drawText(ctx, val, W - 38 - textWidth(val), y, on ? '#ffffff' : '#c8d4ff');
@@ -250,7 +251,7 @@ export function createMenus(scene, camera) {
       if (model && table3d.visible) model.root.rotation.y += dt * 0.9;
       let act = null;
       if (screen === 'mode') {
-        const n = MODES.length + 4, st = data.settings;
+        const n = MODES.length + 5, st = data.settings;
         if (nav.up) sel = (sel + n - 1) % n;
         if (nav.down) sel = (sel + 1) % n;
         if (sel < MODES.length && nav.ok) act = { mode: MODES[sel].id };
@@ -259,6 +260,7 @@ export function createMenus(scene, camera) {
         if (dir && sel === MODES.length + 1) { st.wobble = Math.max(0, Math.min(WOBBLES.length - 1, st.wobble + dir)); act = { settings: st }; }
         if (dir && sel === MODES.length + 2) { st.commentary = Math.max(0, Math.min(COMMENTARY.length - 1, st.commentary + dir)); act = { settings: st }; }
         if (dir && sel === MODES.length + 3) { st.replays = Math.max(0, Math.min(REPLAYS.length - 1, st.replays + dir)); act = { settings: st }; }
+        if (dir && sel === MODES.length + 4) { st.juice = Math.max(0, Math.min(JUICE.length - 1, st.juice + dir)); act = { settings: st }; }
       } else if (screen === 'team' && data.mode === 'world') {
         for (const d of ['left', 'right', 'up', 'down']) {
           if (!nav[d]) continue;
