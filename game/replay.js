@@ -21,7 +21,7 @@ export function createReplay(scene, renderer) {
   scene.add(ball.mesh, ball.shadow);
 
   // the TV camera and what it films into
-  const rt = new THREE.WebGLRenderTarget(320, 180);
+  const rt = new THREE.WebGLRenderTarget(256, 144);   // PS1-ish TV picture, cheap to fill
   const cam = new THREE.PerspectiveCamera(22, 16 / 9, 0.3, 200);
   const look = new THREE.Vector3();
 
@@ -132,18 +132,23 @@ export function createReplay(scene, renderer) {
     // swap back. live: objects to hide while filming (live players, ball, HUD).
     render(live) {
       if (!active) return;
-      if ((frameSkip = (frameSkip + 1) % 2) && renderer.xr.isPresenting) return;   // every other frame in the headset
+      // a 24 fps TV picture in the headset (every third frame), every other frame in the browser
+      frameSkip = (frameSkip + 1) % (renderer.xr.isPresenting ? 3 : 2);
+      if (frameSkip) return;
       const was = live.map(o => o.visible);
       live.forEach(o => { o.visible = false; });
       tv.visible = jumbo.visible = false;
       for (const m of Object.values(ghosts)) m.root.visible = m.shadow.visible = true;
       ball.mesh.visible = ball.shadow.visible = true;
-      const xrOn = renderer.xr.enabled;
+      // In the headset the frame's render target is the XR layer's framebuffer, set by three.js before
+      // this frame: put that back afterwards (setting null here sent the next view to the canvas
+      // instead of the headset, so frames were dropped and the picture juddered).
+      const xrOn = renderer.xr.enabled, prevRT = renderer.getRenderTarget();
       renderer.xr.enabled = false;
       renderer.setRenderTarget(rt);
       renderer.render(scene, cam);
-      renderer.setRenderTarget(null);
       renderer.xr.enabled = xrOn;
+      renderer.setRenderTarget(prevRT);
       for (const m of Object.values(ghosts)) m.root.visible = m.shadow.visible = false;
       ball.mesh.visible = ball.shadow.visible = false;
       live.forEach((o, i) => { o.visible = was[i]; });

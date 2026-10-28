@@ -402,11 +402,11 @@ function updateHud() {
   if (sh) { $('powerFill').style.width = `${chargeOf(sh.t) * 100}%`; pw.classList.toggle('over', overcharge(sh.t) > 0); }
 }
 
-// the radar rides on the left wrist
+// the radar rides on the left wrist, high enough that the hand doesn't poke through it
 function placeOnHands() {
   const a = renderer.xr.getController(0), b = renderer.xr.getController(1);
   const R = b.userData.hand === 'right' ? b : a, L = R === a ? b : a;
-  if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.06, 0.06); radar.mesh.rotation.set(-1.0, 0, 0); }
+  if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.12, 0.06); radar.mesh.rotation.set(-1.0, 0, 0); }
 }
 
 function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
