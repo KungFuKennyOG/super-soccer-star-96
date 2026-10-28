@@ -91,25 +91,26 @@ test('drag-backs: the presser falls for the first ones, then reads the same tric
   assert.equal(drag().read, false);
 });
 
-test('stepping up: from the semis the markers squeeze up when you turn back', () => {
+test('stepping up: from the semis the markers squeeze up when you turn back, but not off a runner', () => {
   for (const [level, expect] of [[0, false], [2, true]]) {
     const w = world(level);
     w.you.z = -14; w.ball.z = -14.6;
-    // both teammates stand deep in the box, so their markers would normally sit deep too
-    w.byId.m1.x = -8; w.byId.m1.z = -28; w.byId.m2.x = 8; w.byId.m2.z = -28;
+    // m1 just beyond the line's spot, m2 making a deep run into the box
+    w.byId.m1.x = -8; w.byId.m1.z = -18.5; w.byId.m2.x = 8; w.byId.m2.z = -30;
     w.drill = { frozen: new Set(['m1', 'm2']), mateHold: false, crossHead: false };
     run(w, 0.4, idle({ move: { x: 0, z: 1 } }));           // run back toward halfway
     const line = w.ball.z - STEP_UP.gap;
-    const marks = [...defenceTargets(w).entries()].filter(([, t]) => t.role === 'mark' || t.role === 'zone');
-    assert.ok(marks.length > 0);
-    const squeezed = marks.every(([, t]) => t.z >= line - 1e-6);
-    assert.equal(squeezed, expect, `level ${level}`);
+    const marks = [...defenceTargets(w).values()].filter(t => t.role === 'mark' || t.role === 'zone');
+    const onM1 = marks.reduce((a, t) => (dist(t, w.byId.m1) < dist(a, w.byId.m1) ? t : a));
+    const onM2 = marks.reduce((a, t) => (dist(t, w.byId.m2) < dist(a, w.byId.m2) ? t : a));
+    assert.equal(onM1.z >= line - 1e-6, expect, `level ${level}: m1's marker`);
+    assert.ok(onM2.z < line - 2, `level ${level}: the runner's marker stays with him`);
   }
 });
 
 test('teammates split into a runner into the box and a support man wide of you', () => {
   const w = world(0);
-  const targets = ['m1', 'm2'].map(id => mateSupport(w, w.byId[id], DT));
+  const targets = ['m1', 'm2'].map(id => mateSupport(w, w.byId[id]));
   const run = targets.find(t => t.role === 'run'), sup = targets.find(t => t.role === 'support');
   assert.ok(run && sup);
   assert.ok(run.z < w.you.z - 5 && run.z >= GOAL.z + 7, 'the runner goes beyond you, toward the box');
@@ -122,4 +123,25 @@ import { LEVEL_NAMES } from '../../rules/tuning.js';
 test('scouting reports fit the banner', () => {
   assert.equal(LEVEL_NAMES.length, BRAIN.length);
   for (const t of LEVEL_NAMES) for (const l of t.split('\n')) assert.ok(l.length <= 31, l);
+});
+
+test('the runner keeps his run going into the box', () => {
+  const w = world(0);
+  for (const id of ['d1', 'd2', 'd3']) { const p = w.byId[id]; p.x = 20; p.z = -1; p.stun = 99; }
+  run(w, 0.05);
+  const runner = w.brain.runner;
+  run(w, 4, idle({ move: { x: 0, z: -0.3 } }));
+  assert.equal(w.brain.runner, runner, 'no needless swaps');
+  assert.ok(w.byId[runner].z < GOAL.z + 14, `he got into the box: ${w.byId[runner].z.toFixed(1)}`);
+});
+
+test('looking at goal does not get your runner read, unless you are holding the pass ring', () => {
+  const w = world(3);
+  w.you.x = 0; w.you.z = GOAL.z + 16; w.ball.x = 0; w.ball.z = w.you.z - 0.6;
+  w.byId.m1.x = 0.5; w.byId.m1.z = GOAL.z + 8;                  // right in front of goal
+  w.drill = { frozen: new Set(['m1', 'd1', 'd2', 'd3']), mateHold: false, crossHead: false };
+  run(w, 2, idle({ facing: { x: 0, z: -1 } }));
+  assert.equal(w.brain.read, null);
+  run(w, 2, idle({ facing: { x: 0, z: -1 }, aiming: true }));
+  assert.equal(w.brain.read, 'm1');
 });

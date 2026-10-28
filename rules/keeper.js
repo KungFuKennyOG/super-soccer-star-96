@@ -18,6 +18,7 @@ export const KEEPER = {
   rushSpeed: 6.8, rushLook: 1.6,   // how fast he comes out, and how far ahead (s) he reads a loose ball
   reachUp: 2.45,              // the highest he gets a hand to off his line: a chip above this beats him
   claim: 1.0,                 // he gathers a loose ball inside this distance
+  offLine: 2.0,               // further out than this he's "come out" (his normal spot is at most 1.6)
 };
 
 const defs = w => w.players.filter(p => p.role === 'def');
@@ -68,6 +69,7 @@ export function rushPoint(w, gk) {
 export function keeperClaim(w, ev) {
   const gk = w.byId.gk, b = w.ball;
   if (w.owner || w.shot || b.y > 2.2) return false;
+  if (w.time - (w.parryT ?? -9) < 0.6) return false;           // the rebound is loose: he can't gather his own parry at once
   if (dist(gk, b) > (gk.rushing ? KEEPER.claim : 0.7)) return false;
   w.owner = 'gk'; w.ownT = 0; w.pendingPass = null;
   ev.push({ type: 'saved', by: w.kick ? w.kick.by : null, claim: true, x: b.x, y: b.y });
@@ -78,15 +80,15 @@ export function keeperClaim(w, ev) {
 // when he's come out) and what happens: 'catch' | 'parry' | 'beaten' | 'wide'. chipped: it goes
 // over him while he's off his line.
 export function shotPlan(w) {
-  const gk = w.byId.gk, b = w.ball, cross = predictCross(b);
+  const gk = w.byId.gk, b = w.ball, cross = predictCross(b, 4.5);     // long enough for a chip from range
   if (!cross) return { cross: null, save: null, decision: 'wide', chipped: false };
   let save = cross;
-  if (cross.onTarget && gk.z - GOAL.z > 1.5) {
-    const at = predictPlane(b, gk.z + 0.2);
-    if (at) {
-      if (at.y > KEEPER.reachUp) return { cross, save: { ...at, onTarget: true }, decision: 'beaten', chipped: true };
-      save = { ...at, onTarget: true };
-    }
+  if (cross.onTarget && gk.z - GOAL.z > KEEPER.offLine) {
+    const at = predictPlane(b, gk.z + 0.2, 4.5);
+    // already past him (you've rounded him): he can't get back
+    if (!at) return { cross, save: cross, decision: 'beaten', chipped: false };
+    if (at.y > KEEPER.reachUp) return { cross, save: { ...at, onTarget: true }, decision: 'beaten', chipped: true };
+    save = { ...at, onTarget: true };
   }
   return { cross, save, decision: keeperSave(gk, save, ballSpeed(b), w.tune.ai), chipped: false };
 }
@@ -104,7 +106,7 @@ export function keeperCheck(w, rnd, ev) {
   } else {
     b.x = clamp(s.save.x, gk.x - 1.5, gk.x + 1.5); b.z = Math.max(GOAL.z + 0.5, gk.z + 0.4); b.y = Math.max(BALL.r, s.save.y);
     b.vz = Math.abs(b.vz) * 0.25 + 3; b.vx = (rnd() - 0.5) * 9; b.vy = 2.5;
-    w.shot = null;
+    w.shot = null; w.parryT = w.time;
     ev.push({ type: 'parried', by: s.by });
   }
 }

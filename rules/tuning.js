@@ -79,11 +79,13 @@ export const AIR = {
 //   dragBite   drag-backs in a row (within 3 s) the presser falls for; after that he reads it
 //   gkOut      how far (0..1 of 4 m) the keeper comes off his line to narrow the angle when you're through
 //   gkRush     the keeper races out to claim through-balls he can reach first
+//   runMargin  a pass to the teammate making a run is his unless a defender is this much closer to it
+//              (perfect pass; a good one gets 40% of it). Later rounds track runners better.
 export const BRAIN = [
-  { read: 2.0, readGap: 1.5, readSteal: 2.4, double: false, doubleRange: 0, stepUp: false, dragBite: 3, gkOut: 0.35, gkRush: false },
-  { read: 1.6, readGap: 1.35, readSteal: 2.8, double: true, doubleRange: 19, stepUp: false, dragBite: 3, gkOut: 0.6, gkRush: true },
-  { read: 1.35, readGap: 1.2, readSteal: 3.1, double: true, doubleRange: 21, stepUp: true, dragBite: 2, gkOut: 0.85, gkRush: true },
-  { read: 1.15, readGap: 1.05, readSteal: 3.4, double: true, doubleRange: 23, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true },
+  { read: 2.0, readGap: 1.5, readSteal: 2.4, double: false, doubleRange: 0, stepUp: false, dragBite: 3, gkOut: 0.35, gkRush: false, runMargin: 0.95 },
+  { read: 1.6, readGap: 1.35, readSteal: 2.8, double: true, doubleRange: 19, stepUp: false, dragBite: 3, gkOut: 0.6, gkRush: true, runMargin: 0.9 },
+  { read: 1.35, readGap: 1.2, readSteal: 3.1, double: true, doubleRange: 21, stepUp: true, dragBite: 2, gkOut: 0.85, gkRush: true, runMargin: 0.85 },
+  { read: 1.15, readGap: 1.05, readSteal: 3.4, double: true, doubleRange: 23, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true, runMargin: 0.8 },
 ];
 // The scouting report shown a few seconds into a match at each level (banner lines, 31 characters max).
 export const LEVEL_NAMES = ['',

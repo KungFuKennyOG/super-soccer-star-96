@@ -11,5 +11,7 @@ test('every level is beatable and none is a walkover', () => {
     for (const seed of [1, 2]) { const r = playAttacks({ level, stars: 4, seed, attacks: 40 }); g += r.goals; n += r.attacks; }
     return g / n;
   });
-  for (const [level, r] of rates.entries()) assert.ok(r > 0.03 && r < 0.85, `level ${level}: ${r.toFixed(2)} goals per attack`);
+  for (const [level, r] of rates.entries()) assert.ok(r > 0.08 && r < 0.85, `level ${level}: ${r.toFixed(2)} goals per attack`);
+  // and the later rounds really are harder
+  assert.ok(rates[0] > rates[rates.length - 1] + 0.1, `level 0 ${rates[0].toFixed(2)} vs final ${rates[rates.length - 1].toFixed(2)}`);
 });

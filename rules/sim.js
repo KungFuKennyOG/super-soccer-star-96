@@ -11,6 +11,7 @@
 //   pass: { holdT, targetId } on the frame the pass is released
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
+//   aiming: bool, holding the pass ring (a look at goal only counts toward being read while aiming)
 // }
 import { MOVE, AI, GOAL, PITCH, BALL, AIR } from './tuning.js';
 import { tuneFor } from './skill.js';
@@ -54,7 +55,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
-    kick: null, shot: null, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
+    kick: null, shot: null, parryT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
 }
@@ -125,7 +126,10 @@ function pass(w, from, to, grade, rnd, ev) {
   launch(w, from, v);
   // a pass to the teammate they've read: his marker has stepped in and gets a long reach for it
   const reader = from.role === 'you' && w.brain.read === to.id ? Object.keys(w.brain.roles).find(id => w.brain.roles[id] === 'read') : null;
-  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob, reader };
+  // a ball to the teammate making the run: he's a step ahead of his marker, so it's his unless a
+  // defender is clearly in the way
+  const run = from.role === 'you' && w.brain.runner === to.id;
+  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob, reader, run };
   if (grade !== 'perfect') w.perfectChain = 0;
   w.called = false;
   ev.push({ type: 'pass', by: from.id, to: to.id, grade, lob: !!v.lob });
@@ -223,7 +227,7 @@ function updateAI(w, dt, rnd, ev) {
     else if (p.role === 'gk') t = keeperTarget(w, p);
     else if (w.owner === p.id) t = mateOnBall(w, p, rnd, ev);
     else if (w.pendingPass && w.pendingPass.to === p.id) t = runOntoPass(p, b, w.pendingPass.lead, ai);
-    else if (w.owner === 'you') t = mateSupport(w, p, dt);
+    else if (w.owner === 'you') t = mateSupport(w, p);
     else t = mateTarget(p, b, you, defs, ownerIsHome, !owner, ai);
     if (!t) continue;
     let speed = t.speed * (p.stun ? 0.25 : 1);
@@ -323,7 +327,8 @@ function looseBall(w, rnd, ev) {
   // a pass's receiver gets first touch unless a defender is clearly closer; a ball just lofted
   // (a lob or cross on its way up) can't be cut out by the man next to the passer
   const pp = w.pendingPass, rec = pp && w.byId[pp.to];
-  const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : 1.2;
+  const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : pp && pp.run ? 1.8 : 1.2;
+  const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.4) : 0.2;
   const rising = b.vy > 0 && b.y > 0.45;
   // a pass they've read: the man on your teammate's shoulder nips in front as it arrives
   const reader = pp && pp.reader && w.byId[pp.reader];
@@ -333,7 +338,7 @@ function looseBall(w, rnd, ev) {
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;
     const dd = dist(d, b);
-    if (!fresh && !rising && !d.stun && dd < range && !(recD < recR && recD <= dd + 0.2)) { ev.push({ type: 'intercepted', by: d.id }); w.owner = d.id; return; }
+    if (!fresh && !rising && !d.stun && dd < range && !(recD < recR && recD <= dd + margin)) { ev.push({ type: 'intercepted', by: d.id }); w.owner = d.id; return; }
   }
   if (sp > 27) return;
   let best = null, bd = Infinity;

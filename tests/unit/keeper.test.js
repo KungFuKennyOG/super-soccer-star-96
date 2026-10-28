@@ -79,3 +79,24 @@ test('he does not come for a lofted pass or cross: those stay yours to attack', 
   assert.ok(!ev.some(e => e.type === 'saved'));
   assert.ok(!w.byId.gk.rushing);
 });
+
+test('a parry stays loose for the rebound: he does not gather his own parry at once', () => {
+  const w = through(0, 16, true);
+  const gk = w.byId.gk;
+  w.owner = null; Object.assign(w.ball, { x: gk.x, y: 1, z: gk.z + 3, vx: 0, vy: 0, vz: -20 });
+  w.shot = { by: 'you', from: { x: 0, z: -18 }, t0: w.time, cross: { x: gk.x + 0.2, y: 1, t: 0.01, onTarget: true }, save: { x: gk.x + 0.2, y: 1, t: 0.01, onTarget: true }, decision: 'parry', done: false, kind: null };
+  const ev = run(w, 0.3);
+  assert.ok(ev.some(e => e.type === 'parried'));
+  assert.ok(!ev.some(e => e.type === 'saved'), ev.map(e => e.type).join(','));
+});
+
+test('round the keeper and he cannot get back: a shot from beside him is beaten', () => {
+  const w = through(3, 9);
+  const gk = w.byId.gk;
+  gk.x = -0.5; gk.z = GOAL.z + 7;                               // he came a long way out, and you went round him
+  w.you.x = 0; w.you.z = GOAL.z + 5.5; w.ball.x = 0; w.ball.z = GOAL.z + 5;
+  const eye = { x: w.you.x, y: 1.7, z: w.you.z }, aim = { x: -1.5, y: 0.6, z: GOAL.z };
+  stepSim(w, idle({ shot: { eye, dir: unit(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: 0.6 } }), DT, fixed);
+  assert.equal(w.shot.decision, 'beaten');
+  assert.ok(run(w, 2).some(e => e.type === 'goal'));
+});
