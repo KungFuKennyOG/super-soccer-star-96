@@ -18,6 +18,9 @@ const POOLS = {
   chip: ['chip1', 'chip2'],
   claim: ['claim1', 'claim2'],
   dragread: ['dragread1', 'dragread2'],
+  nutmeg: ['nutmeg1', 'nutmeg2'],
+  rainbow: ['rainbow1', 'rainbow2'],
+  joga: ['joga1', 'joga2'],
   hattrick: ['hattrick1', 'hattrick2'],
   shot: ['shot1', 'shot2', 'shot3'],
   saved: ['saved1', 'saved2', 'saved3'],
@@ -57,6 +60,7 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
     case 'goal': {
       if (state.hatTrick) return say('hattrick', 5);
       if (e.kind) return say(e.kind, 4);
+      if (e.skills >= 2) return say('joga', 4);
       if (state.scenario && state.us > state.them && state.us - state.them === 1 && e.by) return say('comeback', 4, 0.6) || say('goal', 3);
       if (state.scenario && state.us === state.them) return say('level', 4, 0.5) || say('goal', 3);
       if (TOP_BINS(e)) return say('topbins', 3);
@@ -82,6 +86,11 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
       return e.by === 'you' && e.grade === 'perfect' ? say('pass', 1, 0.5) : null;
     case 'flick': return say('skill', 1, 0.35);
     case 'drag': return e.read ? say('dragread', 2, 0.8) : say('drag', 1, 0.4);
+    case 'skill':
+      if (e.read) return say('dragread', 2, 0.8);
+      if (!e.ok) return null;
+      if (e.move === 'nutmeg' || e.move === 'rainbow') return say(e.move, 2);
+      return say(e.move === 'roulette' ? 'drag' : 'skill', 1, 0.5);
     case 'last10': return say('last10', 3);
     case 'fulltime': return say('fulltime', 5);
     case 'combo': return say('combo', 3);

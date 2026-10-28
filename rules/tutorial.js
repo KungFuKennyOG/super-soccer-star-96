@@ -40,6 +40,22 @@ export const STEPS = [
     vr: ['PRESS B TO DRAG THE BALL BACK', 'IT STOPS YOU AND SHAKES A DEFENDER'],
     pc: ['PRESS C TO DRAG THE BALL BACK', 'IT STOPS YOU AND SHAKES A DEFENDER'],
     drill: { you: [0, -4] } },
+  { id: 'stepover', title: 'STEP-OVER', need: 1,
+    vr: ['WHEN HE CLOSES IN, FLICK YOUR RIGHT', 'HAND SIDEWAYS: A STEP-OVER. HE BITES', 'AND YOU GO THE OTHER WAY'],
+    pc: ['WHEN HE CLOSES IN, PRESS 1:', 'A STEP-OVER (HOLD A FOR LEFT)'],
+    drill: { you: [0, -6], place: [['d2', 0, -10]] } },
+  { id: 'roulette', title: 'ROULETTE', need: 1,
+    vr: ['WHEN HE CLOSES IN, DRAW A QUICK', 'CIRCLE WITH YOUR RIGHT HAND:', 'SPIN AWAY FROM HIM'],
+    pc: ['WHEN HE CLOSES IN, PRESS 2:', 'SPIN AWAY FROM HIM'],
+    drill: { you: [0, -6], place: [['d2', 0, -10]] } },
+  { id: 'nutmeg', title: 'NUTMEG', need: 1,
+    vr: ['FACE HIM UP CLOSE, THEN JAB YOUR', 'RIGHT HAND FORWARD AND DOWN:', 'THROUGH HIS LEGS!'],
+    pc: ['FACE HIM UP CLOSE AND PRESS 3:', 'THROUGH HIS LEGS!'],
+    drill: { you: [0, -6], place: [['d2', 0, -10]] } },
+  { id: 'rainbow', title: 'RAINBOW FLICK', need: 1,
+    vr: ['WHEN HE CLOSES IN, FLICK YOUR', 'RIGHT HAND UP: OVER HIS HEAD.', 'RUN ONTO IT'],
+    pc: ['WHEN HE CLOSES IN, PRESS 4:', 'OVER HIS HEAD. RUN ONTO IT'],
+    drill: { you: [0, -6], place: [['d2', 0, -10]] } },
   { id: 'pass', title: 'PASS', need: 2,
     vr: ['LOOK AT A MATE, HOLD LEFT TRIGGER', 'LET GO WHEN THE RING HITS THE CIRCLE', 'A PERFECT PASS COUNTS DOUBLE'],
     pc: ['LOOK AT A MATE, HOLD E OR R-CLICK', 'LET GO WHEN THE RING HITS THE CIRCLE', 'A PERFECT PASS COUNTS DOUBLE'],
@@ -141,6 +157,7 @@ export function stepTutorial(tut, f) {
     const mine = e.by === 'you';
     if (s.id === 'knock' && e.type === 'knock') gain += 1;
     if (s.id === 'drag' && e.type === 'drag') gain += 1;
+    if (e.type === 'skill' && e.ok && e.move === s.id) gain += 1;
     if (s.id === 'pass' && e.type === 'pass' && mine) gain += e.grade === 'perfect' ? 2 : e.grade === 'good' ? 1 : 0;
     if (s.id === 'call' && e.type === 'called' && (!f.vr || e.hand)) gain += 1;
     if (s.id === 'lob' && e.type === 'pass' && mine && e.lob) gain += 1;

@@ -94,7 +94,7 @@ test('training: picks from the mode menu, runs the first drill, skips, and reset
   await page.waitForTimeout(400);
   await page.screenshot({ path: new URL('training-2.png', OUT).pathname });
   // skip ahead to the lob drill: a defender should be standing in the lane
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 20 && await page.evaluate(() => window.__sss.training.step.id) !== 'lob'; i++) {
     const before = await page.evaluate(() => window.__sss.training.step.id);
     await page.keyboard.press('KeyN');
     await page.waitForFunction(b => window.__sss.training.step.id !== b, before, { timeout: 30000 });

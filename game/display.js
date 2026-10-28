@@ -6,8 +6,8 @@ export const LINES = 480;          // browser render height: a little chunky, cl
 const SETTINGS_KEY = 'sss96.settings';
 
 // match length (index into LENGTHS), PS1 wobble (0 off, 1 low, 2 full), commentary (0 off, 1 text,
-// 2 voice), goal replays and hit effects (0 off, 1 on)
-const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1 };
+// 2 voice), goal replays and hit effects (0 off, 1 on), skill gestures (0 off, 1 on, 2 only with the right grip held)
+const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1, skills: 1 };
 export function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch (e) { return { ...DEFAULTS }; }
 }

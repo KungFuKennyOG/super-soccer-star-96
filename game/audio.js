@@ -94,8 +94,15 @@ export function sfx(name, strength = 1) {
       env(g, 0.01, 0.12, 0.06, at);
       o.connect(g); g.connect(master); o.start(at); o.stop(at + 0.14);
     });
+  } else if (name === 'swish') {       // the ball whipped round your feet
+    const n = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    n.buffer = noiseBuffer(0.25); bp.type = 'bandpass'; bp.Q.value = 2;
+    bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(3200, t + 0.18);
+    env(g, 0.02, 0.35 * strength, 0.2, t);
+    n.connect(bp); bp.connect(g); g.connect(master); n.start(t); n.stop(t + 0.3);
   } else if (name === 'roar') crowdSwell(0.9, 1100, 4);
   else if (name === 'ooh') crowdSwell(0.45, 500, 1.8);
+  else if (name === 'ole') crowdSwell(0.5, 900, 1.0);       // a skill comes off: the crowd's OLE
   else if (name === 'rise') crowdSwell(0.3, 650, 1.1);     // a shot flying on target: the crowd draws breath
   else if (name === 'groan') crowdSwell(0.3, 350, 1.4);
 }

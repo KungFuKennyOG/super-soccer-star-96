@@ -101,6 +101,14 @@ export function createHands(renderer, rig) {
       }
       return best;
     },
+    // the right hand in world space (out), and whether its grip is squeezed; null when not tracked
+    right(out) {
+      const s = slots.find(x => x.side === 'right' && x.gamepad && x.grip.visible);
+      if (!s) return null;
+      s.grip.getWorldPosition(out);
+      const b = s.gamepad.buttons;
+      return { pos: out, grip: !!(b[1] && b[1].value > 0.45) };
+    },
     setKit(k) { kit = k; slots.forEach(build); },
     // hide one hand (e.g. while a posed copy of it holds the trophy)
     hide(side, on) { for (const s of slots) if (s.side === side) s.hidden = on; },

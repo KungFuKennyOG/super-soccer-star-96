@@ -59,7 +59,7 @@ const ceremony = createCeremony(scene, camera, hands);
 const commentary = createCommentary(camera);
 commentary.setMode(settings.commentary);
 const replay = createReplay(scene, renderer);
-const intents = createIntents(camera, rig);
+const intents = createIntents(camera, rig, () => settings.skills);
 const training = createTraining(camera);
 const juice = createJuice(scene);
 juice.set(settings.juice);
@@ -243,7 +243,7 @@ function endCeremony() {
   openMenu('mode');
 }
 
-const headW = new THREE.Vector3(), dirW = new THREE.Vector3();
+const headW = new THREE.Vector3(), dirW = new THREE.Vector3(), handW = new THREE.Vector3();
 function headPosNow() { camera.getWorldPosition(headW); return headW; }
 
 
@@ -262,6 +262,7 @@ function feedback(ev) {
     if (e.type === 'pass') { sfx('pass', 0.5); if (e.by === 'you') buzz('left', 0.6, 40); if (e.grade === 'perfect' && e.by === 'you') sfx('perfect'); }
     if (e.type === 'received') { sfx('touch'); if (e.id === 'you') buzz('both', 0.3, 30); }
     if (e.type === 'knock' || e.type === 'drag') { sfx('touch'); buzz('right', 0.4, 30); }
+    if (e.type === 'skill') { sfx('swish'); buzz('right', e.ok ? 0.7 : 0.3, e.ok ? 60 : 30); if (e.ok) sfx('ole'); if (models.you) models.you.special = { kind: e.move, t: 0, side: 1 }; }
     if (e.type === 'goal') { sfx('net'); sfx('roar'); setTimeout(() => sfx('whistle', 1), 300); stadium.netHit(e.x, e.y); stadium.cheer(true); celebrateT = 2.4; flashT = 2.4; buzz('both', 1, 200); }
     if (e.type === 'saved' || e.type === 'parried' || e.type === 'blocked') sfx('ooh');
     if (e.type === 'post') { sfx('post'); sfx('ooh'); }
@@ -301,7 +302,7 @@ const loop = startLoop(renderer, (dt, t) => {
     if (raw.skip) training.skip();
     if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
-    if (raw.vr) raw.hand = hands.highest(camera.position.y);
+    if (raw.vr) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.right(handW); }
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);
     replay.record(world, ev, simDt);

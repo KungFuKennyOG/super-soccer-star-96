@@ -6,6 +6,7 @@
 //   sprint: bool
 //   facing: {x, z}     head direction on the ground (unit)
 //   physical: {x, z}   metres the player physically stepped this frame (VR room-scale)
+//   skill: { move: 'stepover' | 'roulette' | 'nutmeg' | 'rainbow', side } on the frame it fires (rules/skills.js)
 //   knock, drag, call: bool (true on the frame pressed; call also comes from raising a hand, callHand 'left'/'right')
 //   shot: { eye, dir, holdT } on the frame the shot is released
 //   pass: { holdT, targetId } on the frame the pass is released
@@ -22,6 +23,7 @@ import { ballOnHead, canVolley, canBicycle, headerVelocity, volleyVelocity, bicy
 import { mateTarget, mateDecision, closest } from './ai.js';
 import { keeperTarget, keeperCheck, keeperClaim, shotPlan } from './keeper.js';
 import { initBrain, watchYou, dragFools, defenceTargets, mateSupport } from './brain.js';
+import { performSkill, SKILL } from './skills.js';
 
 export const DEAD = new Set(['goal', 'saved', 'out', 'tackled', 'intercepted']);
 
@@ -54,7 +56,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
-    kick: null, shot: null, parryT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
+    kick: null, shot: null, parryT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
 }
@@ -78,6 +80,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
     else if (it.pass && w.byId[it.pass.targetId]) pass(w, you, w.byId[it.pass.targetId], gradePass(it.pass.holdT), rnd, ev);
     else if (it.knock) knock(w, ev);
     else if (it.drag) drag(w, ev);
+    else if (it.skill) performSkill(w, it.skill, ev, launch);
   }
   if (!w.dead && it.call && w.owner && w.byId[w.owner].role === 'mate' && !w.called) { w.called = true; ev.push({ type: 'called', by: w.owner, hand: it.callHand || null }); }
 
@@ -107,6 +110,7 @@ function moveYou(w, it, dt) {
   const m = it.move || { x: 0, z: 0 }, ml = Math.min(1, Math.hypot(m.x, m.z));
   const dir = norm(m.x, m.z);
   if (w.dead) steer(p, 0, 0, MOVE.accel, dt);
+  else if (w.dash && w.dash.t > 0) { p.vx = w.dash.x; p.vz = w.dash.z; w.dash.t -= dt; }   // a skill's burst
   else steer(p, dir.x * ml * top, dir.z * ml * top, MOVE.accel, dt);
   p.x += p.vx * dt + (it.physical ? it.physical.x : 0);
   p.z += p.vz * dt + (it.physical ? it.physical.z : 0);
@@ -298,7 +302,7 @@ function onBallEvent(w, e, ev) {
   if (e.type === 'goal') {
     const by = s ? s.by : w.kick ? w.kick.by : 'you';
     const a = w.lastAssist && w.lastAssist.to === by && w.time - w.lastAssist.t < 4 ? w.lastAssist : null;
-    ev.push({ ...e, by, kind: s ? s.kind || (s.chipped ? 'chip' : null) : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain });
+    ev.push({ ...e, by, kind: s ? s.kind || (s.chipped ? 'chip' : null) : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain, skills: by === 'you' ? w.skills : 0 });
   } else ev.push({ ...e, by: s ? s.by : null });
   if (s) s.done = true;
   if (e.type === 'post') w.shot = null;
@@ -337,7 +341,7 @@ function looseBall(w, rnd, ev) {
   for (const p of homePlayers(w)) {
     if (w.kick && w.kick.by === p.id && w.time - w.kick.t < 0.3) continue;
     if (p.role === 'you' && (w.knockCD > 0 || b.y > AIR.trapBelow)) continue;   // a dropping ball is yours to head or volley first
-    const d = dist(p, b), r = p.role === 'you' ? AI.receive : 1.2;
+    const d = dist(p, b), r = p.role === 'you' ? AI.receive * (w.time - w.collectT < SKILL.collectTime ? SKILL.collect : 1) : 1.2;
     if (d < r && d < bd) { bd = d; best = p; }
   }
   if (!best) return;

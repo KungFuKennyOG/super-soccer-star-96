@@ -9,7 +9,7 @@ You plus two teammates attack one goal against three defenders and a keeper.
 - **Score Attack:** two minutes, score as much as you can, beat your high score.
 - **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
 - **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
-- **Training:** 15 drills, one move each: dribble, sprint, turn, knock-on, drag-back, pass, calling for it, lob, shoot, chip, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
+- **Training:** 19 drills, one move each: dribble, sprint, turn, knock-on, drag-back, step-over, roulette, nutmeg, rainbow flick, pass, calling for it, lob, shoot, chip, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
 
 Every club has its own ground (Champions Cup ties alternate home and away), packed with fans in both teams' colors who jump when their side scores.
 
@@ -33,12 +33,13 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Drag-back | B (shakes the defender pressing you) | C |
 | Hat-trick dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
 | Restart the attack | Y | R |
+| Skill moves (with a defender close) | Right-hand flick: sideways step-over, quick circle roulette, forward-and-down nutmeg, upward rainbow flick | 1 step-over (hold A for left), 2 roulette, 3 nutmeg, 4 rainbow |
 | Skip a training drill | X | N |
 | Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 
 ## Settings
 
-On the mode screen (left/right to change): match length, PS1 wobble, commentary (off, subtitles, voice), goal replays, and hit effects (hit-stop, haptics, turf and a streak on hard shots).
+On the mode screen (left/right to change): match length, PS1 wobble, commentary (off, subtitles, voice), goal replays, hit effects (hit-stop, haptics, turf and a streak on hard shots), and skill moves (off, gesture, or gesture only while holding the right grip).
 
 ## Scoring
 
@@ -46,6 +47,8 @@ On the mode screen (left/right to change): match length, PS1 wobble, commentary 
 | --- | --- |
 | Goal | 1000 |
 | Top bins (top corner) | +750 |
+| Skills: step-over / roulette / rainbow / nutmeg | +150 / +200 / +300 / +400 |
+| Joga bonita (a goal after 2+ skills in the attack) | +300 per skill |
 | Header / volley / bicycle kick | +500 / +600 / +1500 |
 | Chip over the keeper | +400 |
 | Worldie (from 24 m+) | +500 |

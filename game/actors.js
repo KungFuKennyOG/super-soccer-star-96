@@ -62,6 +62,7 @@ export function animate(m, p, dt, t, celebrate, guide = null) {
     bn.upperArmL.rotation.z = 0.8; bn.spine.rotation.y = -0.25 * Math.sin(k * Math.PI);
   }
   if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
+  if (m.special && SKILL_POSES.includes(m.special.kind)) skillPose(bn, m.special);
   if (m.special && m.special.kind === 'bicycle') { specialPose(bn, m.special); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
@@ -112,6 +113,27 @@ function specialPose(bn, sp) {
   } else if (sp.kind === 'header') {
     bn.hips.position.y += 0.16 * up; bn.spine.rotation.x += 0.25 * up; bn.neck.rotation.x = 0.5 * Math.sin(Math.PI * k);
     bn.upperArmL.rotation.z = 0.5 * up; bn.upperArmR.rotation.z = -0.5 * up;
+  }
+}
+
+// Skill moves with the feet (what you see of your own boots): the step-over circles the right foot
+// round the ball, the roulette spins you on the spot, the nutmeg is a toe-poke, the rainbow a heel
+// flick up behind you.
+const SKILL_POSES = ['stepover', 'roulette', 'nutmeg', 'rainbow'];
+function skillPose(bn, sp) {
+  const k = Math.min(1, sp.t / 0.45), up = Math.sin(Math.PI * k);
+  if (k >= 1) return;
+  if (sp.kind === 'stepover') {
+    bn.upperLegR.rotation.x = -0.55 * up; bn.upperLegR.rotation.z = -0.7 * Math.sin(2 * Math.PI * k);
+    bn.lowerLegR.rotation.x = 0.7 * up;
+  } else if (sp.kind === 'roulette') {
+    bn.hips.rotation.y += Math.PI * 2 * k;
+    bn.upperLegR.rotation.x = -0.4 * up; bn.lowerLegR.rotation.x = 0.5 * up;
+  } else if (sp.kind === 'nutmeg') {
+    bn.upperLegR.rotation.x = -0.75 * up; bn.lowerLegR.rotation.x = 0.15; bn.footR.rotation.x = -0.35 * up;
+  } else if (sp.kind === 'rainbow') {
+    bn.upperLegR.rotation.x = 0.55 * up; bn.lowerLegR.rotation.x = 2.1 * up; bn.footR.rotation.x = 0.6 * up;
+    bn.upperLegL.rotation.x = -0.25 * up;
   }
 }
 

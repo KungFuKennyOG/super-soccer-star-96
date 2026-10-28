@@ -1,6 +1,7 @@
 // The arcade layer: a two-minute clock, points, and the banner every event shows. Pure.
 import { MATCH, GOAL } from './tuning.js';
 import { GRADES } from './pass.js';
+import { SKILL } from './skills.js';
 
 export function createMatch(duration = MATCH.duration) {
   return { clock: duration, points: 0, goals: 0, yourGoals: 0, shots: 0, phase: 'play', deadT: 0, over: false, best: null };
@@ -45,10 +46,11 @@ export function scoreEvent(m, e) {
       if (e.dist >= 24) { pts += 500; bonus.push('WORLDIE +500'); }
       if (e.assist && e.assist.from !== e.by) { pts += 300; bonus.push(e.by === 'you' ? 'ONE-TWO +300' : 'ASSIST +300'); }
       if (e.chain > 1) { pts += e.chain * 100; bonus.push(`PASS CHAIN x${e.chain} +${e.chain * 100}`); }
+      if (e.skills >= 2) { const j = e.skills * SKILL.jogaPerSkill; pts += j; bonus.push(`JOGA BONITA x${e.skills} +${j}`); }
       const k = KIND_BONUS[e.kind];
       if (k) { pts += k.pts; bonus.push(`${k.name} +${k.pts}`); }
       m.points += pts;
-      const text = isHatTrick(m, e) ? 'HAT TRICK!' : k ? `${k.name}!` : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
+      const text = isHatTrick(m, e) ? 'HAT TRICK!' : k ? `${k.name}!` : e.skills >= 2 ? 'JOGA BONITA!' : isTopBins(e) ? 'TOP BINS!' : 'GOAL!';
       const sub = (m.scenario ? `${m.us} - ${m.them}\n` : '') + (bonus.join('\n') || `+${pts}`);
       return { text, sub, tone: 'good', big: true };
     }
@@ -62,6 +64,13 @@ export function scoreEvent(m, e) {
     case 'tackled': return { text: 'TACKLED', sub: 'they win it back', tone: 'bad' };
     case 'intercepted': return { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
     case 'drag': return e.read ? { text: 'NOT AGAIN', sub: 'he read the drag-back', tone: 'bad' } : null;
+    case 'skill': {
+      if (e.read) return { text: 'NOT AGAIN', sub: `he read the ${SKILL.names[e.move].toLowerCase()}`, tone: 'bad' };
+      if (!e.ok) return null;
+      m.points += SKILL.points[e.move];
+      // the flashy ones get a banner; step-overs and roulettes just get the crowd's OLE
+      return e.move === 'nutmeg' || e.move === 'rainbow' ? { text: `${SKILL.names[e.move]}!`, sub: `+${SKILL.points[e.move]}`, tone: 'good' } : null;
+    }
     case 'pass': {
       if (e.by !== 'you') return null;
       m.points += GRADES[e.grade].points;

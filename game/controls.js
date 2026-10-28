@@ -4,10 +4,11 @@
 // Quest:   left stick run · left grip or stick click sprint · right stick turn (it's only for turning)
 //          right trigger shoot (aim with your head) · left trigger pass (timing ring) / call for it
 //          A knock-on (standing still: flick it up) · B drag-back · Y restart · X skips a training drill
+//          skills: sharp right-hand flicks on the ball near a defender (game/intent.js, rules/gestures.js)
 //          a dropping ball: trigger to volley it, look up and trigger for an overhead kick; headers are
 //          your actual head (A or B also skip a goal replay)
 // Browser: WASD run · mouse look · Shift sprint · left click shoot / volley · right click or E pass · Space knock-on / flick up
-//          C drag-back · Q/Z turn without a mouse · R restart · N skip a training drill · Enter start
+//          C drag-back · 1-4 skills (step-over, roulette, nutmeg, rainbow) · Q/Z turn without a mouse · R restart · N skip a training drill · Enter start
 import { setupControllers, controllers, pressed, readStick, BTN, createDesktopInput } from '../engine/input.js';
 
 export function createControls({ renderer, rig, canvas, isPlaying, onUnlock }) {
@@ -31,7 +32,7 @@ export function createControls({ renderer, rig, canvas, isPlaying, onUnlock }) {
   return {
     desk,
     read() {
-      const out = { move: { x: 0, y: 0 }, turn: 0, sprint: false, shoot: false, pass: false, knock: false, drag: false, restart: false, skip: false, start: false, vr: renderer.xr.isPresenting,
+      const out = { move: { x: 0, y: 0 }, turn: 0, sprint: false, shoot: false, pass: false, knock: false, drag: false, restart: false, skip: false, skill: null, start: false, vr: renderer.xr.isPresenting,
         nav: { up: false, down: false, left: false, right: false, ok: false, back: false } };
       if (out.vr) {
         const L = hand('left'), R = hand('right');
@@ -70,6 +71,9 @@ export function createControls({ renderer, rig, canvas, isPlaying, onUnlock }) {
       out.drag = edgeKey('KeyC');
       out.restart = edgeKey('KeyR');
       out.skip = edgeKey('KeyN');
+      // skills: 1 step-over (A held: to the left), 2 roulette, 3 nutmeg, 4 rainbow flick
+      const sk = ['stepover', 'roulette', 'nutmeg', 'rainbow'].find((m, i) => edgeKey(`Digit${i + 1}`));
+      if (sk) out.skill = { move: sk, side: k.KeyA || k.ArrowLeft ? -1 : 1 };
       out.start = edgeKey('Enter');
       const nav = { up: edgeKey('ArrowUp') || edgeKey('KeyW'), down: edgeKey('ArrowDown') || edgeKey('KeyS'),
         left: edgeKey('ArrowLeft') || edgeKey('KeyA'), right: edgeKey('ArrowRight') || edgeKey('KeyD'),

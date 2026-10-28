@@ -140,3 +140,20 @@ test('chip drill: the keeper comes out, and only a chip over him counts', () => 
   const res = play(w, tut, 3, t => idle(t < DT ? { shot: { eye, dir, holdT: 0.1 } } : {}));
   assert.ok(res.includes('done'));
 });
+
+test('skill drills: a live defender closes in, and the drill only counts its own skill', () => {
+  for (const id of ['stepover', 'roulette', 'nutmeg', 'rainbow']) {
+    const w = createWorld(fixed), tut = createTutorial();
+    tut.i = STEPS.indexOf(step(id));
+    setupDrill(w, step(id));
+    const d2 = w.byId.d2;
+    assert.ok(!w.drill.frozen.has('d2'), `${id}: the defender is live`);
+    // wait for him to close in
+    for (let t = 0; t < 2 && Math.hypot(d2.x - w.you.x, d2.z - w.you.z) > 2.2; t += DT) stepSim(w, idle(), DT, fixed);
+    const wrong = id === 'stepover' ? 'roulette' : 'stepover';
+    const other = play(w, tut, DT, idle({ skill: { move: wrong, side: 1 } }));
+    assert.deepEqual(other, [], `${id}: ${wrong} doesn't count`);
+    const res = play(w, tut, DT, idle({ skill: { move: id, side: 1 } }));
+    assert.deepEqual(res, ['done'], id);
+  }
+});
