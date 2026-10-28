@@ -51,6 +51,8 @@ export function buildStadium(scene) {
       ground.uniforms.uTime.value = t;
       ground.uniforms.uJumpOurs.value = jumpOurs;
       ground.uniforms.uJumpTheirs.value = jumpTheirs;
+      const co = ground.curvaOurs;
+      ground.ultras.update(dt, t, co ? jumpOurs : jumpTheirs, co ? jumpTheirs : jumpOurs);
     },
   };
   api.setGround();

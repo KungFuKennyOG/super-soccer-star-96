@@ -1,9 +1,11 @@
 // Stadiums built from recipes: stand layout and tiers, roof, floodlights, time of day, pitch mowing,
-// seat colors, and a crowd of little fan dots that bob all game and jump when their team scores.
+// seat colors, and a crowd of little fan dots that bob all game and jump when their team scores, with
+// the ultras behind the goal (ultras.js): flags, banners, flares.
 // Every club has its own ground; the default ground is for the World Cup and nations.
 import * as THREE from 'three';
 import { GOAL, PITCH } from '../rules/tuning.js';
 import { ps1, pixelTex, canvasTex } from './ps1.js';
+import { buildUltras } from './ultras.js';
 
 // Stand shapes. Each tier is [depth, rise] in metres; later tiers sit above and behind the one before.
 const ENGLISH = { gap: 2.5, end: [[13, 9], [9, 8]], side: [[11, 7], [8, 7]], near: [[11, 7]], corners: false, roof: 'full', lights: 'pylons' };
@@ -48,10 +50,12 @@ function crowdMaterial(uniforms) {
   m.onBeforeCompile = sh => {
     base(sh);
     Object.assign(sh.uniforms, uniforms);
-    sh.vertexShader = 'attribute float aOurs;\nattribute float aPhase;\nuniform float uTime;\nuniform float uJumpOurs;\nuniform float uJumpTheirs;\n' +
+    sh.vertexShader = 'attribute float aOurs;\nattribute float aPhase;\nattribute float aUltra;\nuniform float uTime;\nuniform float uJumpOurs;\nuniform float uJumpTheirs;\n' +
       sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         float jump = mix(uJumpTheirs, uJumpOurs, aOurs);
-        transformed.y += jump * max(0.0, sin(uTime * 9.0 + aPhase * 6.283)) * 0.5 + 0.04 * sin(uTime * 2.3 + aPhase * 40.0);`);
+        transformed.y += jump * max(0.0, sin(uTime * 9.0 + aPhase * 6.283)) * 0.5 + 0.04 * sin(uTime * 2.3 + aPhase * 40.0);
+        // the ultras bounce all game, nearly in time with each other (a chant)
+        transformed.y += aUltra * (1.0 - jump) * max(0.0, sin(uTime * 7.5 + aPhase * 0.8)) * 0.22;`);
   };
   m.customProgramCacheKey = () => 'ps1crowd';
   return m;
@@ -79,6 +83,8 @@ export function buildGround(recipe, ours, theirs, oursShare) {
 
   // one stand: tiers rising away from the pitch. at (x, z) is the middle of its front edge; yaw faces the pitch.
   let board = null;             // where the scoreboard hangs: under the end stand's roof edge, or over its back
+  // the home end's ultras (centre-left of the end stand) are whoever's at home; the away block is the others
+  const curvaOurs = oursShare >= 0.5;
   function stand(len, x, z, yaw, tiers, awayBlock, isEnd = false) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; group.add(g);
     let baseY = front, baseZ = 0;
@@ -91,10 +97,11 @@ export function buildGround(recipe, ours, theirs, oursShare) {
       g.add(face);
       // the fans on this tier
       for (let d = 0.6; d < depth - 0.3; d += 0.95) for (let s = -len / 2 + 0.5; s < len / 2 - 0.5; s += 0.62) {
-        if (rand() < 0.12) continue;
-        const ours = awayBlock && s > len * 0.15 ? rand() < 0.15 : rand() < oursShare;
+        const curva = isEnd && i === 0 && s > -len * 0.36 && s < len * 0.1, inBlock = awayBlock && s > len * 0.15;
+        if (rand() < (curva ? 0.02 : 0.12)) continue;                      // the ultras pack in
+        const ours = curva ? (rand() < 0.95) === curvaOurs : inBlock ? (rand() < 0.85) !== curvaOurs : rand() < oursShare;
         const lp = new THREE.Vector3(s + (rand() - 0.5) * 0.15, baseY + rise * (d / depth) + 0.3, baseZ - d);
-        fans.push({ lp, g, ours });
+        fans.push({ lp, g, ours, ultra: curva || (inBlock && i === 0) });
       }
       const top = baseY + rise;
       topY = Math.max(topY, top);
@@ -133,6 +140,8 @@ export function buildGround(recipe, ours, theirs, oursShare) {
 
   const endZ = GOAL.z - 3.4 - gap, sideX = W + 1.8 + gap, nearZ = 7 + gap, midZ = (GOAL.z + 7) / 2;
   stand(2 * sideX, 0, endZ, 0, recipe.end, true, true);                 // behind the goal (away fans' block at one end)
+  const ultras = buildUltras({ len: 2 * sideX, endZ, tier: recipe.end[0], front }, curvaOurs ? ours : theirs, curvaOurs ? theirs : ours, rand);
+  group.add(ultras.group);
   stand(nearZ - endZ, -sideX, midZ, Math.PI / 2, recipe.side, false);
   stand(nearZ - endZ, sideX, midZ, -Math.PI / 2, recipe.side, false);
   stand(2 * sideX, 0, nearZ, Math.PI, recipe.near, false);              // behind you
@@ -173,7 +182,7 @@ export function buildGround(recipe, ours, theirs, oursShare) {
   // all the fans as one instanced mesh
   const n = Math.min(MAX_FANS, fans.length);
   const geo = new THREE.PlaneGeometry(0.34, 0.5);
-  const phase = new Float32Array(n), oursA = new Float32Array(n);
+  const phase = new Float32Array(n), oursA = new Float32Array(n), ultraA = new Float32Array(n);
   const crowd = new THREE.InstancedMesh(geo, crowdMaterial(uniforms), n);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), wp = new THREE.Vector3(), col = new THREE.Color(), one = new THREE.Vector3(1, 1, 1);
   for (let i = 0; i < n; i++) {
@@ -183,15 +192,16 @@ export function buildGround(recipe, ours, theirs, oursShare) {
     crowd.setMatrixAt(i, m.compose(wp, q, one));
     const pal = f.ours ? ours : theirs;
     crowd.setColorAt(i, col.set(rand() < 0.12 ? '#e8c8a0' : pal[Math.floor(rand() * pal.length)]));
-    phase[i] = rand(); oursA[i] = f.ours ? 1 : 0;
+    phase[i] = rand(); oursA[i] = f.ours ? 1 : 0; ultraA[i] = f.ultra ? 1 : 0;
   }
   geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phase, 1));
   geo.setAttribute('aOurs', new THREE.InstancedBufferAttribute(oursA, 1));
+  geo.setAttribute('aUltra', new THREE.InstancedBufferAttribute(ultraA, 1));
   crowd.frustumCulled = false;
   group.add(crowd);
 
   return {
-    group, recipe, topY, endZ, sideX,
+    group, recipe, topY, endZ, sideX, ultras, curvaOurs,
     board: board || { y: Math.max(29, topY + 10), z: GOAL.z - 22 },
     lamps: lamp,
     uniforms,
