@@ -60,12 +60,23 @@ test('from the quarter-finals the keeper races out to claim a through-ball nobod
     const w = createWorld(fixed, tuneFor(3, 3, level));
     for (const id of ['d1', 'd2', 'd3']) { const p = w.byId[id]; p.x = 20; p.z = -1; }
     w.drill = { frozen: new Set(['d1', 'd2', 'd3', 'm1', 'm2']), mateHold: false, crossHead: false };
-    // a heavy touch: the ball runs on toward the box, you're well behind it
+    // a through-ball played into space toward the box, nobody near it
     w.you.z = GOAL.z + 24; w.owner = null; Object.assign(w.ball, { x: 1, y: 0.11, z: GOAL.z + 18, vx: 0, vy: 0, vz: -9 });
+    w.pendingPass = { from: 'you', to: 'm1', grade: 'good', t: w.time, lead: { x: 1, z: GOAL.z + 8 }, lob: false };
     const ev = run(w, 3, idle({ move: { x: 0, z: -0.2 } }));
     const claim = ev.find(e => e.type === 'saved' && e.claim);
     assert.equal(!!claim, claims, `level ${level}: ${ev.map(e => e.type)}`);
   }
+});
+
+test('he does not rush your own knock-on: a dribbling touch stays yours', () => {
+  const w = createWorld(fixed, tuneFor(3, 3, 3));
+  for (const id of ['d1', 'd2', 'd3']) { const p = w.byId[id]; p.x = 20; p.z = -1; }
+  w.drill = { frozen: new Set(['d1', 'd2', 'd3', 'm1', 'm2']), mateHold: false, crossHead: false };
+  w.you.z = GOAL.z + 20; w.owner = null; w.pendingPass = null;
+  Object.assign(w.ball, { x: 0, y: 0.11, z: GOAL.z + 17, vx: 0, vy: 0, vz: -9 });
+  run(w, 0.5, idle({ move: { x: 0, z: -1 } }));
+  assert.ok(!w.byId.gk.rushing);
 });
 
 test('he does not come for a lofted pass or cross: those stay yours to attack', () => {

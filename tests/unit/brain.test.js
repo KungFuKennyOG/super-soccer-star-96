@@ -31,7 +31,7 @@ test('match level: cup rounds get smarter, Score Attack only against 5 stars', (
 test('doubling: from the quarter-finals a second defender closes you down near the box', () => {
   for (const [level, expect] of [[0, false], [1, true]]) {
     const w = world(level);
-    w.you.x = 0; w.you.z = GOAL.z + 17; w.ball.x = 0; w.ball.z = w.you.z - 0.6;
+    w.you.x = 0; w.you.z = GOAL.z + 15; w.ball.x = 0; w.ball.z = w.you.z - 0.6;
     const roles = [...defenceTargets(w).values()].map(t => t.role);
     assert.equal(roles.includes('double'), expect, `level ${level}`);
     assert.ok(roles.includes('press'));

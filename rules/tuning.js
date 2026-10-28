@@ -69,7 +69,8 @@ export const AIR = {
   flick: { up: 5.2, fwd: 0.6 },        // knock-on while standing: flick it up for a volley or an overhead
 };
 
-// How the opposition thinks, by level (rules/brain.js, rules/keeper.js). Level comes from the match:
+// How the opposition thinks, by level. Kept forgiving on purpose (Kenny: you're meant to feel like a
+// superstar): later rounds ask a bit more of you, they never shut you down. (rules/brain.js, rules/keeper.js). Level comes from the match:
 // cup rounds get smarter (group/R16 0, QF 1, SF 2, final 3); Score Attack is 0, or 1 against 5 stars.
 //   double     a second defender closes you down inside doubleRange metres of goal
 //   stepUp     the defence steps up together when you turn back or drag back
@@ -77,15 +78,15 @@ export const AIR = {
 //   gkOut      how far (0..1 of 4 m) the keeper comes off his line to narrow the angle when you're through
 //   gkRush     the keeper races out to claim through-balls he can reach first
 //   runMargin  a pass to the teammate making a run is his unless a defender is this much closer to it
-//              (perfect pass; a good one gets 40% of it). Later rounds track runners better.
+//              (perfect pass; a good one gets 70% of it). Later rounds track runners a little better.
 export const BRAIN = [
-  { double: false, doubleRange: 0, stepUp: false, dragBite: 3, gkOut: 0.35, gkRush: false, runMargin: 0.95 },
-  { double: true, doubleRange: 19, stepUp: false, dragBite: 3, gkOut: 0.6, gkRush: true, runMargin: 0.9 },
-  { double: true, doubleRange: 21, stepUp: true, dragBite: 2, gkOut: 0.85, gkRush: true, runMargin: 0.85 },
-  { double: true, doubleRange: 23, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true, runMargin: 0.8 },
+  { double: false, doubleRange: 0, stepUp: false, dragBite: 3, gkOut: 0.35, gkRush: false, runMargin: 1.3 },
+  { double: true, doubleRange: 17, stepUp: false, dragBite: 3, gkOut: 0.6, gkRush: true, runMargin: 1.1 },
+  { double: true, doubleRange: 18, stepUp: true, dragBite: 3, gkOut: 0.85, gkRush: true, runMargin: 1.0 },
+  { double: true, doubleRange: 19, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true, runMargin: 0.95 },
 ];
 // The scouting report shown a few seconds into a match at each level (banner lines, 31 characters max).
 export const LEVEL_NAMES = ['',
   'THEY DOUBLE-TEAM NEAR THE BOX\nTHE KEEPER SWEEPS UP BEHIND',
-  'THEY PUSH UP WHEN YOU GO BACK\nDRAG-BACKS ONLY WORK TWICE',
-  'THEY TRACK YOUR RUNNERS\nCHIP THE KEEPER WHEN HE COMES'];
+  'THEY PUSH UP WHEN YOU GO BACK\nPLAY IT IN BEHIND THEM',
+  'THEY TRACK YOUR RUNNERS\nMIX UP YOUR DRAG-BACKS'];

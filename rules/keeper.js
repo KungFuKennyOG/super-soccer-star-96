@@ -33,7 +33,8 @@ export function keeperTarget(w, gk) {
   }
   gk.dive = 0;
   // through-ball: race out for a loose ball he can reach first
-  if (B.gkRush && !w.owner && !s && !(w.pendingPass && w.pendingPass.lob)) {
+  // (only for passes played into space: your own dribbling touches and knock-ons stay yours)
+  if (B.gkRush && !w.owner && !s && w.pendingPass && !w.pendingPass.lob) {
     const p = rushPoint(w, gk);
     if (p) { gk.rushing = true; return { x: p.x, z: p.z, speed: KEEPER.rushSpeed }; }
   }

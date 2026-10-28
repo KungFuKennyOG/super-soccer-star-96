@@ -325,7 +325,7 @@ function looseBall(w, rnd, ev) {
   // (a lob or cross on its way up) can't be cut out by the man next to the passer
   const pp = w.pendingPass, rec = pp && w.byId[pp.to];
   const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : pp && pp.run ? 1.8 : 1.2;
-  const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.4) : 0.2;
+  const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.7) : 0.4;
   const rising = b.vy > 0 && b.y > 0.45;
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;

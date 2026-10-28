@@ -65,12 +65,13 @@ export const userGroup = cup => cup.groups.find(g => g.teams.includes(cup.user))
 export function scenarioFor(cup, fx, rnd = Math.random, lengthMul = 1) {
   const us = byId(cup.user).s, them = byId(fx.opp).s;
   const depth = fx.stage === 'group' ? 0 : KO.indexOf(fx.stage) + 1;
+  // later rounds are harder through how they defend (rules/brain.js), so the deficit barely grows with
+  // the round, and every goal you need comes with plenty of clock (you're the superstar)
   let deficit = 1;
-  if (rnd() < 0.25 + 0.1 * depth + 0.08 * (them - us)) deficit++;
-  if (depth >= 4 && rnd() < 0.4) deficit++;
-  deficit = Math.min(3, deficit);
+  if (rnd() < 0.25 + 0.05 * depth + 0.06 * (them - us)) deficit++;
+  deficit = Math.min(2, deficit);
   const theirs = deficit + (rnd() < 0.35 ? 1 : 0), ours = theirs - deficit;
-  const clock = Math.round((75 + 35 * deficit) * lengthMul);
+  const clock = Math.round((85 + 45 * deficit) * lengthMul);
   const need = fx.stage === 'group' ? 'any' : 'win';
   const text = need === 'win' ? `${deficit} DOWN - SCORE ${deficit + 1} TO WIN` : `${deficit} DOWN - WIN FOR 3 PTS, DRAW FOR 1`;
   return { us: ours, them: theirs, clock, minute: Math.max(1, 90 - Math.round(clock / 6)), need, text, oppStrength: them };
