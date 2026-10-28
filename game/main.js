@@ -243,7 +243,7 @@ function endCeremony() {
   openMenu('mode');
 }
 
-const headW = new THREE.Vector3(), dirW = new THREE.Vector3(), handW = new THREE.Vector3();
+const headW = new THREE.Vector3(), dirW = new THREE.Vector3(), handW = new THREE.Vector3(), handL = new THREE.Vector3();
 function headPosNow() { camera.getWorldPosition(headW); return headW; }
 
 
@@ -302,7 +302,7 @@ const loop = startLoop(renderer, (dt, t) => {
     if (raw.skip) training.skip();
     if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
-    if (raw.vr) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.right(handW); }
+    if (raw.vr) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.hand('right', handW); raw.leftHand = hands.hand('left', handL); }
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);
     replay.record(world, ev, simDt);

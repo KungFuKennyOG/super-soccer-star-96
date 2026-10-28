@@ -33,7 +33,7 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Drag-back | B (shakes the defender pressing you) | C |
 | Hat-trick dance | Strike each pose on the beat: left hand up, right hand up, both up, arms out wide | Arrow keys |
 | Restart the attack | Y | R |
-| Skill moves (with a defender close) | Right-hand flick: sideways step-over, quick circle roulette, forward-and-down nutmeg, upward rainbow flick | 1 step-over (hold A for left), 2 roulette, 3 nutmeg, 4 rainbow |
+| Skill moves (with a defender close) | Right-hand flick: sideways step-over, forward-and-down nutmeg, upward rainbow flick. Left-hand flick or circle: roulette | 1 step-over (hold A for left), 2 roulette, 3 nutmeg, 4 rainbow |
 | Skip a training drill | X | N |
 | Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 

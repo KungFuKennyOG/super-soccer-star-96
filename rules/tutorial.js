@@ -45,7 +45,7 @@ export const STEPS = [
     pc: ['WHEN HE CLOSES IN, PRESS 1:', 'A STEP-OVER (HOLD A FOR LEFT)'],
     drill: { you: [0, -6], place: [['d2', 0, -10]] } },
   { id: 'roulette', title: 'ROULETTE', need: 1,
-    vr: ['WHEN HE CLOSES IN, DRAW A QUICK', 'CIRCLE WITH YOUR RIGHT HAND:', 'SPIN AWAY FROM HIM'],
+    vr: ['WHEN HE CLOSES IN, FLICK YOUR LEFT', 'HAND (OR DRAW A QUICK CIRCLE):', 'SPIN AWAY FROM HIM'],
     pc: ['WHEN HE CLOSES IN, PRESS 2:', 'SPIN AWAY FROM HIM'],
     drill: { you: [0, -6], place: [['d2', 0, -10]] } },
   { id: 'nutmeg', title: 'NUTMEG', need: 1,

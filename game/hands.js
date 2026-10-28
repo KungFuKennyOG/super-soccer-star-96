@@ -101,9 +101,9 @@ export function createHands(renderer, rig) {
       }
       return best;
     },
-    // the right hand in world space (out), and whether its grip is squeezed; null when not tracked
-    right(out) {
-      const s = slots.find(x => x.side === 'right' && x.gamepad && x.grip.visible);
+    // a hand ('left' | 'right') in world space (out), and whether its grip is squeezed; null when not tracked
+    hand(side, out) {
+      const s = slots.find(x => x.side === side && x.gamepad && x.grip.visible);
       if (!s) return null;
       s.grip.getWorldPosition(out);
       const b = s.gamepad.buttons;

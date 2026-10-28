@@ -6,8 +6,8 @@ const DT = 1 / 72;
 const REST = { x: 0.22, y: -0.55, z: 0.15 };     // right hand down by your side
 
 // plays a motion path(t) for secs; returns the gestures that fired
-function play(path, secs, armed = true) {
-  const g = createGestures(), out = [];
+function play(path, secs, armed = true, hand = 'right') {
+  const g = createGestures(hand), out = [];
   for (let t = 0; t < 0.3; t += DT) g.update(REST, t, DT, armed);      // settle
   for (let t = 0; t <= secs; t += DT) { const r = g.update(path(t), 0.3 + t, DT, armed); if (r) out.push(r); }
   return out;
@@ -27,9 +27,20 @@ test('a sharp upward flick is a rainbow, a jab forward and down a nutmeg', () =>
   assert.deepEqual(play(flick(0.02, -0.15, 0.25), 0.3).map(g => g.move), ['nutmeg']);
 });
 
-test('a quick circle is a roulette', () => {
+const LREST = { x: -REST.x, y: REST.y, z: REST.z };
+test('the roulette lives on the left hand: a quick circle or any sharp flick', () => {
+  const circle = t => ({ x: LREST.x + 0.12 * Math.cos(t * 14), y: LREST.y + 0.12 * Math.sin(t * 14), z: LREST.z });
+  assert.deepEqual(play(circle, 0.5, true, 'left').map(g => g.move), ['roulette']);
+  const swipe = t => ({ x: LREST.x - 0.3 * Math.min(1, t / 0.12), y: LREST.y, z: LREST.z });
+  assert.deepEqual(play(swipe, 0.3, true, 'left'), [{ move: 'roulette', side: -1 }]);
+  const up = t => ({ x: LREST.x, y: LREST.y + 0.32 * Math.min(1, t / 0.12), z: LREST.z });
+  assert.deepEqual(play(up, 0.3, true, 'left').map(g => g.move), ['roulette'], 'never a rainbow on the left');
+});
+
+test('a circle with the right hand is never mistaken for a rainbow flick', () => {
+  // the same quick circle that used to fire a rainbow on its upward part
   const circle = t => ({ x: REST.x + 0.12 * Math.cos(t * 14), y: REST.y + 0.12 * Math.sin(t * 14), z: REST.z });
-  assert.deepEqual(play(circle, 0.5).map(g => g.move), ['roulette']);
+  assert.ok(!play(circle, 0.5).some(g => g.move === 'rainbow' || g.move === 'roulette'));
 });
 
 test('ordinary movement does nothing: raising your hand to call, slow drifting, arms swinging as you play', () => {

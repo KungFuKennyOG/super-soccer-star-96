@@ -14,7 +14,7 @@ const HAND_UP = 0.14, HAND_DOWN = -0.02;
 
 // skillMode: () => 0 off, 1 gestures, 2 gestures only while the right grip is held
 export function createIntents(camera, rig, skillMode = () => 1) {
-  const gestures = createGestures();
+  const gestures = createGestures('right'), leftGestures = createGestures('left');
   let clock = 0;
   const headW = new THREE.Vector3(), dirW = new THREE.Vector3(), headVel = { x: 0, y: 0, z: 0 };
   let handUp = false, shotHold = null, passHold = null, lastHead = null, armed = false, passHeldPrev = false, shootPrev = false, headPrev = null;
@@ -23,7 +23,7 @@ export function createIntents(camera, rig, skillMode = () => 1) {
     get shotHold() { return shotHold; },
     get passHold() { return passHold; },
     // a new match: nothing held, and shoot/pass wait until both triggers have been let go
-    reset() { gestures.reset(); handUp = false; lastHead = null; shotHold = passHold = null; armed = false; headPrev = null; },
+    reset() { gestures.reset(); leftGestures.reset(); handUp = false; lastHead = null; shotHold = passHold = null; armed = false; headPrev = null; },
     build(raw, dt, world) {
       camera.getWorldPosition(headW); camera.getWorldDirection(dirW);
       const facing = norm(dirW.x, dirW.z);
@@ -58,12 +58,15 @@ export function createIntents(camera, rig, skillMode = () => 1) {
       const mode = skillMode();
       const near = world.players.some(p => p.role === 'def' && Math.hypot(p.x - world.you.x, p.z - world.you.z) < SKILL_RANGE);
       if (mode && onBall && raw.skill) intent.skill = raw.skill;
-      if (raw.rightHand) {
-        const d = { x: raw.rightHand.pos.x - headW.x, y: raw.rightHand.pos.y - headW.y, z: raw.rightHand.pos.z - headW.z };
+      // right hand: step-over, nutmeg, rainbow; left hand: roulette. In GRIP mode the right grip is the
+      // clutch for both (the left grip is sprint).
+      const clutch = mode === 1 || !!(raw.rightHand && raw.rightHand.grip);
+      for (const [h, rec, busy] of [[raw.rightHand, gestures, raw.shoot], [raw.leftHand, leftGestures, raw.pass]]) {
+        if (!h) continue;
+        const d = { x: h.pos.x - headW.x, y: h.pos.y - headW.y, z: h.pos.z - headW.z };
         const rel = { x: d.x * right.x + d.z * right.z, y: d.y, z: d.x * facing.x + d.z * facing.z };
-        const armed = mode > 0 && onBall && near && !raw.shoot && (mode === 1 || raw.rightHand.grip);
-        const g = gestures.update(rel, clock, dt, armed);
-        if (g) intent.skill = g;
+        const g = rec.update(rel, clock, dt, mode > 0 && onBall && near && !busy && clutch);
+        if (g && !intent.skill) intent.skill = g;
       }
       // after kick-off, shoot and pass only count once both have been let go
       if (!armed) { if (!raw.shoot && !raw.pass) armed = true; else { passHeldPrev = raw.pass; shootPrev = raw.shoot; return intent; } }

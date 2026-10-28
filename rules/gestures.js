@@ -1,12 +1,13 @@
-// Skill gestures with your right hand. Pure: feed it the hand's position relative to your head, in
-// your body's frame (x right, y up, z forward), and it says when a sharp flick or a quick circle
-// happened. Only sharp, deliberate moves count (much faster than raising a hand to call for the ball
-// or your arm moving as you play), and only while the game arms it (you on the ball, a defender near).
+// Skill gestures. Pure: feed a hand's position relative to your head, in your body's frame (x right,
+// y up, z forward), and it says when a sharp flick or a quick circle happened. Only sharp, deliberate
+// moves count (much faster than raising a hand to call for the ball or your arm moving as you play),
+// and only while the game arms it (you on the ball, a defender near). The moves are split across your
+// hands so they can't be mistaken for each other (a circle's upward part used to read as a rainbow):
 //
-//   flick sideways        stepover (side = which way you flicked)
-//   quick circle          roulette
-//   jab forward and down  nutmeg
-//   flick upward          rainbow
+//   right hand  flick sideways        stepover (side = which way you flicked)
+//               jab forward and down  nutmeg
+//               flick upward          rainbow
+//   left hand   any sharp flick or a quick circle: roulette (spins the way you flicked, left by default)
 export const GESTURE = {
   window: 0.09,          // seconds the flick speed is measured over
   speed: 1.9,            // m/s the hand must move to count as a flick
@@ -18,7 +19,8 @@ export const GESTURE = {
   keep: 0.7,             // seconds of history kept
 };
 
-export function createGestures() {
+// hand: 'right' (step-over, nutmeg, rainbow) or 'left' (roulette)
+export function createGestures(hand = 'right') {
   const hist = [];
   let cool = 0;
   const at = (t0, now) => { for (let i = hist.length - 1; i >= 0; i--) if (now - hist[i].t >= t0) return hist[i]; return null; };
@@ -51,14 +53,15 @@ export function createGestures() {
       hist.push({ x: p.x, y: p.y, z: p.z, t: now });
       while (hist.length && now - hist[0].t > GESTURE.keep) hist.shift();
       if (!armed || cool > 0) return null;
-      if (circle(now)) { cool = GESTURE.cooldown; hist.length = 0; return { move: 'roulette', side: 0 }; }
+      if (hand === 'left' && circle(now)) { cool = GESTURE.cooldown; hist.length = 0; return { move: 'roulette', side: -1 }; }
       const a = at(GESTURE.window, now), b = at(GESTURE.span, now);
       if (!a || !b) return null;
       const dtw = now - a.t, vx = (p.x - a.x) / dtw, vy = (p.y - a.y) / dtw, vz = (p.z - a.z) / dtw;
       const speed = Math.hypot(vx, vy, vz);
       if (speed < GESTURE.speed || Math.hypot(p.x - b.x, p.y - b.y, p.z - b.z) < GESTURE.travel) return null;
       let move = null, side = 0;
-      if (vy > 0.7 * speed) move = 'rainbow';
+      if (hand === 'left') { move = 'roulette'; side = Math.abs(vx) > 0.5 * speed ? Math.sign(vx) : -1; }
+      else if (vy > 0.7 * speed) move = 'rainbow';
       else if (Math.abs(vx) > 0.7 * speed) { move = 'stepover'; side = Math.sign(vx); }
       else if (vz > 0.45 * speed && vy < -0.25 * speed) move = 'nutmeg';
       else if (vy < -0.8 * speed) move = 'nutmeg';               // a straight jab down at the ball works too
