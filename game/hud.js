@@ -196,7 +196,9 @@ export function buildPanel(scene) {
 export function buildRadar() {
   const W = 64, MAP = 46, H = 60, c = canvasTex(W, H, () => {}), ctx = c.getContext('2d');
   const t = pixelTex(c);
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.15), ps1({ map: t, lit: false, transparent: true, fog: false }));
+  // drawn after everything and without a depth test, so your own hand can never poke through it
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.15), ps1({ map: t, lit: false, transparent: true, fog: false, depthTest: false, depthWrite: false }));
+  mesh.renderOrder = 30;
   // world x -22..22 → 3..61, z goal line → 2, halfway → 44
   const px = x => Math.round(W / 2 + x / 22 * (W / 2 - 3)), pz = z => Math.round(2 + (z - GOAL.z) / -GOAL.z * (MAP - 4));
   return {
