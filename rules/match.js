@@ -60,7 +60,7 @@ export function scoreEvent(m, e) {
       if (e.where === 'byline') return { text: e.high ? 'OVER THE BAR' : 'WIDE', sub: '', tone: 'bad' };
       return { text: e.where === 'cleared' ? 'CLEARED' : 'OUT OF PLAY', sub: '', tone: 'bad' };
     case 'tackled': return { text: 'TACKLED', sub: 'they win it back', tone: 'bad' };
-    case 'intercepted': return e.read ? { text: 'READ IT!', sub: 'you looked too long', tone: 'bad' } : { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
+    case 'intercepted': return { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
     case 'drag': return e.read ? { text: 'NOT AGAIN', sub: 'he read the drag-back', tone: 'bad' } : null;
     case 'pass': {
       if (e.by !== 'you') return null;

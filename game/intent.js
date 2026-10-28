@@ -76,7 +76,6 @@ export function createIntents(camera, rig) {
           passHold = null;
         }
       }
-      intent.aiming = !!passHold || !!intent.pass;      // holding the pass ring (for defenders reading your look)
       return intent;
     }
   };

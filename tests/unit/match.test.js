@@ -58,13 +58,12 @@ test('cup matches keep the score: your goals add to yours, counters to theirs', 
   assert.ok(!counterAttack(createMatch(), () => 0), 'score attack has no counters');
 });
 
-test('a chip pays a bonus; claims, read passes and read drag-backs get their own banners', () => {
+test('a chip pays a bonus; claims and read drag-backs get their own banners', () => {
   const m = createMatch();
   const b = scoreEvent(m, { type: 'goal', by: 'you', kind: 'chip', x: 1, y: 1, dist: 11 });
   assert.equal(b.text, 'CHIP!');
   assert.equal(m.points, 1400);
   assert.equal(scoreEvent(m, { type: 'saved', claim: true }).text, 'CLAIMED');
-  assert.equal(scoreEvent(m, { type: 'intercepted', read: true }).text, 'READ IT!');
   assert.equal(scoreEvent(m, { type: 'drag', read: true }).text, 'NOT AGAIN');
   assert.equal(scoreEvent(m, { type: 'drag' }), null);
 });

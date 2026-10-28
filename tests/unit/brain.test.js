@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import { createWorld, stepSim, defenders } from '../../rules/sim.js';
 import { tuneFor, levelFor } from '../../rules/skill.js';
 import { defenceTargets, mateSupport, STEP_UP } from '../../rules/brain.js';
-import { perfectTime } from '../../rules/pass.js';
 import { GOAL, BRAIN } from '../../rules/tuning.js';
-import { dist, norm } from '../../rules/vec.js';
+import { dist } from '../../rules/vec.js';
 
 const fixed = () => 0.5;
 const DT = 1 / 72;
@@ -16,7 +15,6 @@ function run(w, secs, intent = idle()) {
   return all;
 }
 const world = level => createWorld(fixed, tuneFor(3, 3, level));
-const lookAt = (w, id) => norm(w.byId[id].x - w.you.x, w.byId[id].z - w.you.z);
 
 test('match level: cup rounds get smarter, Score Attack only against 5 stars', () => {
   assert.equal(levelFor('world', 'group'), 0);
@@ -28,40 +26,6 @@ test('match level: cup rounds get smarter, Score Attack only against 5 stars', (
   assert.equal(levelFor('attack', null, 5), 1);
   assert.equal(levelFor('training'), 0);
   assert.equal(tuneFor(3, 3, 9).brain, BRAIN[BRAIN.length - 1]);
-});
-
-test('staring at one teammate gets you read: his marker steps in front, and READ shows only after the read time', () => {
-  const w = world(3), B = w.tune.brain;
-  run(w, B.read * 0.6, () => idle({ facing: lookAt(w, 'm1') }));
-  assert.equal(w.brain.read, null, 'not yet');
-  run(w, B.read * 0.6, () => idle({ facing: lookAt(w, 'm1') }));
-  assert.equal(w.brain.read, 'm1');
-  const roles = defenceTargets(w);
-  const reader = [...roles].find(([, t]) => t.role === 'read');
-  assert.ok(reader, 'someone reads it');
-  const spot = reader[1], m1 = w.byId.m1;
-  assert.ok(dist(spot, m1) < B.readGap + Math.hypot(m1.vx, m1.vz) * 0.35 + 0.01, 'he steps in front of your teammate');
-  // looking at the other one starts the clock again
-  run(w, DT * 2, () => idle({ facing: lookAt(w, 'm2') }));
-  assert.equal(w.brain.read, null);
-});
-
-test('a pass to a teammate they have read gets cut out; the same pass unread arrives', () => {
-  const outcome = read => {
-    const w = world(3);
-    w.byId.d3.x = 20; w.byId.d3.z = -1; w.byId.d3.stun = 99;
-    w.you.z = -12; w.ball.x = 0; w.ball.z = -12.6;
-    w.byId.d1.x = 11; w.byId.d1.z = -12;                    // the presser, a few strides away
-    w.byId.m1.x = -8; w.byId.m1.z = -19;
-    const d2 = w.byId.d2; d2.x = -8; d2.z = -21.2;           // marking m1 from the goal side
-    const look = () => idle({ facing: lookAt(w, 'm1') });
-    if (read) { w.brain.seen = 'm1'; w.brain.seenT = 9; run(w, 1.1, look); }   // you've stared: he steps in front
-    else run(w, 1.1, () => idle({ facing: { x: 0, z: -1 } }));
-    const ev = [...stepSim(w, idle({ facing: lookAt(w, 'm1'), pass: { holdT: perfectTime(), targetId: 'm1' } }), DT, fixed), ...run(w, 2.5)];
-    return ev.find(e => e.type === 'intercepted' || (e.type === 'received' && e.id === 'm1')) || { type: ev.map(e => e.type).join(',') };
-  };
-  assert.equal(outcome(true).type, 'intercepted');
-  assert.equal(outcome(false).type, 'received');
 });
 
 test('doubling: from the quarter-finals a second defender closes you down near the box', () => {
@@ -135,13 +99,3 @@ test('the runner keeps his run going into the box', () => {
   assert.ok(w.byId[runner].z < GOAL.z + 14, `he got into the box: ${w.byId[runner].z.toFixed(1)}`);
 });
 
-test('looking at goal does not get your runner read, unless you are holding the pass ring', () => {
-  const w = world(3);
-  w.you.x = 0; w.you.z = GOAL.z + 16; w.ball.x = 0; w.ball.z = w.you.z - 0.6;
-  w.byId.m1.x = 0.5; w.byId.m1.z = GOAL.z + 8;                  // right in front of goal
-  w.drill = { frozen: new Set(['m1', 'd1', 'd2', 'd3']), mateHold: false, crossHead: false };
-  run(w, 2, idle({ facing: { x: 0, z: -1 } }));
-  assert.equal(w.brain.read, null);
-  run(w, 2, idle({ facing: { x: 0, z: -1 }, aiming: true }));
-  assert.equal(w.brain.read, 'm1');
-});

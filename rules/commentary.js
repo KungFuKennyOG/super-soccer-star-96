@@ -17,7 +17,6 @@ const POOLS = {
   bicycle: ['bicycle1', 'bicycle2'],
   chip: ['chip1', 'chip2'],
   claim: ['claim1', 'claim2'],
-  read: ['read1', 'read2'],
   dragread: ['dragread1', 'dragread2'],
   hattrick: ['hattrick1', 'hattrick2'],
   shot: ['shot1', 'shot2', 'shot3'],
@@ -77,7 +76,7 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
     case 'out': return e.where === 'byline' ? say(e.high ? 'over' : 'wide', 2) : null;
     case 'blocked': return say('blocked', 2);
     case 'tackled': return say('tackled', 1);
-    case 'intercepted': return e.read ? say('read', 2) : say('intercepted', 1);
+    case 'intercepted': return say('intercepted', 1);
     case 'pass':
       if (e.cross) return say('cross', 2);
       return e.by === 'you' && e.grade === 'perfect' ? say('pass', 1, 0.5) : null;

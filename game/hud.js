@@ -89,10 +89,6 @@ export function buildHud(scene, camera) {
   const lobC = canvasTex(24, 9, c => { drawText(c, 'LOB', 2, 1, '#5ad0ff', 1, '#000'); });
   const lobTag = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.27), ps1({ map: pixelTex(lobC), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
   lobTag.renderOrder = 11; lobTag.visible = false; scene.add(lobTag);
-  // "READ!" over a teammate you've been staring at too long: his marker has stepped in to cut it out
-  const readC = canvasTex(32, 9, c => { drawText(c, 'READ!', 2, 1, '#ff4040', 1, '#000'); });
-  const readTag = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.27), ps1({ map: pixelTex(readC), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
-  readTag.renderOrder = 11; readTag.visible = false; scene.add(readTag);
 
   /* shot: a reticle on the goal mouth with a power ring */
   const reticle = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), ps1({ map: reticleTex(), alphaTest: 0.5, lit: false, depthTest: false, fog: false }));
@@ -113,9 +109,9 @@ export function buildHud(scene, camera) {
   return {
     scoreboard, banner, placeScoreboard,
     // everything the HUD floats in the world, hidden while the replay camera films
-    overlays: [bn.m, ringTarget, ringLive, groundRing, lobTag, readTag, reticle],
+    overlays: [bn.m, ringTarget, ringLive, groundRing, lobTag, reticle],
     // per frame. pass: { target: {x,z}, scale (live ring), grade window color } or null.
-    update(dt, { pass, aim, charge, over, mate, lob, read }) {
+    update(dt, { pass, aim, charge, over, mate, lob }) {
       camera.getWorldPosition(headPos); camera.getWorldDirection(headDir);
       // banner pops in, then holds level in front of the face
       bnT += dt;
@@ -130,11 +126,9 @@ export function buildHud(scene, camera) {
       } else bnYaw = null;
 
       groundRing.visible = !!mate;
-      if (mate) { groundRing.position.set(mate.x, 0.03, mate.z); groundRing.material.color.set(read ? '#ff4040' : lob ? '#5ad0ff' : '#f2c21a'); }
-      lobTag.visible = !!(mate && lob && !read);
+      if (mate) { groundRing.position.set(mate.x, 0.03, mate.z); groundRing.material.color.set(lob ? '#5ad0ff' : '#f2c21a'); }
+      lobTag.visible = !!(mate && lob);
       if (lobTag.visible) { lobTag.position.set(mate.x, pass ? 3.15 : 2.3, mate.z); lobTag.lookAt(headPos); }
-      readTag.visible = !!(mate && read);
-      if (readTag.visible) { readTag.position.set(mate.x, pass ? 3.15 : 2.3, mate.z); readTag.lookAt(headPos); }
 
       ringTarget.visible = ringLive.visible = !!pass;
       if (pass) {

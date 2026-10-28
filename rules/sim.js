@@ -11,7 +11,6 @@
 //   pass: { holdT, targetId } on the frame the pass is released
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
-//   aiming: bool, holding the pass ring (a look at goal only counts toward being read while aiming)
 // }
 import { MOVE, AI, GOAL, PITCH, BALL, AIR } from './tuning.js';
 import { tuneFor } from './skill.js';
@@ -124,12 +123,10 @@ function shoot(w, p, eye, dir, holdT, rnd, ev) {
 function pass(w, from, to, grade, rnd, ev) {
   const v = choosePass({ x: w.ball.x, z: w.ball.z }, to, defenders(w), grade, rnd);
   launch(w, from, v);
-  // a pass to the teammate they've read: his marker has stepped in and gets a long reach for it
-  const reader = from.role === 'you' && w.brain.read === to.id ? Object.keys(w.brain.roles).find(id => w.brain.roles[id] === 'read') : null;
   // a ball to the teammate making the run: he's a step ahead of his marker, so it's his unless a
   // defender is clearly in the way
   const run = from.role === 'you' && w.brain.runner === to.id;
-  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob, reader, run };
+  w.pendingPass = { from: from.id, to: to.id, grade, t: w.time, lead: v.lead, lob: !!v.lob, run };
   if (grade !== 'perfect') w.perfectChain = 0;
   w.called = false;
   ev.push({ type: 'pass', by: from.id, to: to.id, grade, lob: !!v.lob });
@@ -330,11 +327,6 @@ function looseBall(w, rnd, ev) {
   const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : pp && pp.run ? 1.8 : 1.2;
   const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.4) : 0.2;
   const rising = b.vy > 0 && b.y > 0.45;
-  // a pass they've read: the man on your teammate's shoulder nips in front as it arrives
-  const reader = pp && pp.reader && w.byId[pp.reader];
-  if (reader && !reader.stun && rec && dist(reader, rec) < w.tune.brain.readSteal && recD < 1.8 && b.y < 1.6) {
-    ev.push({ type: 'intercepted', by: reader.id, read: true }); w.owner = reader.id; return;
-  }
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;
     const dd = dist(d, b);

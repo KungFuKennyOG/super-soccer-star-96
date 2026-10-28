@@ -17,7 +17,7 @@ const DT = 1 / 60;
 const LOOK = 0.3;   // a player looks at his man a moment before starting the pass ring
 const unit3 = (x, y, z) => { const l = Math.hypot(x, y, z); return { x: x / l, y: y / l, z: z / l }; };
 
-// opts: { level, stars, attacks, seed, maxT }. Returns { goals, attacks, ends: { type: count }, offside, read }.
+// opts: { level, stars, attacks, seed, maxT }. Returns { goals, attacks, ends: { type: count }, events: { type: count } }.
 export function playAttacks({ level = 0, stars = 3, attacks = 40, seed = 1, maxT = 18 } = {}) {
   const rnd = rng(seed);
   const w = createWorld(rnd, tuneFor(3, stars, level));
@@ -59,11 +59,6 @@ export function intentFor(w, t, s) {
     }
     // a pass is aimed by looking at the teammate while the ring closes, like a player would
     if (s.aim) {
-      // they've read it (READ! over him): switch to the other teammate, like a player would
-      if (w.brain.read === s.aim.id && !s.aim.switched) {
-        const other = w.players.find(p => p.role === 'mate' && p.id !== s.aim.id);
-        s.aim = { id: other.id, t0: t, switched: true };
-      }
       const m = w.byId[s.aim.id];
       it.facing = norm(m.x - you.x, m.z - you.z);
       const pr = defs.reduce((a, c) => (dist(c, you) < dist(a, you) ? c : a));

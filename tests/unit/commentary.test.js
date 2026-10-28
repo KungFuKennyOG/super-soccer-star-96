@@ -31,9 +31,8 @@ test('quiet moments stay quiet', () => {
   assert.equal(pickLine({ type: 'pass', by: 'm1', grade: 'good' }), null);
 });
 
-test('the smarter opposition gets its own lines: chips, keeper claims, read passes and drag-backs', () => {
+test('the smarter opposition gets its own lines: chips, keeper claims and read drag-backs', () => {
   assert.match(pickLine({ type: 'goal', kind: 'chip', x: 1, y: 1, dist: 11 }, {}, seeded()).id, /^chip/);
   assert.match(pickLine({ type: 'saved', claim: true }, {}, seeded()).id, /^claim/);
-  assert.match(pickLine({ type: 'intercepted', read: true }, {}, seeded()).id, /^read/);
   assert.match(pickLine({ type: 'drag', read: true }, {}, () => 0.1).id, /^dragread/);
 });

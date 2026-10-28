@@ -371,7 +371,7 @@ function updateHud() {
   let aim = null;
   if (intents.shotHold) aim = assist(aimPoint(headW, dirW));
   hud.update(1 / 72, {
-    mate: target, lob: !!target && laneBlocked(world.ball, target, defenders(world)), read: !!target && world.brain.read === target.id,
+    mate: target, lob: !!target && laneBlocked(world.ball, target, defenders(world)),
     pass: intents.passHold ? { target: world.byId[intents.passHold.target], scale: ringScale(intents.passHold.t), grade: gradePass(intents.passHold.t) } : null,
     aim, charge: intents.shotHold ? chargeOf(intents.shotHold.t) : null, over: intents.shotHold ? overcharge(intents.shotHold.t) : 0,
   });
