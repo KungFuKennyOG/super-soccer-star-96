@@ -89,7 +89,13 @@ export function createCeremony(scene, camera, hands) {
   const say = (a, b, col = '#f2c21a') => {
     ctx.clearRect(0, 0, 192, 40); ctx.fillStyle = 'rgba(5,8,40,.85)'; ctx.fillRect(0, 0, 192, 40);
     drawText(ctx, a, Math.round((192 - textWidth(a, 2)) / 2), 6, col, 2, '#000');
-    if (b) drawText(ctx, b, Math.round((192 - textWidth(b)) / 2), 26, '#ffffff', 1, '#000');
+    // the instruction wraps onto a second line when it's too wide for the sign
+    const lines = [];
+    for (const word of (b || '').split(' ').filter(Boolean)) {
+      const last = lines[lines.length - 1];
+      if (last && textWidth(`${last} ${word}`) <= 184) lines[lines.length - 1] = `${last} ${word}`; else lines.push(word);
+    }
+    lines.slice(0, 2).forEach((l, i) => drawText(ctx, l, Math.round((192 - textWidth(l)) / 2), lines.length > 1 ? 23 + i * 9 : 26, '#ffffff', 1, '#000'));
     tex.needsUpdate = true;
   };
 
