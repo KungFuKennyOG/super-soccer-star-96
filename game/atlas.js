@@ -49,8 +49,8 @@ function paintS(w, h, fn) {
 
 // kit: a kit spec from rules/teams.js. feetOnly: everything above the lower sock is see-through
 // (your own body in first person).
-export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false, feetOnly = false }) {
-  const key = `${JSON.stringify(kit)}|${num}|${skin}|${hair}|${style}|${stubble}|${feetOnly}`;
+export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false, feetOnly = false, boots = 0 }) {
+  const key = `${JSON.stringify(kit)}|${num}|${skin}|${hair}|${style}|${stubble}|${feetOnly}|${boots}`;
   if (cache.has(key)) return cache.get(key);
   const k = kit;
   const c = canvasTex(SIZE * S, SIZE * S, ctx => {
@@ -60,7 +60,7 @@ export function playerAtlas({ kit, num, skin, hair, style = 0, stubble = false, 
     put(head(skin, hair, style, stubble), REGIONS.head);
     put(leg(k, skin), REGIONS.leg);
     put(arm(k, skin, !!k.gloves), REGIONS.arm);
-    put(boot(), REGIONS.boot);
+    put(boot(boots), REGIONS.boot);
     put(hairTex(hair, style), REGIONS.hair);
     put(collarTex(k), REGIONS.collar);
     if (feetOnly) {
@@ -308,13 +308,17 @@ function collarTex(k) {
   return paintS(16, 32, (x, y) => (y < 3.5 ? mul(trim2, 0.95) : y < 4.4 ? mul(trim, 0.6) : mul(trim, y > 13 ? 0.95 : 0.82)));
 }
 
-// Black boots: a white flash down each side, laces on top, a dark sole with studs.
-function boot() {
+// Boots: black with a white flash down each side by default (the locker has white, red and gold),
+// laces on top, a dark sole with studs. Colors: [upper, flash, laces].
+const BOOTS = [[[30, 30, 34], [214, 214, 222], [180, 180, 186]], [[222, 222, 228], [24, 30, 90], [200, 200, 206]],
+  [[176, 22, 30], [232, 232, 236], [210, 200, 200]], [[214, 168, 52], [70, 44, 10], [240, 220, 160]]];
+function boot(kind = 0) {
+  const [upper, flash, lace] = BOOTS[kind] || BOOTS[0];
   return paintS(64, 32, (x, y) => {
     if (y > 27) return Math.floor(x) % 6 < 2 && y > 29 ? [70, 70, 74] : [12, 12, 12];      // sole, studs
     const u = x % 32;
-    if (y > 9 && y < 16 && Math.abs(u - 15 - (y - 12) * 1.2) < 4.5 && u > 5) return [214, 214, 222]; // side flash
-    if (y < 6 && Math.abs(u - 16) < 3 && Math.floor(y) % 2 === 0) return [180, 180, 186];       // laces
-    return mul([30, 30, 34], 0.85 + 0.25 * hash(x * S, y * S));
+    if (y > 9 && y < 16 && Math.abs(u - 15 - (y - 12) * 1.2) < 4.5 && u > 5) return flash; // side flash
+    if (y < 6 && Math.abs(u - 16) < 3 && Math.floor(y) % 2 === 0) return lace;             // laces
+    return mul(upper, 0.85 + 0.25 * hash(x * S, y * S));
   });
 }

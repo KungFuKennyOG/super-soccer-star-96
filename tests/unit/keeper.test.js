@@ -111,3 +111,19 @@ test('round the keeper and he cannot get back: a shot from beside him is beaten'
   assert.equal(w.shot.decision, 'beaten');
   assert.ok(run(w, 2).some(e => e.type === 'goal'));
 });
+
+test('for the animation: a shot straight at him is a standing save, one wide of him a dive that way', () => {
+  for (const [x, dive] of [[0.1, 0], [2.6, 1], [-2.6, -1]]) {
+    const w = createWorld(fixed, tuneFor(3, 3, 0));
+    for (const id of ['d1', 'd2', 'd3']) { const p = w.byId[id]; p.x = 20; p.z = -1; p.stun = 99; }
+    w.drill = { frozen: new Set(['d1', 'd2', 'd3']), mateHold: false, crossHead: false };
+    w.you.x = 0; w.you.z = GOAL.z + 20; w.ball.x = 0; w.ball.z = w.you.z - 0.62;
+    run(w, 0.3);
+    const eye = { x: 0, y: 1.7, z: w.you.z }, aim = { x, y: 1.0, z: GOAL.z };
+    stepSim(w, idle({ shot: { eye, dir: unit(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: 0.7 } }), DT, fixed);
+    let seen = null;
+    for (let t = 0; t < 1 && !seen; t += DT) { stepSim(w, idle(), DT, fixed); if (w.byId.gk.save) seen = { dive: w.byId.gk.dive, y: w.byId.gk.save.y }; }
+    assert.ok(seen, `x ${x}: he went for it`);
+    assert.equal(seen.dive, dive, `x ${x}`);
+  }
+});

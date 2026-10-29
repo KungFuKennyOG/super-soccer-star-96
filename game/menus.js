@@ -8,23 +8,36 @@ import { buildPlayer } from './actors.js';
 import { byId, nationToward } from '../rules/teams.js';
 import { drawWorldMap } from './worldmap.js';
 import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.js';
+import { WEATHER_SETTING } from '../rules/weather.js';
+import { LOCKER, CHALLENGES, unlocked, unlockedBy, doneCount, rewardName } from '../rules/challenges.js';
 
 const W = 256, H = 192;
-const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK' };
+const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK', pens: 'PENALTIES', keeper: 'KEEPER RUSH' };
 const MODES = [
   { id: 'attack', name: 'SCORE ATTACK', sub: 'BEAT YOUR HIGH SCORE' },
   { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS: GROUPS + KNOCKOUTS' },
   { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS: STRAIGHT KNOCKOUTS' },
+  { id: 'pens', name: 'PENALTIES', sub: 'A SHOOTOUT: TAKE THEM AND SAVE THEM' },
+  { id: 'keeper', name: 'KEEPER RUSH', sub: 'IN GOAL: 3 LET IN AND YOU\'RE OUT' },
   { id: 'training', name: 'TRAINING', sub: 'LEARN AND TEST EVERY MOVE' },
+  { id: 'challenges', name: 'CHALLENGES', sub: 'FEATS TO PULL OFF, KIT TO UNLOCK' },
+  { id: 'settings', name: 'SETTINGS', sub: 'OPTIONS AND YOUR LOCKER' },
 ];
 
-// Options on the mode screen, changed with left/right.
+// Settings, changed with left/right. Locker rows only offer what you've unlocked.
 export const LENGTHS = [{ name: 'SHORT', mul: 0.6 }, { name: 'NORMAL', mul: 1 }, { name: 'LONG', mul: 1.5 }, { name: 'EPIC', mul: 2.5 }];
 export const WOBBLES = ['OFF', 'LOW', 'FULL'];
 export const COMMENTARY = ['OFF', 'TEXT', 'VOICE'];
 export const REPLAYS = ['OFF', 'ON'];
 export const JUICE = ['OFF', 'ON'];
 export const SKILLS = ['OFF', 'GESTURE', 'GRIP + GESTURE'];
+const ROWS = [
+  { key: 'length', name: 'MATCH LENGTH', opts: LENGTHS.map(l => l.name) }, { key: 'wobble', name: 'PS1 WOBBLE', opts: WOBBLES },
+  { key: 'commentary', name: 'COMMENTARY', opts: COMMENTARY }, { key: 'replays', name: 'GOAL REPLAYS', opts: REPLAYS },
+  { key: 'juice', name: 'HIT EFFECTS', opts: JUICE }, { key: 'skills', name: 'SKILL MOVES', opts: SKILLS },
+  { key: 'weather', name: 'WEATHER', opts: WEATHER_SETTING },
+  ...Object.entries(LOCKER).map(([k, l]) => ({ key: k, name: l.name, opts: l.options, locker: true })),
+];
 const centre = (c, s, y, col, sc = 1, sh = '#000') => drawText(c, s, Math.round((W - textWidth(s, sc)) / 2), y, col, sc, sh);
 
 export function logo(c, y) {
@@ -81,25 +94,55 @@ export function createMenus(scene, camera) {
 
   function drawMode() {
     frame(null);
-    logo(ctx, 8);
+    logo(ctx, 3);
     // mode buttons; the picked one's description shows in the hint line
     MODES.forEach((m, i) => {
-      const y = 46 + i * 18, on = i === sel;
-      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 16);
+      const y = 47 + i * 16, on = i === sel;
+      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 15);
       drawText(ctx, m.name, 38, y + 1, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
+      if (m.id === 'challenges') drawText(ctx, `${doneCount(data.progress)}/${CHALLENGES.length}`, W - 62, y + 4, on ? '#05072a' : '#f2c21a');
     });
-    // settings rows: < value > when selected
+    hint(`${MODES[sel].sub} - A`);
+  }
+
+  const rowOpts = r => (r.locker ? unlocked(data.progress, r.key) : r.opts.map((_, i) => i));
+  function drawSettings() {
+    frame('SETTINGS');
     const st = data.settings;
-    const rows = [['MATCH LENGTH', LENGTHS[st.length].name], ['PS1 WOBBLE', WOBBLES[st.wobble]],
-      ['COMMENTARY', COMMENTARY[st.commentary]], ['GOAL REPLAYS', REPLAYS[st.replays]], ['HIT EFFECTS', JUICE[st.juice]], ['SKILL MOVES', SKILLS[st.skills]]];
-    rows.forEach(([k, v], i) => {
-      const y = 120 + i * 10, on = sel === MODES.length + i;
-      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(28, y - 2, W - 56, 10); }
-      drawText(ctx, k, 38, y, on ? '#f2c21a' : '#9aa8e0');
-      const val = on ? `< ${v} >` : v;
+    ROWS.forEach((r, i) => {
+      const y = (r.locker ? 36 : 22) + i * 12, on = sel === i;
+      if (i === ROWS.findIndex(x => x.locker)) { ctx.fillStyle = '#c8102e'; ctx.fillRect(28, y - 12, W - 56, 1); drawText(ctx, 'LOCKER', 38, y - 10, '#f2c21a'); }
+      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(28, y - 2, W - 56, 11); }
+      drawText(ctx, r.name, 38, y, on ? '#f2c21a' : '#9aa8e0');
+      const v = r.opts[st[r.key]] || r.opts[0], n = rowOpts(r).length, val = on && n > 1 ? `< ${v} >` : v;
       drawText(ctx, val, W - 38 - textWidth(val), y, on ? '#ffffff' : '#c8d4ff');
+      if (r.locker && n < r.opts.length) drawText(ctx, `${n}/${r.opts.length}`, 112, y, '#5a6090');
     });
-    hint(sel >= MODES.length ? 'LEFT/RIGHT TO CHANGE' : `${MODES[sel].sub} - A TO PICK`);
+    const r = ROWS[sel];
+    if (r.locker) {
+      const next = r.opts.map((_, i) => i).find(i => !rowOpts(r).includes(i));
+      const c = next !== undefined && unlockedBy(r.key, next);
+      hint(c ? `UNLOCK ${r.opts[next]}: ${c.desc}` : 'ALL UNLOCKED - LEFT/RIGHT - B BACK');
+    } else hint('LEFT/RIGHT TO CHANGE - B BACK');
+  }
+
+  function drawChallenges() {
+    const done = data.progress.done;
+    frame(`CHALLENGES ${doneCount(data.progress)}/${CHALLENGES.length}`);
+    const top = Math.max(0, Math.min(CHALLENGES.length - 11, sel - 5));
+    CHALLENGES.slice(top, top + 11).forEach((c, k) => {
+      const i = top + k, y = 20 + k * 11, on = i === sel, ok = !!done[c.id];
+      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(6, y - 2, W - 12, 11); }
+      ctx.fillStyle = ok ? '#40c060' : '#3a4070'; ctx.fillRect(10, y, 7, 7);
+      if (ok) drawText(ctx, '*', 10, y, '#ffffff', 1, null);
+      drawText(ctx, c.name, 22, y, ok ? '#ffffff' : '#9aa8e0');
+      if (c.reward) { const u = rewardName(c); drawText(ctx, u, W - 10 - textWidth(u), y, ok ? '#f2c21a' : '#5a6090'); }
+    });
+    const c = CHALLENGES[sel];
+    ctx.fillStyle = '#c8102e'; ctx.fillRect(0, 144, W, 26);
+    centre(ctx, c.desc, 148, '#ffffff');
+    centre(ctx, c.reward ? `UNLOCKS ${rewardName(c)}` : done[c.id] ? 'DONE!' : 'FOR THE GLORY', 159, '#f2c21a', 1, null);
+    hint('UP/DOWN - B BACK');
   }
 
   // World Cup: pick on a world map; the stick moves to the nearest nation in that direction.
@@ -225,6 +268,8 @@ export function createMenus(scene, camera) {
 
   function draw() {
     if (screen === 'mode') drawMode();
+    else if (screen === 'settings') drawSettings();
+    else if (screen === 'challenges') drawChallenges();
     else if (screen === 'team') drawTeam();
     else if (screen === 'hub') drawHub();
     else drawMessage();
@@ -234,10 +279,11 @@ export function createMenus(scene, camera) {
   return {
     get screen() { return screen; },
     get sel() { return sel; },
-    // screen: 'mode' | 'team' | 'hub' | 'message'. data depends on the screen:
-    // team { mode, teams, start? }, hub { cup }, message { title, lines: [{ text, big?, color? }], ok? }
-    open(s, d = {}) {
-      screen = s; data = d; sel = 0;
+    // screen: 'mode' | 'settings' | 'challenges' | 'team' | 'hub' | 'message'. data depends on the screen:
+    // mode { progress }, settings { settings, progress }, challenges { progress }, team { mode, teams, start? },
+    // hub { cup }, message { title, lines: [{ text, big?, color? }], ok? }
+    open(s, d = {}, at = 0) {
+      screen = s; data = d; sel = at;
       if (s === 'team' && d.start) sel = Math.max(0, d.teams.findIndex(t => t.id === d.start));
       root.visible = panel.visible = true;
       table3d.visible = s === 'team';
@@ -252,17 +298,26 @@ export function createMenus(scene, camera) {
       if (model && table3d.visible) model.root.rotation.y += dt * 0.9;
       let act = null;
       if (screen === 'mode') {
-        const n = MODES.length + 6, st = data.settings;
+        const n = MODES.length;
         if (nav.up) sel = (sel + n - 1) % n;
         if (nav.down) sel = (sel + 1) % n;
-        if (sel < MODES.length && nav.ok) act = { mode: MODES[sel].id };
+        if (nav.ok) act = { mode: MODES[sel].id };
+      } else if (screen === 'settings') {
+        const n = ROWS.length, st = data.settings, r = ROWS[sel];
+        if (nav.up) sel = (sel + n - 1) % n;
+        if (nav.down) sel = (sel + 1) % n;
         const dir = nav.right ? 1 : nav.left ? -1 : 0;
-        if (dir && sel === MODES.length) { st.length = Math.max(0, Math.min(LENGTHS.length - 1, st.length + dir)); act = { settings: st }; }
-        if (dir && sel === MODES.length + 1) { st.wobble = Math.max(0, Math.min(WOBBLES.length - 1, st.wobble + dir)); act = { settings: st }; }
-        if (dir && sel === MODES.length + 2) { st.commentary = Math.max(0, Math.min(COMMENTARY.length - 1, st.commentary + dir)); act = { settings: st }; }
-        if (dir && sel === MODES.length + 3) { st.replays = Math.max(0, Math.min(REPLAYS.length - 1, st.replays + dir)); act = { settings: st }; }
-        if (dir && sel === MODES.length + 4) { st.juice = Math.max(0, Math.min(JUICE.length - 1, st.juice + dir)); act = { settings: st }; }
-        if (dir && sel === MODES.length + 5) { st.skills = Math.max(0, Math.min(SKILLS.length - 1, st.skills + dir)); act = { settings: st }; }
+        if (dir) {
+          const opts = rowOpts(r), at = Math.max(0, opts.indexOf(st[r.key] || 0));
+          const to = opts[Math.max(0, Math.min(opts.length - 1, at + dir))];
+          if (to !== st[r.key]) { st[r.key] = to; act = { settings: st }; }
+        }
+        if (nav.back) act = { back: true };
+      } else if (screen === 'challenges') {
+        const n = CHALLENGES.length;
+        if (nav.up) sel = (sel + n - 1) % n;
+        if (nav.down) sel = (sel + 1) % n;
+        if (nav.back || nav.ok) act = { back: true };
       } else if (screen === 'team' && data.mode === 'world') {
         for (const d of ['left', 'right', 'up', 'down']) {
           if (!nav[d]) continue;

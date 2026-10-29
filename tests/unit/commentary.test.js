@@ -36,3 +36,19 @@ test('the smarter opposition gets its own lines: chips, keeper claims and read d
   assert.match(pickLine({ type: 'saved', claim: true }, {}, seeded()).id, /^claim/);
   assert.match(pickLine({ type: 'drag', read: true }, {}, () => 0.1).id, /^dragread/);
 });
+
+test('shootouts, keeper rush and the weather get their own lines', () => {
+  const r = () => 0.1, id = e => (pickLine(e, {}, r) || {}).id || '';
+  assert.match(id({ type: 'kickoff', weather: 'snow' }), /^snow/);
+  assert.match(id({ type: 'kickoff', weather: 'rain' }), /^rain/);
+  assert.match(id({ type: 'kickoff', weather: 'clear' }), /^kickoff/);
+  assert.match(id({ type: 'penalties' }), /^pens/);
+  assert.match(id({ type: 'pen', by: 'you', scored: true, chip: true }), /^panenka/);
+  assert.match(id({ type: 'pen', by: 'you', scored: false, how: 'saved' }), /^pensaved/);
+  assert.match(id({ type: 'pen', by: 'them', scored: false, how: 'saved' }), /^(wesave|saved)/);
+  assert.match(id({ type: 'suddenDeath' }), /^sudden/);
+  assert.match(id({ type: 'shootoutWon' }), /^shootwon/);
+  assert.match(id({ type: 'rushSave', tips: true }), /^tips/);
+  assert.match(id({ type: 'rushSave', streak: 10 }), /^unbeatable/);
+  assert.match(id({ type: 'rushOver' }), /^rushover/);
+});

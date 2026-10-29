@@ -60,13 +60,20 @@ export function noteEvents(s, events) {
 
 export const createProgress = () => ({ done: {} });
 
+// What a challenge unlocks, in words: 'GOLD BALL', 'RED BOOTS', 'BIG HEADS'... or null.
+export function rewardName(c) {
+  if (!c.reward) return null;
+  const [slot, i] = c.reward;
+  return slot === 'heads' ? 'BIG HEADS' : `${LOCKER[slot].options[i]} ${LOCKER[slot].name}`;
+}
+
 // Marks newly met challenges done in progress. Returns them (with what they unlocked, if anything).
 export function checkChallenges(progress, s) {
   const fresh = [];
   for (const c of CHALLENGES) {
     if (progress.done[c.id] || !c.test(s)) continue;
     progress.done[c.id] = true;
-    fresh.push({ ...c, unlock: c.reward ? `${LOCKER[c.reward[0]].name}: ${LOCKER[c.reward[0]].options[c.reward[1]]}` : null });
+    fresh.push({ ...c, unlock: rewardName(c) });
   }
   return fresh;
 }

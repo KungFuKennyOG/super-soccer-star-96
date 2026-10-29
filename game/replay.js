@@ -49,9 +49,11 @@ export function createReplay(scene, renderer) {
   return {
     get active() { return active; },
     // per match: who's playing, and fresh replay copies of the players (you as a whole player)
-    setup(world, home, away, board) {
+    // locker: { boots, heads, ballName } so the replay copies match what's on the pitch
+    setup(world, home, away, board, locker = {}) {
       for (const m of Object.values(ghosts)) scene.remove(m.root, m.shadow);
-      ghosts = buildSet(world, home, away, { fullYou: true });
+      ghosts = buildSet(world, home, away, { fullYou: true, look: locker });
+      ball.setDesign(locker.ballName || 'CLASSIC');
       for (const m of Object.values(ghosts)) { m.root.visible = m.shadow.visible = false; scene.add(m.root, m.shadow); }
       ids = world.players.map(p => p.id);
       stride = 8 + ids.length * 7;
@@ -112,8 +114,9 @@ export function createReplay(scene, renderer) {
         const flags = a[o + 6];
         const p = { x: L(o), z: L(o + 1), vx: L(o + 2), vz: L(o + 3), fx: L(o + 4), fz: L(o + 5), role: id === 'gk' ? 'gk' : id === 'you' ? 'mate' : id[0] === 'd' ? 'def' : 'mate',
           dive: flags & 2 ? -1 : flags & 4 ? 1 : 0, holding: !!(flags & 8) };
+        if (p.dive) p.save = { y: Math.max(0.3, L(2)), kind: 'parry', id: 'replay' }; else m.saveId = null;
         placeModel(m, p);
-        animate(m, p, dt * speed, t, false);
+        animate(m, p, dt * speed, t, false, null, { x: L(1), z: L(3) });
       });
       // the TV camera: up on the gantry along the near touchline, following the ball
       look.lerp(ball.mesh.position, look.lengthSq() ? Math.min(1, dt * 4) : 1);

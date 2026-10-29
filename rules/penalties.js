@@ -119,11 +119,11 @@ function setup(so, w, rnd) {
   for (const p of w.players) { p.dive = 0; p.stun = 0; }
   if (so.turn === 'you') {
     Object.assign(you, { x: 0, z: SPOT_Z + 0.62, vx: 0, vz: 0, fx: 0, fz: -1 });
-    Object.assign(gk, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1 });
+    Object.assign(gk, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1, antics: true, save: null });
     Object.assign(taker, { x: -4, z: SPOT_Z + 9 });
   } else {
     Object.assign(you, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1 });
-    Object.assign(gk, { x: 6, z: SPOT_Z + 9, vx: 0, vz: 0, fx: 0, fz: -1 });
+    Object.assign(gk, { x: 6, z: SPOT_Z + 9, vx: 0, vz: 0, fx: 0, fz: -1, antics: false, save: null });
     so.side = rnd() < 0.5 ? -1 : 1;
     Object.assign(taker, { x: so.side * 1.6, z: SPOT_Z + 2.8, vx: 0, vz: 0, fx: 0, fz: -1 });
   }
@@ -150,6 +150,7 @@ export function stepShootout(so, w, it, dt, rnd = Math.random) {
     if (so.turn === 'you' && it.shot) {
       const v = shotVelocity(b, it.shot.eye, it.shot.dir, it.shot.holdT, rnd, w.tune.shotErr + PENS.nerves, w.tune.shotPower);
       kickOff(so, w, v);
+      gk.antics = false;
       so.guess = keeperGuess(rnd);
       const cross = predictCross(b, 4);
       so.plan = { cross, save: keeperSaves(cross, so.guess, ballSpeed(b), so.level), chip: !!v.chip };
@@ -176,7 +177,13 @@ export function stepShootout(so, w, it, dt, rnd = Math.random) {
     let how = null, bev = [];
     if (so.turn === 'you') {
       // their keeper dives on his guess and gets there if he guessed right
-      if (so.t > PENS.diveDelay && so.guess) { gk.dive = so.guess; gk.x += clamp(so.guess * PENS.diveTo - gk.x, -PENS.diveSpeed * dt, PENS.diveSpeed * dt); }
+      if (so.t > PENS.diveDelay && !gk.save) {
+        // what he goes for: the height it's at if he's guessed right, else a guess at that too
+        const c0 = so.plan.cross;
+        gk.dive = so.guess;
+        gk.save = { y: so.plan.save && c0 ? c0.y : 0.5 + rnd() * 1.2, kind: so.plan.save ? 'parry' : 'beaten', id: w.time };
+      }
+      if (so.t > PENS.diveDelay && so.guess) gk.x += clamp(so.guess * PENS.diveTo - gk.x, -PENS.diveSpeed * dt, PENS.diveSpeed * dt);
       const c = so.plan.cross;
       if (so.plan.save && c && so.t + dt >= c.t) {
         so.parried = true; how = 'saved';
@@ -211,7 +218,7 @@ export function stepShootout(so, w, it, dt, rnd = Math.random) {
   stepBall(b, dt, []);
   if (so.turn === 'you' && so.guess) gk.x += clamp(so.guess * PENS.diveTo - gk.x, -PENS.diveSpeed * dt, PENS.diveSpeed * dt);
   if (so.t >= PENS.pause) {
-    gk.dive = 0; so.parried = false;
+    gk.dive = 0; gk.save = null; so.parried = false;
     if (so.done) { so.phase = 'over'; ev.push({ type: 'shootoutOver', won: so.winner === 'you' }); }
     else so.phase = 'setup';
   }

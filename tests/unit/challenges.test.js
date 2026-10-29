@@ -16,8 +16,9 @@ test('every locker option past the first is unlocked by exactly one challenge', 
 test('goals of each kind complete their challenges once, with the unlock named', () => {
   const p = createProgress(), s = createStats();
   noteEvents(s, [goal({ kind: 'header' })]);
-  const got = checkChallenges(p, s).map(c => c.id).sort();
-  assert.deepEqual(got, ['goal', 'header']);
+  const fresh = checkChallenges(p, s);
+  assert.deepEqual(fresh.map(c => c.id).sort(), ['goal', 'header']);
+  assert.equal(fresh.find(c => c.id === 'header').unlock, 'BIG HEADS');
   assert.equal(checkChallenges(p, s).length, 0, 'not twice');
   assert.deepEqual(unlocked(p, 'heads'), [0, 1]);
   assert.deepEqual(unlocked(p, 'ball'), [0]);

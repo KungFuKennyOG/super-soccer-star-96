@@ -43,6 +43,14 @@ export function buildStadium(scene) {
       mow(grass, recipe.mow);
       return ground;
     },
+    // after setGround: rain darkens the grass and greys the air, snow covers the pitch and whitens it
+    setWeather(kind) {
+      const fog = scene.fog;
+      grass.material.color.set(kind === 'rain' ? '#8f9c90' : '#ffffff');
+      if (kind === 'snow') { grass.material.map = snowTex(); grass.material.needsUpdate = true; }
+      if (kind === 'rain') { fog.color.lerp(new THREE.Color('#4a5262'), 0.7); fog.near = 28; fog.far = 120; hemi.intensity *= 0.85; sun.intensity *= 0.7; }
+      if (kind === 'snow') { fog.color.lerp(new THREE.Color('#aeb6c4'), 0.75); fog.near = 22; fog.far = 105; hemi.intensity *= 1.1; }
+    },
     update(dt, t) {
       goal.update(dt);
       if (!ground) return;
@@ -83,6 +91,20 @@ function mow(mesh, kind) {
     mesh.userData.stripes.repeat.set(W / 7, D / (kind === 'wide' ? 24 : 12));
   }
   mesh.material.needsUpdate = true;
+}
+
+// Snow lying on the pitch: white with a blue tinge, worn through to the grass in patches.
+let snowT = null;
+function snowTex() {
+  if (!snowT) snowT = pixelTex(canvasTex(64, 64, c => {
+    c.fillStyle = '#e4eaf2'; c.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 260; i++) {
+      const x = Math.random() * 64, y = Math.random() * 64, r = Math.random();
+      c.fillStyle = r < 0.12 ? '#7d9a74' : r < 0.4 ? '#c8d2e0' : '#f6f8fc';
+      c.fillRect(Math.floor(x), Math.floor(y), 1 + Math.floor(Math.random() * 3), 1 + Math.floor(Math.random() * 2));
+    }
+  }), [60 / 8, 56 / 8]);
+  return snowT;
 }
 
 function sky() {

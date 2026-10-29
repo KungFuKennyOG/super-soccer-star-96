@@ -7,7 +7,7 @@ import { startLoop } from '../engine/loop.js';
 import { createWorld, stepSim, resetPlay, startCelebration, defenders } from '../rules/sim.js';
 import { createMatch, createScenarioMatch, counterAttack, scoreEvent, tickMatch, clockText, isHatTrick } from '../rules/match.js';
 import { ALL, NATIONS, byId, teamsFor } from '../rules/teams.js';
-import { createCup, currentFixture, scenarioFor, playUser, STAGE_NAMES } from '../rules/cup.js';
+import { createCup, currentFixture, scenarioFor } from '../rules/cup.js';
 import { tuneFor, levelFor } from '../rules/skill.js';
 import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
@@ -15,12 +15,18 @@ import { GOAL, MATCH, LEVEL_NAMES } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
 import { loadSettings, saveSettings as saveSet, applyWobble as applyWob, lowRes as lowR } from './display.js';
 import { buildStadium } from './stadium.js';
+import { pickWeather, applyWeather, WEATHER } from '../rules/weather.js';
+import { LOCKER } from '../rules/challenges.js';
+import { createWeather } from './weather.js';
+import { createKeeping } from './keeping.js';
+import { createTracker } from './progress.js';
+import { createResults, loadBest } from './results.js';
 import { buildBall, buildArrow, animate, placeModel } from './actors.js';
 import { createSquads } from './squad.js';
 import { createMenus, LENGTHS } from './menus.js';
 import { createCeremony } from './trophy.js';
 import { createHands } from './hands.js';
-import { groundFor, GROUNDS } from './grounds.js';
+import { venueFor } from './grounds.js';
 import { CLUBS } from '../rules/teams.js';
 import { buildHud, buildRadar } from './hud.js';
 import { createControls } from './controls.js';
@@ -35,7 +41,6 @@ import { createJuice } from './juice.js';
 import { LINE_IDS } from '../rules/commentary.js';
 
 const VR_SCALE = 0.7;       // headset framebuffer scale: soft retro, still sharp
-const BEST_KEY = 'sss96.best';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c');
@@ -63,6 +68,8 @@ const intents = createIntents(camera, rig, () => settings.skills);
 const training = createTraining(camera);
 const juice = createJuice(scene);
 juice.set(settings.juice);
+const weather = createWeather(scene);
+const tracker = createTracker(hud);
 let slowT = 0, said10 = false, callT = 0;
 $('radar').appendChild(radar.canvas);
 
@@ -74,9 +81,11 @@ const ball = buildBall(); scene.add(ball.mesh, ball.shadow);
 const arrow = buildArrow(); scene.add(arrow);
 
 let mode = 'title';   // 'title' (browser start page) | 'menu' | 'play' | 'ceremony' | 'paused'
-let celebrateT = 0, flashT = 0, best = loadBest();
-const controls = createControls({ renderer, rig, canvas, isPlaying: () => mode === 'play', onUnlock: () => { if (mode === 'play') showPause(); } });
+let celebrateT = 0, flashT = 0;
+const best = loadBest();
+const controls = createControls({ renderer, rig, canvas, isPlaying: () => mode === 'play' || mode === 'keep', onUnlock: () => { if (mode === 'play' || mode === 'keep') showPause(); } });
 const desk = controls.desk;
+const keeping = createKeeping({ scene, camera, rig, hands, hud, commentary, juice, desk });
 
 /* ---------- start page (browser) ---------- */
 
@@ -89,7 +98,7 @@ $('vr').onclick = async () => {
   applyWobble();
   overlay.hidden = true;
   setTimeout(() => openMenu('mode'), 300); // let the headset pose settle before placing the menu
-  renderer.xr.getSession().addEventListener('end', () => { lowRes(); training.stop(world); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
+  renderer.xr.getSession().addEventListener('end', () => { lowRes(); training.stop(world); keeping.stop(); menus.close(); ceremony.stop(); mode = 'title'; overlay.hidden = false; hudEl.hidden = true; });
 };
 $('play').onclick = () => { startAudio(); commentary.preload(LINE_IDS); playMusic('menu'); overlay.hidden = true; desk.yaw = 0; desk.pitch = 0; openMenu('mode'); };
 // menu music starts on the first click or key (browsers won't play sound before that)
@@ -97,38 +106,42 @@ const menuMusic = () => { startAudio(); commentary.preload(LINE_IDS); if (mode !
 addEventListener('pointerdown', menuMusic, { once: true });
 addEventListener('keydown', menuMusic, { once: true });
 function showPause() {
+  const was = mode;
   mode = 'paused'; overlay.hidden = false; $('play').textContent = 'RESUME';
-  $('play').onclick = () => { overlay.hidden = true; desk.lock(); mode = 'play'; };
+  $('play').onclick = () => { overlay.hidden = true; desk.lock(); mode = was; };
 }
 
 /* ---------- menus and the cup run ---------- */
 
-function openMenu(screen, data) {
+function openMenu(screen, data, at = 0) {
   mode = 'menu'; hudEl.hidden = true;
-  training.stop(world);
+  training.stop(world); keeping.stop(); weather.set('clear');
   if (!renderer.xr.isPresenting) { desk.pitch = 0; if (document.pointerLockElement) document.exitPointerLock(); }
   playMusic('menu');
-  menus.open(screen, screen === 'mode' ? { settings } : data);
+  menus.open(screen, ['mode', 'settings', 'challenges'].includes(screen) ? { settings, progress: tracker.progress } : data, at);
 }
-const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
+const ALONE = ['attack', 'pens', 'keeper'];       // modes against one opponent, picked from every team
+const teamsForMode = kind => (ALONE.includes(kind) ? ALL : teamsFor(kind));
 
 function onMenu(act) {
   const scr = menus.screen;
-  if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); juice.set(settings.juice); if (!settings.replays) replay.stop(); return; }
+  if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); juice.set(settings.juice); if (!settings.replays) replay.stop(); ball.setDesign(LOCKER.ball.options[settings.ball]); return; }
   if (act.mode === 'training') { game.kind = 'training'; game.cup = null; game.scenario = null; game.opp = byId(game.team.id === 'BAR' ? 'MAD' : 'BAR'); startMatch(); }
+  else if (act.mode === 'settings' || act.mode === 'challenges') openMenu(act.mode);
   else if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
   else if (act.team) {
     game.team = act.team;
-    if (game.kind === 'attack') {
+    if (ALONE.includes(game.kind)) {
       const rivals = ALL.filter(t => t.id !== act.team.id && t.s >= 4 && (t.id.length === 3) && teamsFor(NATIONS.includes(act.team) ? 'world' : 'club').includes(t));
       game.opp = rivals[Math.floor(Math.random() * rivals.length)];
       game.cup = null; game.scenario = null;
-      startMatch();
+      if (game.kind === 'attack') startMatch(); else startKeeping(game.kind === 'pens' ? 'pens' : 'rush');
     } else {
       game.cup = createCup(game.kind, act.team.id);
       openMenu('hub', { cup: game.cup });
     }
   } else if (act.back && scr === 'team') openMenu('mode');
+  else if (act.back) openMenu('mode', null, scr === 'settings' ? 7 : 6);
   else if (act.play) {
     game.fixture = currentFixture(game.cup);
     game.opp = byId(game.fixture.opp);
@@ -140,93 +153,67 @@ function onMenu(act) {
 let menuNext = null;
 function message(title, lines, next, ok) { menuNext = next; openMenu('message', { title, lines, ok }); }
 
+// Sets the stage for any match, shootout or rush: the world, kits, ground, weather and your locker.
+function setStage(level, wx) {
+  keeping.stop();
+  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s, level));
+  const look = { boots: settings.boots, heads: settings.heads, ballName: wx === 'snow' && !settings.ball ? 'ORANGE' : LOCKER.ball.options[settings.ball] };
+  models = squads.dress(world, game.team, game.opp, look);
+  hands.setKit(game.team.kit);
+  const v = venueFor(game.team, game.opp, game.cup, game.fixture, CLUBS.includes(game.team));
+  stadium.setGround(v.recipe, fans(game.team.kit), fans(game.opp.kit), v.share);
+  applyWeather(world, wx); stadium.setWeather(wx); weather.set(wx); ball.setDesign(look.ballName);
+  hud.placeScoreboard(stadium.ground.board.y, stadium.ground.board.z);
+  replay.setup(world, game.team, game.opp, stadium.ground.board, look);
+  intents.reset(); slowT = 0; said10 = false;
+  menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
+  hudEl.hidden = renderer.xr.isPresenting;
+  if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
+  tracker.begin(game.kind, game.team.s);
+  if (wx !== 'clear') setTimeout(() => { if (mode === 'play' || mode === 'keep') hud.banner({ text: WEATHER[wx].name, sub: WEATHER[wx].banner, tone: 'info' }); }, 2600);
+  return v.line;
+}
+const fans = kit => [kit.shirt, kit.alt, kit.shorts, kit.trim, '#f2f1ea'];
+
 function startMatch() {
   // how cleverly they defend: later cup rounds (and 5-star sides in Score Attack) are smarter
   const level = levelFor(game.kind, game.fixture && game.fixture.stage, game.opp.s);
-  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s, level));
-  const drills = game.kind === 'training';
+  const drills = game.kind === 'training', wx = drills ? 'clear' : pickWeather(settings.weather);
+  const venue = setStage(level, wx);
   match = game.scenario ? createScenarioMatch(game.scenario) : createMatch(drills ? 99 * 60 : Math.round(MATCH.duration * LENGTHS[settings.length].mul));
-  models = squads.dress(world, game.team, game.opp);
-  hands.setKit(game.team.kit);
-  const venue = pickVenue();
-  hud.placeScoreboard(stadium.ground.board.y, stadium.ground.board.z);
-  replay.setup(world, game.team, game.opp, stadium.ground.board);
-  intents.reset(); slowT = 0; said10 = false;
   if (drills) training.start(world, renderer.xr.isPresenting);
-  menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
-  mode = 'play'; hudEl.hidden = renderer.xr.isPresenting;
-  if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
+  mode = 'play';
   sfx('whistle', 1.4);
-  setTimeout(() => commentary.event({ type: 'kickoff' }), 900);
-  if (LEVEL_NAMES[level]) setTimeout(() => { if (mode === 'play') hud.banner({ text: 'SCOUTING REPORT', sub: LEVEL_NAMES[level], tone: 'info' }); }, 3200);
+  setTimeout(() => commentary.event({ type: 'kickoff', weather: wx }), 900);
+  if (LEVEL_NAMES[level]) setTimeout(() => { if (mode === 'play') hud.banner({ text: 'SCOUTING REPORT', sub: LEVEL_NAMES[level], tone: 'info' }); }, 4200);
   const s = game.scenario;
   if (drills) hud.banner({ text: 'TRAINING', sub: `LEARN EVERY MOVE\n${renderer.xr.isPresenting ? 'X' : 'N'} SKIPS A DRILL`, tone: 'info', big: true });
   else if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
   else hud.banner({ text: 'KICK OFF!', sub: `V ${game.opp.name}\n${clockText(match.clock)} - SCORE ALL YOU CAN\n${venue}`, tone: 'info', big: true });
 }
 
-// Where this match is played. Champions Cup ties alternate: home in the round of 16, away in the
-// quarters, home in the semis, away in the final. Clubs play Score Attack at home; nations at the
-// national stadium. Returns a line for the kick-off banner.
-const fans = kit => [kit.shirt, kit.alt, kit.shorts, kit.trim, '#f2f1ea'];
-function pickVenue() {
-  const team = game.team, opp = game.opp, isClub = CLUBS.includes(team);
-  let host = null;
-  if (game.cup && game.cup.kind === 'club') host = ['r16', 'sf'].includes(game.fixture.stage) ? team : opp;
-  else if (!game.cup && isClub) host = team;
-  const recipe = host ? groundFor(host.id) : GROUNDS.default;
-  const share = host === team ? 0.78 : host === opp ? 0.22 : 0.55;
-  stadium.setGround(recipe, fans(team.kit), fans(opp.kit), share);
-  return host === team ? `HOME - ${recipe.name}` : host === opp ? `AWAY - AT ${recipe.name}` : recipe.name;
-}
-
-function fullTime() {
-  commentary.event({ type: 'fulltime' });
-  replay.stop();
-  sfx('whistle', 1); setTimeout(() => sfx('whistle', 1), 450); setTimeout(() => sfx('whistle', 2), 900);
-  stadium.cheer(false);
-  if (!game.cup) {
-    const newBest = match.points > best;
-    if (newBest) { best = match.points; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
-    $('best').textContent = `SCORE ATTACK BEST ${best}`;
-    hud.banner({ text: 'FULL TIME', sub: newBest ? 'NEW BEST SCORE!' : '', tone: 'good', big: true });
-    return setTimeout(() => message('FULL TIME', [
-      { text: `GOALS ${match.goals}`, big: true }, { text: `SHOTS ${match.shots}` },
-      { text: `POINTS ${match.points}`, big: true, color: '#f2c21a' }, { text: newBest ? 'NEW BEST SCORE!' : `BEST ${best}`, color: newBest ? '#40ff60' : '#9aa8e0' },
-    ], () => openMenu('mode'), 'PRESS A FOR THE MENU'), 1800);
-  }
-  const cup = game.cup, us = match.us, them = match.them, team = game.team, opp = game.opp;
-  const res = playUser(cup, us, them);
-  const score = { text: `${team.id} ${us} - ${them} ${opp.id}`, big: true };
-  hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}`, tone: res.result === 'loss' ? 'bad' : 'good', big: true });
-  let lines, next, ok;
-  if (res.champion) {
-    lines = [score, { text: 'YOU WIN THE CUP!', big: true, color: '#f2c21a' }, { text: `${team.name} ARE CHAMPIONS` }];
-    next = startCeremony; ok = 'PRESS A TO LIFT THE CUP';
-  } else if (res.retry) {
-    lines = [score, { text: res.result === 'draw' ? 'NOT ENOUGH - YOU NEEDED THE WIN' : 'BEATEN!', color: '#ff4040' }, { text: 'CONTINUE?', big: true, color: '#f2c21a' }, { text: `${cup.continues} CONTINUE${cup.continues === 1 ? '' : 'S'} LEFT` }];
-    next = () => { game.scenario = scenarioFor(cup, game.fixture, Math.random, LENGTHS[settings.length].mul); startMatch(); }; ok = 'PRESS A TO TRY AGAIN';
-  } else if (res.out) {
-    lines = [score, { text: 'KNOCKED OUT', big: true, color: '#ff4040' }, { text: `CHAMPIONS: ${byId(cup.champion).name}` }];
-    next = () => openMenu('hub', { cup }); ok = 'PRESS A';
+// Penalties (PENALTIES from the menu, or a level cup knockout) and KEEPER RUSH (game/keeping.js).
+function startKeeping(what, fresh = true) {
+  if (fresh) setStage(levelFor(game.kind, null, game.opp.s), pickWeather(settings.weather));
+  else intents.reset();
+  keeping.start(what, world, { level: game.fixture ? levelFor(game.kind, game.fixture.stage, game.opp.s) : 0, oppStars: game.opp.s, ids: [game.team.id, game.opp.id], gloves: settings.gloves });
+  mode = 'keep'; sfx('whistle', 1.2);
+  if (what === 'pens') {
+    hud.banner({ text: 'PENALTIES', sub: 'YOU TAKE THEM: LOOK AND SHOOT\nTHEN SAVE THEIRS: GLOVES UP', tone: 'info', big: true });
+    commentary.event({ type: 'penalties' });
   } else {
-    const what = cup.stage === 'group' || game.fixture.stage === 'group'
-      ? { win: 'WIN - 3 POINTS', draw: 'DRAW - 1 POINT', loss: 'DEFEAT - NO POINTS' }[res.result]
-      : `THROUGH TO THE ${STAGE_NAMES[cup.stage]}`;
-    lines = [score, { text: what, big: true, color: res.result === 'loss' ? '#ff4040' : '#40ff60' }];
-    if (res.advanced && game.fixture.stage === 'group') lines.push({ text: `THROUGH TO THE ${STAGE_NAMES[cup.stage]}`, color: '#f2c21a' });
-    next = () => openMenu('hub', { cup }); ok = 'PRESS A';
+    hud.banner({ text: 'KEEPER RUSH', sub: `STOP EVERYTHING\n3 GOALS AND YOU'RE OUT\nBEST ${tracker.progress.rushBest || 0}`, tone: 'info', big: true });
+    commentary.event({ type: 'rushStart' });
   }
-  setTimeout(() => message('FULL TIME', lines, next, ok), 1800);
 }
 
-function finishTraining() {
-  mode = 'menu'; stadium.cheer(true); sfx('roar');
-  setTimeout(() => message('TRAINING COMPLETE', [
-    { text: 'EVERY MOVE DONE!', big: true, color: '#40ff60' }, { text: `GOALS ${match.goals}` },
-    { text: 'NOW GO WIN SOMETHING', color: '#f2c21a' },
-  ], () => openMenu('mode'), 'PRESS A FOR THE MENU'), 1200);
-}
+// full time, the end of a shootout or a rush, and training done: the screens and what comes next
+const results = createResults({
+  game, tracker, hud, stadium, commentary, replay, keeping, message, openMenu, startMatch, startKeeping,
+  startCeremony: () => startCeremony(), lengthMul: () => LENGTHS[settings.length].mul, match: () => match,
+  setMenu: () => { mode = 'menu'; }, showBest: b => { $('best').textContent = `SCORE ATTACK BEST ${b}`; },
+});
+const fullTime = results.fullTime;
 
 function startCeremony() {
   menus.close(); mode = 'ceremony';
@@ -254,6 +241,7 @@ function feedback(ev) {
     const m = e.by && models[e.by];
     juice.event(e, world);
     if ((e.type === 'kick' || e.type === 'pass') && m) m.kickT = 0;
+    if (e.type === 'kick' && e.by !== 'gk' && models.gk) models.gk.split = 0;             // the keeper's split step
     if (e.type === 'kick' && e.kind && m) m.special = { kind: e.kind, t: 0 };
     if (e.type === 'kick' && e.kind === 'bicycle') slowT = 1.3;               // slow motion for the overhead kick
     if (e.type === 'flick') sfx('touch');
@@ -278,6 +266,7 @@ function feedback(ev) {
     if (e.type === 'goal' && settings.replays && !hat && !training.active) replay.goal();
     if (hat) startDance();
   }
+  tracker.note(ev);
 }
 
 // The hat-trick dance: teammates come over, then the rhythm game starts.
@@ -291,18 +280,24 @@ const loop = startLoop(renderer, (dt, t) => {
   const simDt = (slowT > 0 ? dt * 0.35 : dt) * (mode === 'play' ? juice.simScale(dt) : 1);   // slow motion, hit-stop
 
   // the button that starts a match (A) is also knock-on: don't let that same press reach the match
-  const wasPlaying = mode === 'play';
+  const wasPlaying = mode === 'play', wasKeeping = mode === 'keep';
   if (mode === 'menu') { const act = menus.update(dt, raw.nav); if (act) onMenu(act); }
   if (mode === 'ceremony' && ceremony.update(dt, t, raw, desk.keys) === 'done') endCeremony();
 
   if (raw.vr && mode === 'play') rig.rotation.y -= raw.turn * 2.4 * dt;
   else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
+  if (raw.vr && (mode === 'play' || mode === 'keep')) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.hand('right', handW); raw.leftHand = hands.hand('left', handL); }
+  if (mode === 'keep' && wasKeeping && !hooks.paused) {
+    const ev = keeping.update(dt, raw, intents.build(raw, dt, world), world, models);
+    tracker.note(ev);
+    const over = ev.find(e => e.type === 'shootoutOver' || e.type === 'rushOver');
+    if (over) results.keepingOver(over);
+  }
   if (mode === 'play' && wasPlaying && !hooks.paused) {
     if (raw.skip) training.skip();
     if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
-    if (raw.vr) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.hand('right', handW); raw.leftHand = hands.hand('left', handL); }
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);
     replay.record(world, ev, simDt);
@@ -310,14 +305,14 @@ const loop = startLoop(renderer, (dt, t) => {
     const tr = training.update({ ev, intent, world, dt: simDt, vr: raw.vr, restart: raw.restart });
     if (tr === 'done') { sfx('perfect'); buzz('both', 0.5, 80); }
     if (tr === 'next') sfx('whistle', 0.5);
-    if (tr === 'finished') finishTraining();
+    if (tr === 'finished') results.finishTraining();
     if (celebration.active) {
       const d = celebration.update(dt, raw.vr, desk.keys);
       if (d) {
         match.points += d.score;
         hud.banner({ text: d.hits === d.count ? 'FULL COMBO!' : `DANCE ${d.hits}/${d.count}`, sub: `+${d.score}`, tone: d.hits ? 'good' : 'bad', big: true });
         match.deadT = MATCH.deadTime - 1.2;
-        if (d.hits === d.count) commentary.event({ type: 'combo' });
+        if (d.hits === d.count) { commentary.event({ type: 'combo' }); tracker.set({ combo: true }); }
       }
     }
     const r = celebration.active || replay.active ? null : tickMatch(match, simDt, world.dead, !!world.shot && !world.shot.done);
@@ -338,7 +333,7 @@ const loop = startLoop(renderer, (dt, t) => {
   for (const p of world.players) {
     const m = models[p.id];
     placeModel(m, p);
-    animate(m, p, simDt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you', celebration.guide);
+    animate(m, p, simDt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you', celebration.guide, world.ball);
   }
   // your own legs face where you're running, else where you look
   const yo = models.you, ys = Math.hypot(you.vx, you.vz);
@@ -352,6 +347,8 @@ const loop = startLoop(renderer, (dt, t) => {
   if (carrier) { arrow.position.set(carrier.x, 2.35 + Math.sin(t * 6) * 0.06, carrier.z); arrow.lookAt(headPosNow()); }
 
   stadium.update(dt, t);
+  weather.update(t, headPosNow());
+  tracker.update(dt);
   updateHud();
   radar.draw(world, match.goals, match.points);
   if (raw.vr) { placeOnHands(); hands.update(); }
@@ -376,12 +373,13 @@ function updateHud() {
     pass: intents.passHold ? { target: world.byId[intents.passHold.target], scale: ringScale(intents.passHold.t), grade: gradePass(intents.passHold.t) } : null,
     aim, charge: intents.shotHold ? chargeOf(intents.shotHold.t) : null, over: intents.shotHold ? overcharge(intents.shotHold.t) : 0,
   });
-  const clock = training.active ? 'DRILL' : clockText(match.clock);
-  hud.scoreboard(match.goals, clock, match.points, flashT > 0 ? 'GOAL!' : '',
-    match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '');
+  const kb = keeping.board(), line = match.scenario ? `${game.team.id} ${match.us}-${match.them} ${game.opp.id}` : '';
+  const clock = kb ? kb.clock : training.active ? 'DRILL' : clockText(match.clock);
+  if (kb) hud.scoreboard(kb.goals, clock, kb.points, '', kb.line);
+  else hud.scoreboard(match.goals, clock, match.points, flashT > 0 ? 'GOAL!' : '', line);
   // browser HUD
   $('hClock').textContent = clock;
-  $('hScore').textContent = match.scenario ? `${game.team.id} ${match.us} - ${match.them} ${game.opp.id}` : `V ${game.opp.id}`;
+  $('hScore').textContent = kb ? kb.line : line || `V ${game.opp.id}`;
 }
 
 // the radar floats over the left hand, high enough to clear it, and draws on top of the hand anyway
@@ -391,9 +389,8 @@ function placeOnHands() {
   if (radar.mesh.parent !== L) { L.add(radar.mesh); radar.mesh.position.set(0.02, 0.17, 0.04); radar.mesh.rotation.set(-1.0, 0, 0); }
 }
 
-function loadBest() { try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) { return 0; } }
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, dance: celebration, startDance, desk, menus, game, startMatch, startCeremony, training, stadium, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, get mode() { return mode; }, dance: celebration, startDance, desk, menus, game, intents, startMatch, startKeeping, startCeremony, training, stadium, keeping, tracker, settings, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

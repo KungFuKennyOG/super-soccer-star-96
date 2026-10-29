@@ -34,6 +34,18 @@ export const GROUNDS = {
 };
 export const groundFor = id => GROUNDS[id === 'MRB' || id === 'MBB' ? 'MILAN' : id] || GROUNDS.default;
 
+// Where a match is played: { recipe, share (how much of the crowd is yours), line (for the kick-off
+// banner) }. Champions Cup ties alternate: home in the round of 16 and semis, away in the quarters and
+// final. Clubs play everything else at home; nations at the national stadium.
+export function venueFor(team, opp, cup, fixture, isClub) {
+  let host = null;
+  if (cup && cup.kind === 'club') host = ['r16', 'sf'].includes(fixture.stage) ? team : opp;
+  else if (!cup && isClub) host = team;
+  const recipe = host ? groundFor(host.id) : GROUNDS.default;
+  const share = host === team ? 0.78 : host === opp ? 0.22 : 0.55;
+  return { recipe, share, line: host === team ? `HOME - ${recipe.name}` : host === opp ? `AWAY - AT ${recipe.name}` : recipe.name };
+}
+
 export const TIMES = {
   night: { bg: '#070b22', fog: ['#0d1433', 50, 140], sky: ['#2a3a78', '#04061a'], hemi: ['#c8d8ff', '#2a3a20', 0.6], sun: ['#fff0d8', 1.05], lamps: true },
   dusk: { bg: '#3a2a4a', fog: ['#5a3a50', 60, 160], sky: ['#ff9a5a', '#241a48'], hemi: ['#ffd8c0', '#3a3020', 0.7], sun: ['#ffc890', 1.1], lamps: true },

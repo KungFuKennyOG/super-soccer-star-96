@@ -76,7 +76,7 @@ test('training: picks from the mode menu, runs the first drill, skips, and reset
   await page.waitForTimeout(500);
   for (let i = 0; i < 8; i++) {
     const sel = await page.evaluate(() => window.__sss.menus.sel);
-    if (sel === 3) break;
+    if (sel === 5) break;
     await page.keyboard.press('ArrowDown');
     await page.waitForFunction(b => window.__sss.menus.sel !== b, sel, { timeout: 30000 });
   }
@@ -107,4 +107,81 @@ test('training: picks from the mode menu, runs the first drill, skips, and reset
   assert.equal(startStep, 'run');
   assert.equal(state.step, 'lob');
   assert.ok(state.frozen.includes('d1') && state.frozen.includes('d2'), 'defenders parked, one in the lane');
+});
+
+// opens the game on the mode menu; returns { page, errors }
+async function openMenu() {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  page.setDefaultTimeout(90000);
+  if (threeSource === 'local') await page.route(THREE_URL, r => r.fulfill({ path: LOCAL_THREE, contentType: 'text/javascript' }));
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  // the frame loop catches its own errors and logs them: count those too
+  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  await page.goto(server.url + '/index.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => window.__sssOK === true, null, { timeout: 15000 });
+  await page.click('#play');
+  await page.waitForTimeout(500);
+  return { page, errors };
+}
+const menuTo = async (page, i) => {
+  for (let k = 0; k < 10; k++) {
+    const sel = await page.evaluate(() => window.__sss.menus.sel);
+    if (sel === i) return;
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(b => window.__sss.menus.sel !== b, sel, { timeout: 150000 });
+  }
+};
+
+test('settings, challenges, a penalty shootout and keeper rush', { timeout: 900000 }, async t => {
+  if (!threeSource) { t.skip('three.js unreachable (no CDN and no node_modules/three)'); return; }
+  const { page, errors } = await openMenu();
+  await page.screenshot({ path: new URL('menu-modes.png', OUT).pathname });
+  await menuTo(page, 7); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__sss.menus.screen === 'settings');
+  await menuTo(page, 6);
+  await page.keyboard.press('ArrowRight');                   // weather: CLEAR
+  await page.waitForFunction(() => window.__sss.settings.weather === 1);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: new URL('settings.png', OUT).pathname });
+  const wx = await page.evaluate(() => window.__sss.settings.weather);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__sss.menus.screen === 'mode');
+  await menuTo(page, 6); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__sss.menus.screen === 'challenges');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: new URL('challenges.png', OUT).pathname });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => window.__sss.menus.screen === 'mode');
+
+  // PENALTIES: pick a team, take the first kick looking at the bottom corner
+  await menuTo(page, 3); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__sss.menus.screen === 'team');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__sss.mode === 'keep' && window.__sss.keeping.shootout && window.__sss.keeping.shootout.phase === 'ready', null, { timeout: 150000 });
+  await page.evaluate(() => { const d = window.__sss.desk; d.yaw = -0.12; d.pitch = 0.1; });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: new URL('pens-kick.png', OUT).pathname });
+  await page.keyboard.down('KeyF'); await page.waitForTimeout(900); await page.keyboard.up('KeyF');
+  await page.waitForFunction(() => window.__sss.keeping.shootout.kicks.you.length === 1, null, { timeout: 150000 });
+  await page.waitForFunction(() => window.__sss.keeping.shootout.turn === 'them' && window.__sss.keeping.shootout.phase === 'ready', null, { timeout: 150000 });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: new URL('pens-keep.png', OUT).pathname });
+  await page.waitForFunction(() => window.__sss.keeping.shootout.kicks.them.length === 1, null, { timeout: 150000 });
+
+  // KEEPER RUSH in the snow
+  await page.evaluate(() => { const s = window.__sss; s.settings.weather = 3; s.game.kind = 'keeper'; s.startKeeping('rush'); });
+  await page.waitForFunction(() => window.__sss.keeping.rush && window.__sss.keeping.rush.phase === 'runup', null, { timeout: 150000 });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: new URL('rush-snow.png', OUT).pathname });
+  await page.waitForFunction(() => window.__sss.keeping.rush.saves + window.__sss.keeping.rush.conceded >= 1 || window.__sss.keeping.rush.phase === 'after', null, { timeout: 150000 });
+
+  // a match in the rain
+  await page.evaluate(() => { const s = window.__sss; s.settings.weather = 2; s.game.kind = 'attack'; s.game.cup = null; s.game.scenario = null; s.startMatch(); });
+  await page.waitForFunction(() => window.__sss.mode === 'play' && window.__sss.world.weather === 'rain', null, { timeout: 150000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: new URL('rain.png', OUT).pathname });
+  await page.close();
+  assert.equal(wx, 1, 'weather setting changed');
+  assert.deepEqual(errors, [], 'uncaught errors');
 });

@@ -2,14 +2,18 @@
 // game/assets/voice/lines.json for a sim event; game/commentary.js plays it and shows the words.
 //
 // pickLine(e, state, rnd, recent) → { id, priority } or null
-//   e:      a sim event (rules/sim.js), or { type: 'kickoff' | 'last10' | 'fulltime' | 'combo' | 'counterGoal' }
+//   e:      a sim event (rules/sim.js), or { type: 'kickoff' (weather) | 'last10' | 'fulltime' | 'combo' | 'counterGoal' },
+//           or a shootout / rush moment: 'penalties' | 'pen' (by, scored, how, chip) | 'suddenDeath' | 'shootoutWon' |
+//           'shootoutLost' | 'rushStart' | 'rushSave' (tips, streak) | 'rushGoal' | 'rushOver'
 //   state:  { us, them, scenario, hatTrick } for the match after the event was scored
 //   recent: ids said lately, avoided when there's a choice
 // Priority: a new line only cuts in over one of lower priority.
 
 const POOLS = {
-  kickoff: ['kickoff1', 'kickoff2'],
-  goal: ['goal1', 'goal2', 'goal3', 'goal4', 'goal5'],
+  kickoff: ['kickoff1', 'kickoff2', 'kickoff3'],
+  rain: ['rain1', 'rain2'],
+  snow: ['snow1', 'snow2'],
+  goal: ['goal1', 'goal2', 'goal3', 'goal4', 'goal5', 'goal6', 'goal7', 'goal8'],
   topbins: ['topbins1', 'topbins2'],
   worldie: ['worldie1', 'worldie2'],
   header: ['header1', 'header2', 'header3'],
@@ -22,26 +26,44 @@ const POOLS = {
   rainbow: ['rainbow1', 'rainbow2'],
   joga: ['joga1', 'joga2'],
   hattrick: ['hattrick1', 'hattrick2'],
-  shot: ['shot1', 'shot2', 'shot3'],
-  saved: ['saved1', 'saved2', 'saved3'],
+  shot: ['shot1', 'shot2', 'shot3', 'shot4'],
+  saved: ['saved1', 'saved2', 'saved3', 'saved4', 'saved5'],
   parried: ['parried1', 'parried2'],
   post: ['post1', 'post2'],
   bar: ['bar1', 'post2'],
-  wide: ['wide1', 'miss1'],
-  over: ['over1', 'miss1'],
+  wide: ['wide1', 'wide2', 'miss1'],
+  over: ['over1', 'over2', 'miss1'],
   blocked: ['blocked1'],
-  tackled: ['tackled1', 'tackled2'],
+  tackled: ['tackled1', 'tackled2', 'tackled3'],
   intercepted: ['intercepted1', 'tackled2'],
-  pass: ['pass1', 'pass2', 'pass3'],
+  pass: ['pass1', 'pass2', 'pass3', 'pass4'],
   cross: ['cross1', 'cross2'],
   counter: ['counter1', 'counter2'],
-  comeback: ['comeback1', 'comeback2'],
+  comeback: ['comeback1', 'comeback2', 'comeback3'],
   level: ['level1'],
   last10: ['last10'],
-  fulltime: ['fulltime1', 'fulltime2'],
-  skill: ['skill1', 'skill2'],
+  fulltime: ['fulltime1', 'fulltime2', 'fulltime3'],
+  skill: ['skill1', 'skill2', 'skill3'],
   drag: ['drag1'],
   combo: ['dance1'],
+  // penalty shootouts (rules/penalties.js) and keeper rush (rules/goalie.js)
+  pens: ['pens1', 'pens2'],
+  pengoal: ['pengoal1', 'pengoal2', 'pengoal3'],
+  pensaved: ['pensaved1', 'pensaved2'],
+  penmiss: ['penmiss1', 'penmiss2'],
+  panenka: ['panenka1'],
+  wesave: ['wesave1', 'wesave2', 'saved4'],
+  theyscore: ['theyscore1', 'theyscore2'],
+  theymiss: ['theymiss1', 'penmiss1'],
+  sudden: ['sudden1', 'sudden2'],
+  shootwon: ['shootwon1', 'shootwon2'],
+  shootlost: ['shootlost1', 'shootlost2'],
+  rushstart: ['rushstart1'],
+  rushsave: ['saved1', 'saved4', 'wesave2'],
+  tips: ['tips1', 'tips2'],
+  unbeatable: ['unbeatable1', 'unbeatable2'],
+  rushgoal: ['rushgoal1', 'rushgoal2'],
+  rushover: ['rushover1'],
 };
 export const LINE_IDS = [...new Set(Object.values(POOLS).flat())];
 
@@ -56,7 +78,7 @@ const TOP_BINS = e => e.y > 1.55 && Math.abs(e.x) > 3.66 - 1.4;
 export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
   const say = (pool, priority = 1, chance = 1) => (rnd() < chance ? { id: pick(pool, rnd, recent), priority } : null);
   switch (e.type) {
-    case 'kickoff': return say('kickoff', 2);
+    case 'kickoff': return say(e.weather === 'rain' || e.weather === 'snow' ? e.weather : 'kickoff', 2);
     case 'goal': {
       if (state.hatTrick) return say('hattrick', 5);
       if (e.kind) return say(e.kind, 4);
@@ -94,6 +116,17 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
     case 'last10': return say('last10', 3);
     case 'fulltime': return say('fulltime', 5);
     case 'combo': return say('combo', 3);
+    case 'penalties': return say('pens', 4);
+    case 'pen':
+      if (e.by === 'you') return e.scored ? say(e.chip ? 'panenka' : 'pengoal', 3) : say(e.how === 'saved' ? 'pensaved' : 'penmiss', 3);
+      return e.scored ? say('theyscore', 3, 0.7) : say(e.how === 'saved' ? 'wesave' : 'theymiss', 3);
+    case 'suddenDeath': return say('sudden', 4);
+    case 'shootoutWon': return say('shootwon', 5);
+    case 'shootoutLost': return say('shootlost', 5);
+    case 'rushStart': return say('rushstart', 3);
+    case 'rushSave': return e.tips ? say('tips', 3) : e.streak >= 5 && e.streak % 5 === 0 ? say('unbeatable', 3) : say('rushsave', 2, 0.6);
+    case 'rushGoal': return say('rushgoal', 3, 0.7);
+    case 'rushOver': return say('rushover', 5);
     default: return null;
   }
 }

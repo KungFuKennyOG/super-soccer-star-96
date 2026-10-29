@@ -19,6 +19,7 @@ export const KEEPER = {
   reachUp: 2.45,              // the highest he gets a hand to off his line: a chip above this beats him
   claim: 1.0,                 // he gathers a loose ball inside this distance
   offLine: 2.0,               // further out than this he's "come out" (his normal spot is at most 1.6)
+  standSave: 0.5,             // a shot this close to him he takes standing, without diving
 };
 
 const defs = w => w.players.filter(p => p.role === 'def');
@@ -28,10 +29,13 @@ export function keeperTarget(w, gk) {
   const s = w.shot, ai = w.tune.ai, B = w.tune.brain;
   gk.rushing = false;
   if (s && s.save && s.decision !== 'wide' && !s.done && w.time >= s.t0 + ai.gkReact) {
-    gk.dive = Math.sign(s.save.x - gk.x) || 1;
+    // straight at him: a standing save; otherwise he dives. save: what the animation needs (game/keeperpose.js)
+    const dx = s.save.x - gk.x;
+    gk.dive = Math.abs(dx) < KEEPER.standSave && s.decision !== 'beaten' ? 0 : Math.sign(dx) || 1;
+    gk.save = { y: s.save.y, kind: s.decision, id: s.t0 };
     return { x: s.save.x, z: gk.z, speed: ai.gkDive };
   }
-  gk.dive = 0;
+  gk.dive = 0; gk.save = null;
   // through-ball: race out for a loose ball he can reach first
   // (only for passes played into space: your own dribbling touches and knock-ons stay yours)
   if (B.gkRush && !w.owner && !s && w.pendingPass && !w.pendingPass.lob) {
