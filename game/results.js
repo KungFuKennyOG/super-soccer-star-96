@@ -87,7 +87,7 @@ export function createResults(c) {
     if (needsPens(c.game.cup, us, them)) {
       c.hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}\nIT GOES TO PENALTIES!`, tone: 'info', big: true });
       c.game.cupPens = [us, them];
-      return setTimeout(() => c.startKeeping('pens', false), 2600);
+      return setTimeout(() => { if (c.mode() === 'menu' && c.game.cupPens) c.startKeeping('pens', false); }, 2600);
     }
     c.hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}`, tone: us < them ? 'bad' : 'good', big: true });
     setTimeout(() => cupResult(us, them, null), 1800);

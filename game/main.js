@@ -85,7 +85,7 @@ let celebrateT = 0, flashT = 0;
 const best = loadBest();
 const controls = createControls({ renderer, rig, canvas, isPlaying: () => mode === 'play' || mode === 'keep', onUnlock: () => { if (mode === 'play' || mode === 'keep') showPause(); } });
 const desk = controls.desk;
-const keeping = createKeeping({ scene, camera, rig, hands, hud, commentary, juice, desk });
+const keeping = createKeeping({ scene, camera, rig, hands, hud, commentary, juice, desk, intents });
 
 /* ---------- start page (browser) ---------- */
 
@@ -132,6 +132,7 @@ function onMenu(act) {
   else if (act.team) {
     game.team = act.team;
     if (ALONE.includes(game.kind)) {
+      game.fixture = null; game.cupPens = null;
       const rivals = ALL.filter(t => t.id !== act.team.id && t.s >= 4 && (t.id.length === 3) && teamsFor(NATIONS.includes(act.team) ? 'world' : 'club').includes(t));
       game.opp = rivals[Math.floor(Math.random() * rivals.length)];
       game.cup = null; game.scenario = null;
@@ -141,7 +142,7 @@ function onMenu(act) {
       openMenu('hub', { cup: game.cup });
     }
   } else if (act.back && scr === 'team') openMenu('mode');
-  else if (act.back) openMenu('mode', null, scr === 'settings' ? 7 : 6);
+  else if (act.back) openMenu('mode', null, scr === 'settings' ? 7 : scr === 'challenges' ? 6 : 0);
   else if (act.play) {
     game.fixture = currentFixture(game.cup);
     game.opp = byId(game.fixture.opp);
@@ -194,7 +195,7 @@ function startMatch() {
 
 // Penalties (PENALTIES from the menu, or a level cup knockout) and KEEPER RUSH (game/keeping.js).
 function startKeeping(what, fresh = true) {
-  if (fresh) setStage(levelFor(game.kind, null, game.opp.s), pickWeather(settings.weather));
+  if (fresh) { game.cupPens = null; setStage(levelFor(game.kind, null, game.opp.s), pickWeather(settings.weather)); }
   else intents.reset();
   keeping.start(what, world, { level: game.fixture ? levelFor(game.kind, game.fixture.stage, game.opp.s) : 0, oppStars: game.opp.s, ids: [game.team.id, game.opp.id], gloves: settings.gloves });
   mode = 'keep'; sfx('whistle', 1.2);
@@ -210,7 +211,7 @@ function startKeeping(what, fresh = true) {
 // full time, the end of a shootout or a rush, and training done: the screens and what comes next
 const results = createResults({
   game, tracker, hud, stadium, commentary, replay, keeping, message, openMenu, startMatch, startKeeping,
-  startCeremony: () => startCeremony(), lengthMul: () => LENGTHS[settings.length].mul, match: () => match,
+  startCeremony: () => startCeremony(), mode: () => mode, lengthMul: () => LENGTHS[settings.length].mul, match: () => match,
   setMenu: () => { mode = 'menu'; }, showBest: b => { $('best').textContent = `SCORE ATTACK BEST ${b}`; },
 });
 const fullTime = results.fullTime;
@@ -284,11 +285,12 @@ const loop = startLoop(renderer, (dt, t) => {
   if (mode === 'menu') { const act = menus.update(dt, raw.nav); if (act) onMenu(act); }
   if (mode === 'ceremony' && ceremony.update(dt, t, raw, desk.keys) === 'done') endCeremony();
 
-  if (raw.vr && mode === 'play') rig.rotation.y -= raw.turn * 2.4 * dt;
-  else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
+  // (in the headset the camera's pose is the real head, written in by the renderer: leave it alone)
+  if (raw.vr) { if (mode === 'play') rig.rotation.y -= raw.turn * 2.4 * dt; } else { if (mode === 'play') desk.yaw -= raw.turn * 2.2 * dt; camera.position.set(0, 1.7, 0); camera.rotation.set(desk.pitch - 0.22, desk.yaw, 0); }
 
   if (raw.vr && (mode === 'play' || mode === 'keep')) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.hand('right', handW); raw.leftHand = hands.hand('left', handL); }
   if (mode === 'keep' && wasKeeping && !hooks.paused) {
+    juice.simScale(dt);                                                  // (no hit-stop here: don't carry one into the next match)
     const ev = keeping.update(dt, raw, intents.build(raw, dt, world), world, models);
     tracker.note(ev);
     const over = ev.find(e => e.type === 'shootoutOver' || e.type === 'rushOver');

@@ -28,7 +28,7 @@ export const CHALLENGES = [
   { id: 'world', name: 'WORLD CHAMPIONS', desc: "WIN WORLD CUP '96", test: s => s.cupWon === 'world', reward: ['ball', 3] },
   { id: 'club', name: 'KINGS OF EUROPE', desc: 'WIN THE CHAMPIONS CUP', test: s => s.cupWon === 'club', reward: ['boots', 3] },
   { id: 'giant', name: 'GIANT KILLER', desc: 'WIN A CUP WITH A 1-2 STAR TEAM', test: s => !!s.cupWon && s.stars <= 2 },
-  { id: 'icecold', name: 'ICE COLD', desc: 'SCORE ALL 5 PENALTIES', test: s => s.penFirst5 >= 5 },
+  { id: 'icecold', name: 'ICE COLD', desc: 'WIN A SHOOTOUT WITHOUT A MISS', test: s => s.penPerfect },
   { id: 'safe', name: 'SAFE HANDS', desc: 'SAVE 2 IN ONE SHOOTOUT', test: s => s.penSaves >= 2, reward: ['gloves', 2] },
   { id: 'wall', name: 'THE WALL', desc: '10 SAVES IN KEEPER RUSH', test: s => s.rushSaves >= 10, reward: ['gloves', 1] },
   { id: 'graduate', name: 'GRADUATE', desc: 'FINISH TRAINING', test: s => s.training },
@@ -36,7 +36,7 @@ export const CHALLENGES = [
 
 export function createStats(mode = 'attack', stars = 3) {
   return { mode, stars, yourGoals: 0, kinds: {}, nutmegs: 0, topBins: 0, maxSkills: 0, maxChain: 0,
-    combo: false, points: 0, cupWon: null, penFirst5: 0, penTaken: 0, penSaves: 0, rushSaves: 0, training: false };
+    combo: false, points: 0, cupWon: null, penScored: 0, penTaken: 0, penPerfect: false, penSaves: 0, rushSaves: 0, training: false };
 }
 
 // Sim events (rules/sim.js) and shootout / rush events into the stats.
@@ -50,8 +50,8 @@ export function noteEvents(s, events) {
       s.maxChain = Math.max(s.maxChain, e.chain || 0);
     }
     if (e.type === 'skill' && e.ok && e.move === 'nutmeg') s.nutmegs++;
-    if (e.type === 'penResult' && e.by === 'you' && e.scored && s.penTaken < 5) s.penFirst5++;
-    if (e.type === 'penResult' && e.by === 'you') s.penTaken++;
+    if (e.type === 'penResult' && e.by === 'you') { s.penTaken++; if (e.scored) s.penScored++; }
+    if (e.type === 'shootoutOver' && e.won && s.penTaken && s.penScored === s.penTaken) s.penPerfect = true;
     if (e.type === 'penResult' && e.by === 'them' && e.how === 'saved') s.penSaves++;
     if (e.type === 'rushResult' && e.how === 'saved') s.rushSaves++;
   }

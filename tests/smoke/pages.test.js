@@ -162,7 +162,10 @@ test('settings, challenges, a penalty shootout and keeper rush', { timeout: 9000
   await page.evaluate(() => { const d = window.__sss.desk; d.yaw = -0.12; d.pitch = 0.1; });
   await page.waitForTimeout(800);
   await page.screenshot({ path: new URL('pens-kick.png', OUT).pathname });
-  await page.keyboard.down('KeyF'); await page.waitForTimeout(900); await page.keyboard.up('KeyF');
+  // hold until the charge has started (frames are slow in software rendering), then let go
+  await page.keyboard.down('KeyF');
+  await page.waitForFunction(() => window.__sss.intents.shotHold && window.__sss.intents.shotHold.t > 0.3, null, { timeout: 150000 });
+  await page.keyboard.up('KeyF');
   await page.waitForFunction(() => window.__sss.keeping.shootout.kicks.you.length === 1, null, { timeout: 150000 });
   await page.waitForFunction(() => window.__sss.keeping.shootout.turn === 'them' && window.__sss.keeping.shootout.phase === 'ready', null, { timeout: 150000 });
   await page.waitForTimeout(500);

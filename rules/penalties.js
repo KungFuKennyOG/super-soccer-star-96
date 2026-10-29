@@ -119,11 +119,11 @@ function setup(so, w, rnd) {
   for (const p of w.players) { p.dive = 0; p.stun = 0; }
   if (so.turn === 'you') {
     Object.assign(you, { x: 0, z: SPOT_Z + 0.62, vx: 0, vz: 0, fx: 0, fz: -1 });
-    Object.assign(gk, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1, antics: true, save: null });
+    Object.assign(gk, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1, antics: true, save: null, holding: false, rushing: false });
     Object.assign(taker, { x: -4, z: SPOT_Z + 9 });
   } else {
     Object.assign(you, { x: 0, z: GOAL.z + 0.3, vx: 0, vz: 0, fx: 0, fz: 1 });
-    Object.assign(gk, { x: 6, z: SPOT_Z + 9, vx: 0, vz: 0, fx: 0, fz: -1, antics: false, save: null });
+    Object.assign(gk, { x: 6, z: SPOT_Z + 9, vx: 0, vz: 0, fx: 0, fz: -1, antics: false, save: null, holding: false, rushing: false });
     so.side = rnd() < 0.5 ? -1 : 1;
     Object.assign(taker, { x: so.side * 1.6, z: SPOT_Z + 2.8, vx: 0, vz: 0, fx: 0, fz: -1 });
   }

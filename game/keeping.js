@@ -26,7 +26,7 @@ function buildGlove(side, [col, cuff]) {
   return g;
 }
 
-export function createKeeping({ scene, camera, rig, hands, hud, commentary, juice, desk }) {
+export function createKeeping({ scene, camera, rig, hands, hud, commentary, juice, desk, intents }) {
   const gloves = { left: new THREE.Group(), right: new THREE.Group() };
   for (const g of Object.values(gloves)) { g.visible = false; scene.add(g); }
   let gloveKind = -1;
@@ -71,10 +71,12 @@ export function createKeeping({ scene, camera, rig, hands, hud, commentary, juic
   function turnRig(yaw) {
     fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
     rig.rotation.y = yaw - Math.atan2(-fwd.x, -fwd.z);
+    intents.resetHead();
   }
   function face(out, world, vr) {
+    const turn = out !== keepingNow || !board.visible;   // only turn you round when the side changes
     keepingNow = out;
-    if (vr) turnRig(out ? Math.PI : 0);
+    if (vr) { if (turn) turnRig(out ? Math.PI : 0); }
     else { desk.yaw = out ? Math.PI : 0; desk.pitch = 0; }
     // the board hangs over the goal for your kicks, over the edge of the box when you're in goal
     board.position.set(0, out ? 3.4 : 4.6, out ? world.you.z + 13 : world.you.z - 13);
@@ -111,7 +113,11 @@ export function createKeeping({ scene, camera, rig, hands, hud, commentary, juic
 
   function onEvents(ev, world, models, vr) {
     for (const e of ev) {
-      if (e.type === 'penSetup') { face(e.turn === 'them', world, vr); drawBoard(); if (so.sudden && e.turn === so.kicks.order && so.kicks.you.length === PENS.kicks) { hud.banner({ text: 'SUDDEN DEATH', sub: '', tone: 'info', big: true }); commentary.event({ type: 'suddenDeath' }); } }
+      if (e.type === 'penSetup') {
+        face(e.turn === 'them', world, vr);
+        if (e.turn === 'you') intents.reset();             // a trigger still held can't fire your next kick
+        drawBoard(); if (so.sudden && e.turn === so.kicks.order && so.kicks.you.length === PENS.kicks) { hud.banner({ text: 'SUDDEN DEATH', sub: '', tone: 'info', big: true }); commentary.event({ type: 'suddenDeath' }); }
+      }
       if (e.type === 'rushSetup') { face(true, world, vr); drawBoard(); }
       if (e.type === 'kick') { const m = models[e.by]; if (m) m.kickT = 0; if (models.gk && e.by === 'you') models.gk.split = 0; sfx('kick', e.power); juice.event(e, world); }
       if (e.type === 'penResult') {

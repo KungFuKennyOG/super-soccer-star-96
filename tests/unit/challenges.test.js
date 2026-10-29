@@ -49,10 +49,11 @@ test('end-of-match flags: cups, giant killing, score attack, training', () => {
 test('shootouts and keeper rush', () => {
   const p = createProgress(), s = createStats('pens');
   const kick = scored => ({ type: 'penResult', by: 'you', scored });
-  noteEvents(s, [kick(true), kick(true), kick(true), kick(true), kick(false), kick(true)]);
-  assert.ok(!checkChallenges(p, s).some(c => c.id === 'icecold'), 'only the first five count');
+  noteEvents(s, [kick(true), kick(true), kick(true), kick(false), kick(true), { type: 'shootoutOver', won: true }]);
+  assert.ok(!checkChallenges(p, s).some(c => c.id === 'icecold'), 'a miss spoils it');
   const s2 = createStats('pens');
-  noteEvents(s2, [1, 2, 3, 4, 5].map(() => kick(true)));
+  noteEvents(s2, [1, 2, 3, 4].map(() => kick(true)));
+  noteEvents(s2, [{ type: 'shootoutOver', won: true }]);                    // won 4-1: four from four counts
   noteEvents(s2, [{ type: 'penResult', by: 'them', how: 'saved' }, { type: 'penResult', by: 'them', how: 'saved' }]);
   assert.deepEqual(checkChallenges(p, s2).map(c => c.id).sort(), ['icecold', 'safe']);
   const r = createStats('keeper');
