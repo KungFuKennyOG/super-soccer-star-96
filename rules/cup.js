@@ -73,7 +73,7 @@ export function scenarioFor(cup, fx, rnd = Math.random, lengthMul = 1) {
   const theirs = deficit + (rnd() < 0.35 ? 1 : 0), ours = theirs - deficit;
   const clock = Math.round((85 + 45 * deficit) * lengthMul);
   const need = fx.stage === 'group' ? 'any' : 'win';
-  const text = need === 'win' ? `${deficit} DOWN - SCORE ${deficit + 1} TO WIN` : `${deficit} DOWN - WIN FOR 3 PTS, DRAW FOR 1`;
+  const text = need === 'win' ? `${deficit} DOWN - WIN IT, OR LEVEL FOR PENS` : `${deficit} DOWN - WIN FOR 3 PTS, DRAW FOR 1`;
   return { us: ours, them: theirs, clock, minute: Math.max(1, 90 - Math.round(clock / 6)), need, text, oppStrength: them };
 }
 
@@ -89,10 +89,13 @@ export function table(g) {
   return Object.values(rows).sort((x, y) => y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || byId(y.id).s - byId(x.id).s);
 }
 
-// Record your result (your goals, theirs) and move the cup on.
-// Returns { result: 'win' | 'draw' | 'loss', retry, out, champion, advanced }.
-export function playUser(cup, us, them, rnd = Math.random) {
-  const result = us > them ? 'win' : us < them ? 'loss' : 'draw';
+// A knockout tie level at full time goes to penalties (rules/penalties.js).
+export const needsPens = (cup, us, them) => cup.stage !== 'group' && us === them;
+
+// Record your result (your goals, theirs) and move the cup on. pens: 'won' | 'lost' when a level
+// knockout tie went to a shootout. Returns { result: 'win' | 'draw' | 'loss', retry, out, champion, advanced }.
+export function playUser(cup, us, them, rnd = Math.random, pens = null) {
+  const result = pens && cup.stage !== 'group' ? (pens === 'won' ? 'win' : 'loss') : us > them ? 'win' : us < them ? 'loss' : 'draw';
   if (cup.stage === 'group') {
     const md = cup.matchday;
     for (const g of cup.groups) for (const f of g.fixtures) {
@@ -114,13 +117,13 @@ export function playUser(cup, us, them, rnd = Math.random) {
     if (cup.continues > 0) { cup.continues--; return { result, retry: true, out: false, champion: false, advanced: false }; }
     const t = cup.rounds[cup.stage].find(x => x.a === cup.user || x.b === cup.user);
     t.ga = t.a === cup.user ? us : them; t.gb = t.a === cup.user ? them : us;
-    t.winner = t.a === cup.user ? t.b : t.a;
+    t.winner = t.a === cup.user ? t.b : t.a; t.pens = !!pens;
     cup.out = true;
     finishWithoutUser(cup, rnd);
     return { result, retry: false, out: true, champion: false, advanced: false };
   }
   const t = cup.rounds[cup.stage].find(x => x.a === cup.user || x.b === cup.user);
-  t.ga = t.a === cup.user ? us : them; t.gb = t.a === cup.user ? them : us; t.winner = cup.user;
+  t.ga = t.a === cup.user ? us : them; t.gb = t.a === cup.user ? them : us; t.winner = cup.user; t.pens = !!pens;
   simRound(cup.rounds[cup.stage], rnd);
   const champion = advance(cup);
   return { result, retry: false, out: false, champion, advanced: true };

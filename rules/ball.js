@@ -5,13 +5,15 @@ export function makeBall(x = 0, z = 0) {
   return { x, y: BALL.r, z, vx: 0, vy: 0, vz: 0, curl: 0, inNet: false, spin: 0 };
 }
 
-export const ballSpeed = b => Math.hypot(b.vx, b.vy, b.vz);
+const PLAIN = { fric: 1, drag: 1, bounce: 1 };
+export const ballSpeed =b => Math.hypot(b.vx, b.vy, b.vz);
 export const groundSpeed = b => Math.hypot(b.vx, b.vz);
 
 // Advances a loose ball by dt. Pushes { type, ... } into events:
 // goal {x, y, speed}, post {bar}, out {where: 'byline' | 'side' | 'cleared', high}.
+// b.surface (rules/weather.js) scales rolling friction, drag and bounce: { fric, drag, bounce } or null.
 export function stepBall(b, dt, events = []) {
-  const r = BALL.r, px = b.x, py = b.y, pz = b.z;
+  const r = BALL.r, px = b.x, py = b.y, pz = b.z, sf = b.surface || PLAIN;
   const airborne = b.y > r + 1e-3 || b.vy > 0;
 
   if (airborne) {
@@ -23,7 +25,7 @@ export function stepBall(b, dt, events = []) {
     }
   } else {
     const h = groundSpeed(b);
-    const nh = Math.max(0, h - (BALL.rollFric + BALL.rollDrag * h) * dt);
+    const nh = Math.max(0, h - (BALL.rollFric * sf.fric + BALL.rollDrag * sf.drag * h) * dt);
     if (h > 1e-6) { b.vx *= nh / h; b.vz *= nh / h; }
     b.curl = 0;
   }
@@ -33,7 +35,7 @@ export function stepBall(b, dt, events = []) {
 
   if (b.y < r) {
     b.y = r;
-    if (b.vy < -1.2) { b.vy = -b.vy * BALL.bounce; b.vx *= 0.88; b.vz *= 0.88; }
+    if (b.vy < -1.2) { b.vy = -b.vy * BALL.bounce * sf.bounce; const k = sf.fric < 1 ? 0.94 : sf.fric > 1 ? 0.8 : 0.88; b.vx *= k; b.vz *= k; }
     else b.vy = 0;
   }
 

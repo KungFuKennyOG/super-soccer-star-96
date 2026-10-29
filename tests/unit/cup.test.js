@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCup, currentFixture, playUser, scenarioFor, table, simScore, userGroup, CONTINUES } from '../../rules/cup.js';
+import { createCup, currentFixture, playUser, scenarioFor, table, simScore, userGroup, CONTINUES, needsPens } from '../../rules/cup.js';
 import { byId } from '../../rules/teams.js';
 
 const seeded = (s = 7) => () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -78,4 +78,18 @@ test('the match-length setting stretches the scenario clock', () => {
   const a = scenarioFor(cup, currentFixture(cup), seeded(3), 1), b = scenarioFor(cup, currentFixture(cup), seeded(3), 2.5);
   assert.equal(b.clock, Math.round(a.clock * 2.5));
   assert.ok(b.minute < a.minute && b.minute >= 1);
+});
+
+test('a level knockout goes to penalties: win the shootout and you go through, lose it and it costs a continue', () => {
+  const cup = createCup('club', 'MAD', seeded(6));
+  assert.ok(needsPens(cup, 2, 2)); assert.ok(!needsPens(cup, 3, 2));
+  const opp = currentFixture(cup).opp;
+  const lost = playUser(cup, 2, 2, seeded(1), 'lost');
+  assert.ok(lost.retry); assert.equal(cup.continues, CONTINUES - 1);
+  const won = playUser(cup, 2, 2, seeded(1), 'won');
+  assert.ok(won.advanced);
+  const tie = cup.rounds.r16.find(t => t.a === 'MAD' || t.b === 'MAD');
+  assert.equal(tie.winner, 'MAD'); assert.ok(tie.pens); assert.ok([tie.a, tie.b].includes(opp));
+  const wc = createCup('world', 'BRA', seeded(2));
+  assert.ok(!needsPens(wc, 1, 1), 'group games can end level');
 });
