@@ -82,3 +82,14 @@ test('choosePass goes along the ground when it can and over the top when it must
   assert.ok(!choosePass({ x: 0, z: 0 }, t, [{ x: 5, z: -6 }], 'good', () => 0.5).lob);
   assert.ok(choosePass({ x: 0, z: 0 }, t, [{ x: 0.3, z: -6 }], 'good', () => 0.5).lob);
 });
+
+test('short passes stay on the ground; a pass to you leads you a few metres at most', () => {
+  const from = { x: 0, z: -10 }, near = { x: 0, z: -16, vx: 0, vz: 0 };
+  const blocker = [{ x: 0, z: -13 }];
+  assert.ok(!choosePass(from, near, blocker, 'perfect', () => 0.5).lob, 'six metres: no lob');
+  const far = { x: 0, z: -24, vx: 0, vz: 0 };
+  assert.ok(choosePass(from, far, [{ x: 0, z: -17 }], 'perfect', () => 0.5).lob, 'fourteen metres over a man: a lob');
+  const running = { x: 0, z: -18, vx: 0, vz: -8 };
+  const v = choosePass(from, running, [], 'perfect', () => 0.5, PASS.leadYou);
+  assert.ok(Math.abs(v.lead.z - running.z) <= PASS.leadYou + 1e-9, `lead ${v.lead.z}`);
+});

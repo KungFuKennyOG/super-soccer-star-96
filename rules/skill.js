@@ -9,9 +9,9 @@ const f = s => (Math.max(1, Math.min(5, s)) - 3) / 2;       // 1 star → -1, 3 
 
 // level: how cleverly they defend (BRAIN in tuning.js), from levelFor.
 export function tuneFor(home = 3, away = 3, level = 0) {
-  const h = f(home), a = f(away), k = SPREAD;
+  const h = f(home), a = f(away), k = SPREAD, brain = BRAIN[Math.max(0, Math.min(BRAIN.length - 1, level))];
   return {
-    home, away, level, brain: BRAIN[Math.max(0, Math.min(BRAIN.length - 1, level))],
+    home, away, level, brain,
     ai: {
       ...AI,
       // their defence
@@ -20,7 +20,7 @@ export function tuneFor(home = 3, away = 3, level = 0) {
       interceptSlow: AI.interceptSlow * (1 + k * a), interceptFast: AI.interceptFast * (1 + k * a),
       dragStun: AI.dragStun * (1 - 0.5 * k * a + 0.5 * k * h),
       // their keeper
-      gkReact: AI.gkReact * (1 - k * a), gkDive: AI.gkDive * (1 + k * a), gkReach: AI.gkReach * (1 + 0.6 * k * a),
+      gkReact: AI.gkReact * (1 - k * a) * (1 - brain.gkSharp), gkDive: AI.gkDive * (1 + k * a), gkReach: AI.gkReach * (1 + 0.6 * k * a) + 0.2 * brain.gkSharp,
       // your teammates
       mateRun: AI.mateRun * (1 + k * h), mateDribble: AI.mateDribble * (1 + k * h),
     },

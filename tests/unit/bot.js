@@ -1,5 +1,5 @@
 // A scripted attacker for balance tests: plays the attack the way a decent player would (dribble at
-// goal, pass when closed down, call it back, shoot from the edge of the box, chip an advancing keeper)
+// goal, pass when closed down, call it back for a one-two, shoot from the edge of the box, chip an advancing keeper)
 // and reports how often it scores. Not a test file itself; balance.test.js uses it.
 import { createWorld, stepSim, resetPlay, defenders } from '../../rules/sim.js';
 import { tuneFor } from '../../rules/skill.js';
@@ -80,11 +80,14 @@ export function intentFor(w, t, s) {
   }
   s.aim = null;
   if (w.owner && w.byId[w.owner].role === 'mate') {
+    // a one-two: call for it and edge forward, ready for the return
     it.call = w.ownT > 0.4;
-    // drift toward the box to get a cross or a return pass
-    it.move = norm(-you.x * 0.3, goal.z + 13 - you.z);
+    it.move = { x: 0, z: -0.25 }; it.sprint = false;
     return it;
   }
-  if (!w.owner) it.move = norm(b.x - you.x, b.z - you.z);
+  // a pass on its way to you: go where it's going, like a player reading the flight; else chase the ball
+  const pp = w.pendingPass;
+  if (!w.owner && pp && pp.to === 'you' && pp.lead && dist(you, pp.lead) > 0.4) it.move = norm(pp.lead.x - you.x, pp.lead.z - you.z);
+  else if (!w.owner) it.move = norm(b.x - you.x, b.z - you.z);
   return it;
 }

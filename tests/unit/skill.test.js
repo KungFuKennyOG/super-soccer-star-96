@@ -27,7 +27,7 @@ test('your stars make your teammates quicker and your shots crisper', () => {
 });
 
 test('the same shot beats a weak keeper and gets saved by a great one', () => {
-  const cross = { x: 2.8, y: 1.2, t: 0.6, onTarget: true };
+  const cross = { x: 3.1, y: 1.2, t: 0.6, onTarget: true };
   assert.equal(keeperSave({ x: 0 }, cross, 26, tuneFor(3, 1).ai), 'beaten');
   assert.notEqual(keeperSave({ x: 0 }, cross, 26, tuneFor(3, 5).ai), 'beaten');
 });

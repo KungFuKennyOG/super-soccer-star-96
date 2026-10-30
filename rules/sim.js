@@ -13,14 +13,14 @@
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
 // }
-import { MOVE, AI, GOAL, PITCH, BALL, AIR } from './tuning.js';
+import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, ballSpeed } from './ball.js';
 import { gradePass, choosePass } from './pass.js';
 import { shotVelocity, ballistic } from './shot.js';
 import { ballOnHead, canVolley, canBicycle, headerVelocity, volleyVelocity, bicycleVelocity, inBox, crossVelocity, flickVelocity } from './aerial.js';
-import { mateTarget, mateDecision, closest } from './ai.js';
+import { mateTarget, mateDecision, mateDribbleTarget, closest } from './ai.js';
 import { keeperTarget, keeperCheck, keeperClaim, shotPlan } from './keeper.js';
 import { initBrain, watchYou, dragFools, defenceTargets, mateSupport } from './brain.js';
 import { performSkill, SKILL } from './skills.js';
@@ -125,7 +125,9 @@ function shoot(w, p, eye, dir, holdT, rnd, ev) {
 }
 
 function pass(w, from, to, grade, rnd, ev) {
-  const v = choosePass({ x: w.ball.x, z: w.ball.z }, to, defenders(w), grade, rnd);
+  // a teammate's pass to you: near your feet, and on the ground unless someone's really in the way
+  const toYou = to.role === 'you';
+  const v = choosePass({ x: w.ball.x, z: w.ball.z }, to, defenders(w), grade, rnd, toYou ? PASS.leadYou : Infinity, toYou ? PASS.mateLane : undefined);
   launch(w, from, v);
   // a ball to the teammate making the run: he's a step ahead of his marker, so it's his unless a
   // defender is clearly in the way
@@ -256,7 +258,7 @@ function runOntoPass(p, b, lead, ai) {
 
 
 function mateOnBall(w, p, rnd, ev) {
-  const choice = mateDecision(p, defenders(w), w.ownT, w.called, !!(w.drill && w.drill.mateHold));
+  const choice = mateDecision(p, defenders(w), w.ownT, w.called, !!(w.drill && w.drill.mateHold), w.you);
   if (choice === 'hold') return { x: p.x, z: p.z, speed: 0 };
   if (choice === 'pass') {
     // you're in the box: whip a cross in for a header or a volley instead of passing to feet
@@ -272,13 +274,14 @@ function mateOnBall(w, p, rnd, ev) {
     return null;
   }
   if (choice === 'shoot') {
-    const side = Math.sign(rnd() - 0.5) || 1;
-    const aim = { x: side * (GOAL.halfW - 0.4 - rnd() * 0.9), y: 0.3 + rnd() * 1.7, z: GOAL.z };
+    // the far side from the keeper (either if he's central), low or high
+    const gk = w.byId.gk, side = Math.abs(gk.x) > 0.4 ? -Math.sign(gk.x) : Math.sign(rnd() - 0.5) || 1;
+    const aim = { x: side * (GOAL.halfW - 0.45 - rnd() * 0.8), y: rnd() < 0.6 ? 0.3 + rnd() * 0.5 : 1.5 + rnd() * 0.6, z: GOAL.z };
     launch(w, p, ballistic(w.ball, aim, 23 + rnd() * 5));
     startShot(w, p, ev, 0.8);
     return null;
   }
-  return { x: clamp(p.x * 0.6, -10, 10), z: GOAL.z + 10, speed: w.tune.ai.mateDribble };
+  return mateDribbleTarget(p, defenders(w), w.tune.ai);
 }
 
 /* ---------- the ball ---------- */
@@ -328,8 +331,10 @@ function looseBall(w, rnd, ev) {
   // a pass's receiver gets first touch unless a defender is clearly closer; a ball just lofted
   // (a lob or cross on its way up) can't be cut out by the man next to the passer
   const pp = w.pendingPass, rec = pp && w.byId[pp.to];
-  const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive : pp && pp.run ? 1.8 : 1.2;
-  const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.7) : 0.4;
+  const recD = rec ? dist(rec, b) : Infinity, recR = rec && rec.role === 'you' ? AI.receive * (pp.lob ? 1.5 : 1) : pp && pp.run ? 1.8 : 1.2;
+  // the receiver's first touch unless a defender is clearly closer: you get the benefit of the doubt,
+  // and so does a teammate making a run (runMargin, by level)
+  const runM = w.tune.brain.runMargin, margin = pp && pp.run ? (pp.grade === 'perfect' ? runM : runM * 0.7) : pp && pp.to === 'you' ? AI.youMargin : 0.4;
   const rising = b.vy > 0 && b.y > 0.45;
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;

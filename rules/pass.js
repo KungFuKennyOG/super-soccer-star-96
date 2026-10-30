@@ -27,22 +27,27 @@ export const GRADES = {
 // Firmer over distance, within limits.
 export const passSpeed = d => clamp(9 + d * 0.75, 11, 22);
 
-// Where to send it so a moving receiver runs onto it.
-export function leadPoint(from, target, speed) {
+// Where to send it so a moving receiver runs onto it, at most maxLead metres ahead of him.
+export function leadPoint(from, target, speed, maxLead = Infinity) {
   let p = { x: target.x, z: target.z };
   for (let i = 0; i < 3; i++) {
     const t = dist(from, p) / speed;
-    p = { x: target.x + (target.vx || 0) * t, z: target.z + (target.vz || 0) * t };
+    p = capLead(target, { x: target.x + (target.vx || 0) * t, z: target.z + (target.vz || 0) * t }, maxLead);
   }
   return p;
 }
+function capLead(target, p, maxLead) {
+  const d = dist(target, p);
+  if (d <= maxLead) return p;
+  return { x: target.x + (p.x - target.x) * maxLead / d, z: target.z + (p.z - target.z) * maxLead / d };
+}
 
 // Ball velocity for a pass from `from` to `target` ({x, z, vx, vz}) at a grade. rnd() is 0..1.
-export function passVelocity(from, target, grade, rnd = Math.random) {
+export function passVelocity(from, target, grade, rnd = Math.random, maxLead = Infinity) {
   const g = GRADES[grade];
   const base = passSpeed(dist(from, target));
   const speed = base * g.speedMul;
-  const p = leadPoint(from, target, speed * 0.85); // the ball slows as it rolls
+  const p = leadPoint(from, target, speed * 0.85, maxLead); // the ball slows as it rolls
   const dir = rot(norm(p.x - from.x, p.z - from.z), (rnd() * 2 - 1) * g.err);
   return { vx: dir.x * speed, vy: g.lift, vz: dir.z * speed, speed, lead: p };
 }
@@ -66,12 +71,12 @@ export function laneBlocked(from, to, defenders, near = PASS.lobNear, far = PASS
 const LOB_ERR = { perfect: 0, good: 0.05, poor: 0.18, miss: 0.3 };
 
 // A lofted pass that drops onto the receiver's run. Flight time grows with distance.
-export const lobTime = d => clamp(0.75 + d * 0.05, 1.0, 1.7);
-export function lobVelocity(from, target, grade, rnd = Math.random) {
+export const lobTime = d => clamp(0.85 + d * 0.05, 1.2, 1.8);   // (1.2 s at least: it clears a man's head)
+export function lobVelocity(from, target, grade, rnd = Math.random, maxLead = Infinity) {
   const g = GRADES[grade];
   let p = { x: target.x, z: target.z }, T = lobTime(dist(from, p));
   for (let i = 0; i < 3; i++) {
-    p = { x: target.x + (target.vx || 0) * T, z: target.z + (target.vz || 0) * T };
+    p = capLead(target, { x: target.x + (target.vx || 0) * T, z: target.z + (target.vz || 0) * T }, maxLead);
     T = lobTime(dist(from, p));
   }
   const d = dist(from, p), long = 1 + (rnd() * 2 - 1) * LOB_ERR[grade] - (grade === 'miss' ? 0.2 : 0);
@@ -81,8 +86,12 @@ export function lobVelocity(from, target, grade, rnd = Math.random) {
 }
 
 // Ground pass when the lane is clear, a lob over anyone in the way.
-export function choosePass(from, target, defenders, grade, rnd = Math.random) {
-  return laneBlocked(from, target, defenders) ? lobVelocity(from, target, grade, rnd) : passVelocity(from, target, grade, rnd);
+// maxLead: how far ahead of the receiver it can be played (a pass to you stays near your feet, since
+// you may change direction).
+// lane: [near, far] corridor widths for the lob decision (a teammate's eye is a bit sharper than the HUD's).
+export function choosePass(from, target, defenders, grade, rnd = Math.random, maxLead = Infinity, lane = [PASS.lobNear, PASS.lobFar]) {
+  const lob = dist(from, target) >= PASS.lobMin && laneBlocked(from, target, defenders, lane[0], lane[1]);   // a short one always goes on the ground
+  return lob ? lobVelocity(from, target, grade, rnd, maxLead) : passVelocity(from, target, grade, rnd, maxLead);
 }
 
 // Pick the teammate the player is looking at: smallest angle off the gaze, any distance.

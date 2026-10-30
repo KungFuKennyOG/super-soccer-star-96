@@ -1,27 +1,56 @@
 // What the computer players want to do. Each function returns targets or a decision;
 // the sim does the moving. Pure: plain { x, z } objects only.
-import { AI, GOAL, PITCH } from './tuning.js';
+import { AI, GOAL, PITCH, PASS } from './tuning.js';
 import { clamp, dist, norm } from './vec.js';
+import { laneBlocked } from './pass.js';
 
 const goalC = { x: 0, z: GOAL.z };
 
-// Defenders: the one closest to the ball presses it, the rest each mark an attacker goal-side.
-// defs, attackers: [{ id, x, z }]. owner: id of the ball carrier or null. Returns Map id → { x, z, speed, role }.
-export function defenderTargets(defs, attackers, ball, owner, ai = AI) {
+// Defenders, as a unit (ai.press etc. from rules/skill.js tuneFor):
+//   press   the man nearest the carrier comes at him from the goal side (so you can't just run
+//           straight past him), then goes in for the ball once he's close: beat him as he commits
+//   mark    the most dangerous free attackers (nearest goal) are marked goal-side and a step ball-side,
+//           so a lazy pass into them gets cut out
+//   cover   an attacker out of harm's way is left: that defender drops between the ball and goal
+//           instead, to meet you if you beat the presser
+// A loose ball: the nearest chases it, the rest mark; a pass in flight isn't chased, its receiver is
+// closed down instead (lob: the receiver's player object while a pass is on its way to him), so only a
+// defender already in the lane can cut it out.
+// Returns Map id -> { x, z, speed, role }.
+export function defenderTargets(defs, attackers, ball, owner, ai = AI, lob = null) {
   const out = new Map();
   const live = defs.filter(d => !d.stun);
-  const chaser = closest(live.length ? live : defs, ball);
-  if (chaser) out.set(chaser.id, { x: ball.x, z: ball.z, speed: owner ? ai.press : ai.chase, role: 'press' });
+  const carrier = owner ? attackers.find(a => a.id === owner) : null;
+  const first = closest(live.length ? live : defs, carrier || ball);
+  if (first && carrier) {
+    // goal-side of him, reading where he's going; once there, in for the ball
+    const g = norm(goalC.x - carrier.x, goalC.z - carrier.z);
+    const lead = { x: carrier.x + (carrier.vx || 0) * ai.pressLead, z: carrier.z + (carrier.vz || 0) * ai.pressLead };
+    const spot = { x: lead.x + g.x * ai.pressGap, z: lead.z + g.z * ai.pressGap };
+    const there = dist(first, spot) < 0.9 || dist(first, carrier) < ai.pressIn;
+    out.set(first.id, there ? { x: ball.x, z: ball.z, speed: ai.press, role: 'press' } : { ...spot, speed: ai.press, role: 'press' });
+  } else if (first && lob) {
+    // tight on him from the far side of the ball, ready to tackle on his first touch
+    const c = closest(live.length ? live : defs, lob), g = norm(lob.x - ball.x, lob.z - ball.z);
+    out.set(c.id, { x: lob.x + g.x * 0.9, z: lob.z + g.z * 0.9, speed: ai.chase, role: 'press' });
+  } else if (first) out.set(first.id, { x: ball.x, z: ball.z, speed: ai.chase, role: 'press' });
 
-  // greedy: each remaining defender takes the nearest unmarked attacker who isn't on the ball
-  const free = attackers.filter(a => a.id !== owner);
-  for (const d of defs) {
-    if (out.has(d.id)) continue;
-    const m = closest(free, d);
-    if (!m) { out.set(d.id, { x: 0, z: GOAL.z + 12, speed: ai.mark, role: 'zone' }); continue; }
-    free.splice(free.indexOf(m), 1);
-    const g = norm(goalC.x - m.x, goalC.z - m.z);
-    out.set(d.id, { x: m.x + g.x * 2.2, z: m.z + g.z * 2.2, speed: ai.mark, role: 'mark' });
+  // the rest: mark the dangerous ones, nearest goal first; whoever's left with nobody worth marking covers
+  const free = attackers.filter(a => a.id !== owner).sort((a, b) => dist(a, goalC) - dist(b, goalC));
+  const rest = defs.filter(d => !out.has(d.id));
+  for (const m of free) {
+    if (!rest.length) break;
+    const danger = dist(m, goalC) < ai.markDanger || m === free[0];
+    if (!danger) continue;
+    const d = closest(rest, m);
+    rest.splice(rest.indexOf(d), 1);
+    const g = norm(goalC.x - m.x, goalC.z - m.z), toBall = norm(ball.x - m.x, ball.z - m.z);
+    out.set(d.id, { x: m.x + g.x * ai.markGoal + toBall.x * ai.markBall, z: m.z + g.z * ai.markGoal + toBall.z * ai.markBall, speed: ai.mark, role: 'mark' });
+  }
+  for (const d of rest) {
+    const g = norm(goalC.x - ball.x, goalC.z - ball.z);
+    const back = Math.min(ai.coverGap, Math.max(1.5, dist(ball, goalC) - 6));
+    out.set(d.id, { x: ball.x + g.x * back, z: Math.max(GOAL.z + 3, ball.z + g.z * back), speed: ai.mark, role: 'cover' });
   }
   return out;
 }
@@ -40,17 +69,43 @@ export function mateTarget(mate, ball, you, defs, ownerIsHome, loose, ai = AI) {
   return { x: tx, z: tz, speed: ai.mateRun, role: 'run' };
 }
 
-// A teammate on the ball: 'pass' back to you, 'shoot', or keep 'dribble'-ing at goal.
-// hold (training drills): he waits on the ball until you call for it.
-export function mateDecision(mate, defs, heldT, called, hold = false) {
+// A teammate on the ball: 'pass' back to you, 'shoot', or keep 'dribble'-ing. He shoots when he's
+// close or has a clear sight of goal, gives it back when you call, when you're better placed and open,
+// or when he's pressed and the lane to you is clear; otherwise he carries it into space.
+// hold (training drills): he waits on the ball until you call for it. you: your position (optional).
+export function mateDecision(mate, defs, heldT, called, hold = false, you = null) {
   if (hold) return called && heldT > 0.15 ? 'pass' : 'hold';
-  const near = closest(defs, mate);
-  const dGoal = dist(mate, goalC);
-  if (called && heldT > 0.15) return 'pass';
-  if (dGoal < 17 && Math.abs(mate.x) < 12 && heldT > 0.5) return 'shoot';
-  if (near && dist(near, mate) < 2.2 && heldT > 0.3) return 'pass';
-  if (heldT > 2.2) return 'pass';
+  // called: straight back, unless a defender is right on you or standing in the way of a short one
+  // (too short to loft): then a touch first to open the angle, and it comes after a moment anyway
+  if (called && heldT > 0.15) {
+    if (!you || heldT > 1.8) return 'pass';
+    const onYou = defs.some(d => dist(d, you) < 1.2), cut = dist(mate, you) < PASS.lobMin && laneBlocked(mate, you, defs, 1.2, 1.2);
+    return (onYou && heldT < 0.8) || cut ? 'dribble' : 'pass';
+  }
+  const dGoal = dist(mate, goalC), near = closest(defs, mate), pressure = near ? dist(near, mate) : 99;
+  const sight = !laneBlocked(mate, { x: -Math.sign(mate.x || 1) * 1.8, z: GOAL.z }, defs, 0.6, 0.9);
+  if (heldT > 0.3 && dGoal < 9) return 'shoot';
+  if (heldT > 0.45 && dGoal < 17 && Math.abs(mate.x) < 11 && sight) return 'shoot';
+  if (you && heldT > 0.35) {
+    const lane = !laneBlocked(mate, you, defs), open = defs.every(d => dist(d, you) > 2.6);
+    if (lane && open && dist(you, goalC) < dGoal - 3) return 'pass';
+    if (pressure < 2.0) return lane || heldT > 1.1 ? 'pass' : 'dribble';
+  } else if (pressure < 2.2 && heldT > 0.3) return 'pass';
+  if (heldT > 2.6) return 'pass';
   return 'dribble';
+}
+
+// Where a teammate carries the ball: at goal, bending away from the nearest defender.
+export function mateDribbleTarget(mate, defs, ai = AI) {
+  const aim = { x: clamp(mate.x * 0.55, -8, 8), z: GOAL.z + 9 };
+  const g = norm(aim.x - mate.x, aim.z - mate.z), near = closest(defs, mate);
+  let dx = g.x, dz = g.z;
+  if (near && dist(near, mate) < 5) {
+    const away = norm(mate.x - near.x, mate.z - near.z), k = (5 - dist(near, mate)) / 5;
+    dx += away.x * k * 1.4; dz += away.z * k * 0.6;
+  }
+  const d = norm(dx, dz);
+  return { x: clamp(mate.x + d.x * 4, -14, 14), z: Math.max(GOAL.z + 6, mate.z + d.z * 4), speed: ai.mateDribble, role: 'dribble' };
 }
 
 // Keeper's spot: on the line from goal to ball, a step off the line, never wider than the posts.
