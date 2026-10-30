@@ -14,7 +14,7 @@
 <body>
 <script type="module">
 import * as THREE from 'three';
-import { buildPlayer, animate, placeModel } from '../game/actors.js';
+import { buildPlayer, animate, placeModel, handsOf } from '../game/actors.js';
 import { byId, keeperKit } from '../rules/teams.js';
 const q = new URLSearchParams(location.search);
 const kits = (q.get('kit') || 'MAD,BAR,MUN,LIV,ITA').split(',');
@@ -56,7 +56,15 @@ function poseOne(m, p, dt, tt) {
 }
 // frozen moments: each player shows the move at its own time
 if (times) {
-  players.forEach(({ m, p }, i) => { for (let tt = 0; tt < (times[i] ?? times[times.length - 1]); tt += 1 / 60) poseOne(m, p, 1 / 60, tt); placeModel(m, p); });
+  players.forEach(({ m, p }, i) => {
+    for (let tt = 0; tt < (times[i] ?? times[times.length - 1]); tt += 1 / 60) poseOne(m, p, 1 / 60, tt);
+    placeModel(m, p);
+    // a caught ball sits in his gloves (as game/main.js draws it)
+    if (saveKind === 'catch' && m.save && m.save.t > m.save.touch) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
+      scene.add(b); handsOf(m, b.position);
+    }
+  });
 }
 function tick(dt) {
   t += dt;

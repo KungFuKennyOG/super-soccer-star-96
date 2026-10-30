@@ -18,7 +18,7 @@ import { buildStadium } from './stadium.js';
 import { pickWeather, applyWeather, WEATHER } from '../rules/weather.js';
 import { createWeather } from './weather.js';
 import { createResults, loadBest } from './results.js';
-import { buildBall, buildArrow, animate, placeModel } from './actors.js';
+import { buildBall, buildArrow, animate, placeModel, handsOf } from './actors.js';
 import { createSquads } from './squad.js';
 import { createMenus, LENGTHS } from './menus.js';
 import { createCeremony } from './trophy.js';
@@ -309,6 +309,7 @@ const loop = startLoop(renderer, (dt, t) => {
   const yo = models.you, ys = Math.hypot(you.vx, you.vz);
   yo.root.rotation.y = ys > 0.5 ? Math.atan2(you.vx, you.vz) : Math.atan2(you.fx, you.fz);
   ball.update(world.ball, simDt);
+  holdInGloves(dt);
   juice.update(dt, ball.mesh, world.ball);
   const carrier = world.owner && world.owner !== 'you' ? world.byId[world.owner] : null;
   callT = Math.max(0, callT - dt);
@@ -328,6 +329,19 @@ const loop = startLoop(renderer, (dt, t) => {
   }
   renderer.render(scene, camera);
 }, { onFps: fps => { $('fps').textContent = `${fps} FPS`; } });
+
+// When the keeper has it, the ball is drawn in his gloves (the sim keeps it at his feet): it slides
+// into his hands over a tenth of a second as he takes it, and stays there through the dive and the hug.
+const gloveBall = new THREE.Vector3();
+let heldK = 0;
+function holdInGloves(dt) {
+  heldK = world.owner === 'gk' ? Math.min(1, heldK + dt * 10) : 0;
+  if (!heldK || !models.gk) return;
+  handsOf(models.gk, gloveBall);
+  gloveBall.y = Math.max(0.13, gloveBall.y);
+  ball.mesh.position.lerp(gloveBall, heldK);
+  ball.shadow.position.set(gloveBall.x + gloveBall.y * 0.25, 0.021, gloveBall.z - gloveBall.y * 0.12);
+}
 
 function updateHud() {
   const playing = mode === 'play' && world.owner === 'you' && !world.dead;

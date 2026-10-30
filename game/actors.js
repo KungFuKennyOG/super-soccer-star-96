@@ -151,6 +151,14 @@ function dancePose(bn, g) {
   bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = 0;
 }
 
+// The middle of a player's two hands in world space (out): where the keeper holds the ball.
+const handA = new THREE.Vector3(), handB = new THREE.Vector3();
+export function handsOf(m, out) {
+  m.root.updateMatrixWorld(true);
+  m.bone.handL.getWorldPosition(handA); m.bone.handR.getWorldPosition(handB);
+  return out.copy(handA).add(handB).multiplyScalar(0.5);
+}
+
 // Shadows fall away from the floodlight behind your left shoulder, stretched like the PS2-era ones.
 const SHADOW_DIR = { x: 0.26, z: -0.12, ang: Math.atan2(0.26, -0.12) };
 export function placeModel(m, p) {

@@ -1,4 +1,4 @@
-// The goalkeeper's body. The sim says what he's doing (p.save { y, kind, id } when he goes for a shot,
+// The goalkeeper's body. The sim says what he's doing (p.save { y, kind, id, eta } when he goes for a shot,
 // p.dive -1 / 0 / 1 for which way, p.holding); this poses it.
 //
 //   stance       crouched and square to the ball, weight forward, arms out; side-steps instead of
@@ -11,7 +11,13 @@
 import { restPose } from './body.js';
 
 const D = { load: 0.1, fly: 0.48, land: 0.62, ground: 1.15, kneel: 1.5, end: 1.85 };
-const STAND = 0.95;
+const STAND = 0.95, STAND_TOUCH = 0.22;
+// the ball held against his chest: upper arms down and in, forearms folded up across
+const HUG = { up: -0.55, in: 0.32, fore: -1.7 };
+function hug(bn, k) {
+  bn.upperArmL.rotation.set(HUG.up * k, 0, -HUG.in * k); bn.upperArmR.rotation.set(HUG.up * k, 0, HUG.in * k);
+  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = HUG.fore * k;
+}
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const ease = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
 const mix = (a, b, k) => a + (b - a) * k;
@@ -22,9 +28,15 @@ export function animateKeeper(m, p, dt, t, ball) {
   restPose(bn);
   if (m.bigHead) bn.head.scale.setScalar(1.65);
   // a new save attempt: latch it so the move plays out even after the sim has moved on
-  if (p.save && !m.save && p.save.id !== m.saveId) { m.saveId = p.save.id; m.save = { ...p.save, dir: p.dive || 0, t: 0, stand: !p.dive }; }
+  if (p.save && !m.save && p.save.id !== m.saveId) {
+    // timed so his hands get there when the ball does (eta from the sim), within reason
+    const touch = p.dive ? D.fly - 0.06 : STAND_TOUCH, eta = p.save.eta ?? touch;
+    m.saveId = p.save.id;
+    m.save = { ...p.save, dir: p.dive || 0, t: 0, stand: !p.dive, touch, rate: Math.max(0.55, Math.min(2.4, touch / Math.max(0.12, eta))) };
+  }
   if (m.save) {
-    m.save.t += dt;
+    const s = m.save;
+    s.t += dt * (s.t < s.touch ? s.rate : 1);
     const live = m.save.stand ? standSave(bn, m.save, p) : dive(bn, m.save, p);
     if (live) return;
     m.save = null;
@@ -56,9 +68,7 @@ function stance(m, p, dt, t, ball) {
   bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.78 * crouch + 0.05;
   bn.footL.rotation.x = bn.footR.rotation.x = -0.32 * crouch;
   if (p.holding) {
-    // ball hugged into the chest
-    bn.upperArmL.rotation.set(-1.15, 0, -0.38); bn.upperArmR.rotation.set(-1.15, 0, 0.38);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -1.55;
+    hug(bn, 1);
     bn.spine.rotation.x = 0.12; bn.hips.position.y += 0.09;
     return;
   }
@@ -123,12 +133,14 @@ function dive(bn, s, p) {
   // the touch: a catch gathers the ball in, a parry is a stiff-wristed push away
   const touched = t > D.fly - 0.06;
   if (touched && catching && t < D.kneel) {
+    // gather it in: the arms fold the ball into his chest as he lands
     const g = ease((t - (D.fly - 0.06)) / 0.3);
-    bn['upperArm' + lead].rotation.set(mix(-0.15, -1.1, g), 0, mix(lz, -sz * 0.35, g));
-    bn['upperArm' + trail].rotation.set(mix(-0.35, -1.1, g), 0, mix(tz, sz * 0.35, g));
-    bn['foreArm' + lead].rotation.x = bn['foreArm' + trail].rotation.x = mix(-0.15, -1.5, g);
+    bn['upperArm' + lead].rotation.set(mix(-0.15, HUG.up, g), 0, mix(lz, -sz * HUG.in, g));
+    bn['upperArm' + trail].rotation.set(mix(-0.35, HUG.up, g), 0, mix(tz, sz * HUG.in, g));
+    bn['foreArm' + lead].rotation.x = bn['foreArm' + trail].rotation.x = mix(-0.15, HUG.fore, g);
     bn.spine.rotation.x += 0.25 * g;
-  } else if (touched && t < D.land + 0.1) {
+  } else if (catching && t >= D.kneel) hug(bn, 1);   // and keeps it there as he gets up
+  else if (touched && t < D.land + 0.1) {
     bn['hand' + lead].rotation.z = sz * 0.6;
     bn['hand' + lead].rotation.x = -0.5;
   }
@@ -150,27 +162,49 @@ function standSave(bn, s, p) {
   const t = s.t;
   if (t > STAND) return false;
   const k = ease(t / 0.16) * (1 - ease((t - (STAND - 0.3)) / 0.3)), y = s.y;
+  // from his ready crouch to the save and back: pose the save fully, then blend from the ready pose by k
+  readyPose(bn);
+  const from = snapshot(bn);
+  restPose(bn);
   if (y < 0.55) {
     // down on one knee behind it, hands together scooping
-    bn.hips.position.y -= 0.38 * k; bn.spine.rotation.x = 0.85 * k; bn.neck.rotation.x = -0.6 * k;
-    bn.upperLegL.rotation.x = -1.45 * k; bn.lowerLegL.rotation.x = 1.5 * k;
-    bn.upperLegR.rotation.x = 0.1 * k; bn.lowerLegR.rotation.x = 1.9 * k;
-    bn.upperArmL.rotation.set(-0.5 * k, 0, -0.15 * k); bn.upperArmR.rotation.set(-0.5 * k, 0, 0.15 * k);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.3 * k;
+    bn.hips.position.y -= 0.38; bn.spine.rotation.x = 0.85; bn.neck.rotation.x = -0.6;
+    bn.upperLegL.rotation.x = -1.45; bn.lowerLegL.rotation.x = 1.5;
+    bn.upperLegR.rotation.x = 0.1; bn.lowerLegR.rotation.x = 1.9;
+    bn.upperArmL.rotation.set(-0.5, 0, -0.15); bn.upperArmR.rotation.set(-0.5, 0, 0.15);
+    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.3;
   } else if (y < 1.55) {
-    // into the chest: arms forward then folding in, a step back on the impact
-    const g = ease((t - 0.18) / 0.2);
-    bn.hips.position.y -= 0.08 * k; bn.spine.rotation.x = (0.3 - 0.25 * g) * k;
-    bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = -0.3 * k; bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.5 * k;
-    bn.upperArmL.rotation.set(-mix(1.4, 1.15, g) * k, 0, -0.35 * g * k); bn.upperArmR.rotation.set(-mix(1.4, 1.15, g) * k, 0, 0.35 * g * k);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -mix(0.3, 1.55, g) * k;
+    // into the chest: arms forward to meet it, then folding it in
+    const g = ease((t - (STAND_TOUCH - 0.04)) / 0.16);
+    bn.hips.position.y -= 0.08; bn.spine.rotation.x = 0.3 - 0.25 * g;
+    bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = -0.3; bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.5;
+    bn.upperArmL.rotation.set(mix(-1.4, HUG.up, g), 0, -HUG.in * g); bn.upperArmR.rotation.set(mix(-1.4, HUG.up, g), 0, HUG.in * g);
+    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = mix(-0.3, HUG.fore, g);
   } else {
     // up for it: a spring off both feet, hands high in a W
-    bn.hips.position.y += 0.18 * Math.sin(Math.PI * clamp01(t / 0.5)) * k;
-    bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = -0.15 * k; bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.35 * k;
-    bn.upperArmL.rotation.set(-2.7 * k, 0, -0.15 * k); bn.upperArmR.rotation.set(-2.7 * k, 0, 0.15 * k);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.25 * k;
-    bn.neck.rotation.x = -0.35 * k;
+    bn.hips.position.y += 0.18 * Math.sin(Math.PI * clamp01(t / 0.5));
+    bn.upperLegL.rotation.x = bn.upperLegR.rotation.x = -0.15; bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.35;
+    bn.upperArmL.rotation.set(-2.7, 0, -0.15); bn.upperArmR.rotation.set(-2.7, 0, 0.15);
+    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.25;
+    bn.neck.rotation.x = -0.35;
   }
+  blendFrom(bn, from, k);
   return true;
+}
+
+// his ready crouch with hands out (what the stance draws close to the ball, standing still)
+function readyPose(bn) {
+  bn.hips.position.y -= 0.13; bn.spine.rotation.x = 0.38; bn.neck.rotation.x = -0.27;
+  bn.upperLegL.rotation.set(-0.44, 0, 0.18); bn.upperLegR.rotation.set(-0.44, 0, -0.18);
+  bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.83; bn.footL.rotation.x = bn.footR.rotation.x = -0.32;
+  bn.upperArmL.rotation.set(-0.8, 0, 0.38); bn.upperArmR.rotation.set(-0.8, 0, -0.38);
+  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -1.05;
+}
+const snapshot = bn => Object.entries(bn).map(([k, b]) => [k, b.rotation.x, b.rotation.y, b.rotation.z, b.position.y]);
+function blendFrom(bn, from, k) {
+  for (const [key, x, y, z, py] of from) {
+    const b = bn[key];
+    b.rotation.set(mix(x, b.rotation.x, k), mix(y, b.rotation.y, k), mix(z, b.rotation.z, k));
+    b.position.y = mix(py, b.position.y, k);
+  }
 }

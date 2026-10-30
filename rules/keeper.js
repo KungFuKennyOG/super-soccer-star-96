@@ -32,7 +32,7 @@ export function keeperTarget(w, gk) {
     // straight at him: a standing save; otherwise he dives. save: what the animation needs (game/keeperpose.js)
     const dx = s.save.x - gk.x;
     gk.dive = Math.abs(dx) < KEEPER.standSave && s.decision !== 'beaten' ? 0 : Math.sign(dx) || 1;
-    gk.save = { y: s.save.y, kind: s.decision, id: s.t0 };
+    gk.save = { y: s.save.y, kind: s.decision, id: s.t0, eta: s.t0 + s.save.t - w.time };   // eta: until the ball gets there
     return { x: s.save.x, z: gk.z, speed: ai.gkDive };
   }
   gk.dive = 0; gk.save = null;
