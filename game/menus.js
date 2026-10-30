@@ -9,7 +9,7 @@ import { byId, nationToward } from '../rules/teams.js';
 import { drawWorldMap } from './worldmap.js';
 import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.js';
 import { WEATHER_SETTING } from '../rules/weather.js';
-import { LOCKER, CHALLENGES, unlocked, unlockedBy, doneCount, rewardName } from '../rules/challenges.js';
+import { LOCKER } from './display.js';
 
 const W = 256, H = 192;
 const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK' };
@@ -18,7 +18,6 @@ const MODES = [
   { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS: GROUPS + KNOCKOUTS' },
   { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS: STRAIGHT KNOCKOUTS' },
   { id: 'training', name: 'TRAINING', sub: 'LEARN AND TEST EVERY MOVE' },
-  { id: 'challenges', name: 'CHALLENGES', sub: 'FEATS TO PULL OFF, KIT TO UNLOCK' },
   { id: 'settings', name: 'SETTINGS', sub: 'OPTIONS AND YOUR LOCKER' },
 ];
 
@@ -95,15 +94,14 @@ export function createMenus(scene, camera) {
     logo(ctx, 3);
     // mode buttons; the picked one's description shows in the hint line
     MODES.forEach((m, i) => {
-      const y = 47 + i * 16, on = i === sel;
-      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 15);
+      const y = 50 + i * 20, on = i === sel;
+      ctx.fillStyle = on ? '#f2c21a' : '#1a2350'; ctx.fillRect(28, y, W - 56, 16);
       drawText(ctx, m.name, 38, y + 1, on ? '#05072a' : '#ffffff', 2, on ? null : '#000');
-      if (m.id === 'challenges') drawText(ctx, `${doneCount(data.progress)}/${CHALLENGES.length}`, W - 62, y + 4, on ? '#05072a' : '#f2c21a');
     });
     hint(`${MODES[sel].sub} - A`);
   }
 
-  const rowOpts = r => (r.locker ? unlocked(data.progress, r.key) : r.opts.map((_, i) => i));
+  const rowOpts = r => r.opts.map((_, i) => i);
   function drawSettings() {
     frame('SETTINGS');
     const st = data.settings;
@@ -114,33 +112,8 @@ export function createMenus(scene, camera) {
       drawText(ctx, r.name, 38, y, on ? '#f2c21a' : '#9aa8e0');
       const v = r.opts[st[r.key]] || r.opts[0], n = rowOpts(r).length, val = on && n > 1 ? `< ${v} >` : v;
       drawText(ctx, val, W - 38 - textWidth(val), y, on ? '#ffffff' : '#c8d4ff');
-      if (r.locker && n < r.opts.length) drawText(ctx, `${n}/${r.opts.length}`, 112, y, '#5a6090');
     });
-    const r = ROWS[sel];
-    if (r.locker) {
-      const next = r.opts.map((_, i) => i).find(i => !rowOpts(r).includes(i));
-      const c = next !== undefined && unlockedBy(r.key, next);
-      hint(c ? `UNLOCK ${r.opts[next]}: ${c.desc}` : 'ALL UNLOCKED - LEFT/RIGHT - B BACK');
-    } else hint('LEFT/RIGHT TO CHANGE - B BACK');
-  }
-
-  function drawChallenges() {
-    const done = data.progress.done;
-    frame(`CHALLENGES ${doneCount(data.progress)}/${CHALLENGES.length}`);
-    const top = Math.max(0, Math.min(CHALLENGES.length - 11, sel - 5));
-    CHALLENGES.slice(top, top + 11).forEach((c, k) => {
-      const i = top + k, y = 20 + k * 11, on = i === sel, ok = !!done[c.id];
-      if (on) { ctx.fillStyle = '#26306a'; ctx.fillRect(6, y - 2, W - 12, 11); }
-      ctx.fillStyle = ok ? '#40c060' : '#3a4070'; ctx.fillRect(10, y, 7, 7);
-      if (ok) drawText(ctx, '*', 10, y, '#ffffff', 1, null);
-      drawText(ctx, c.name, 22, y, ok ? '#ffffff' : '#9aa8e0');
-      if (c.reward) { const u = rewardName(c); drawText(ctx, u, W - 10 - textWidth(u), y, ok ? '#f2c21a' : '#5a6090'); }
-    });
-    const c = CHALLENGES[sel];
-    ctx.fillStyle = '#c8102e'; ctx.fillRect(0, 144, W, 26);
-    centre(ctx, c.desc, 148, '#ffffff');
-    centre(ctx, c.reward ? `UNLOCKS ${rewardName(c)}` : done[c.id] ? 'DONE!' : 'FOR THE GLORY', 159, '#f2c21a', 1, null);
-    hint('UP/DOWN - B BACK');
+    hint('LEFT/RIGHT TO CHANGE - B BACK');
   }
 
   // World Cup: pick on a world map; the stick moves to the nearest nation in that direction.
@@ -267,7 +240,6 @@ export function createMenus(scene, camera) {
   function draw() {
     if (screen === 'mode') drawMode();
     else if (screen === 'settings') drawSettings();
-    else if (screen === 'challenges') drawChallenges();
     else if (screen === 'team') drawTeam();
     else if (screen === 'hub') drawHub();
     else drawMessage();
@@ -277,8 +249,8 @@ export function createMenus(scene, camera) {
   return {
     get screen() { return screen; },
     get sel() { return sel; },
-    // screen: 'mode' | 'settings' | 'challenges' | 'team' | 'hub' | 'message'. data depends on the screen:
-    // mode { progress }, settings { settings, progress }, challenges { progress }, team { mode, teams, start? },
+    // screen: 'mode' | 'settings' | 'team' | 'hub' | 'message'. data depends on the screen:
+    // mode {}, settings { settings }, team { mode, teams, start? },
     // hub { cup }, message { title, lines: [{ text, big?, color? }], ok? }
     open(s, d = {}, at = 0) {
       screen = s; data = d; sel = at;
@@ -311,11 +283,6 @@ export function createMenus(scene, camera) {
           if (to !== st[r.key]) { st[r.key] = to; act = { settings: st }; }
         }
         if (nav.back) act = { back: true };
-      } else if (screen === 'challenges') {
-        const n = CHALLENGES.length;
-        if (nav.up) sel = (sel + n - 1) % n;
-        if (nav.down) sel = (sel + 1) % n;
-        if (nav.back || nav.ok) act = { back: true };
       } else if (screen === 'team' && data.mode === 'world') {
         for (const d of ['left', 'right', 'up', 'down']) {
           if (!nav[d]) continue;

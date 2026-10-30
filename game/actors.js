@@ -161,7 +161,7 @@ export function placeModel(m, p) {
 
 /* ---------- ball ---------- */
 
-// Ball designs (the locker, rules/challenges.js), plus the orange snow ball: [panel, pentagon, alt pentagon].
+// Ball designs (the locker, game/display.js), plus the orange snow ball: [panel, pentagon, alt pentagon].
 const BALLS = {
   CLASSIC: [[0.95, 0.95, 0.92], [0.08, 0.08, 0.1]],
   ORANGE: [[0.98, 0.5, 0.08], [0.1, 0.06, 0.04]],

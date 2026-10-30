@@ -44,7 +44,6 @@ export function createResults(c) {
       const match = c.match(), newBest = match.points > best;
       if (newBest) { best = match.points; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
       c.showBest(best);
-      c.tracker.set({ points: match.points });
       c.hud.banner({ text: 'FULL TIME', sub: newBest ? 'NEW BEST SCORE!' : '', tone: 'good', big: true });
       return setTimeout(() => c.message('FULL TIME', attackLines(match, best, newBest), () => c.openMenu('mode'), 'PRESS A FOR THE MENU'), 1800);
     }
@@ -56,7 +55,6 @@ export function createResults(c) {
   function cupResult(us, them) {
     const cup = c.game.cup, stage = c.game.fixture.stage;
     const res = playUser(cup, us, them);
-    if (res.champion) c.tracker.set({ cupWon: cup.kind });
     const r = cupLines(cup, res, c.game.team, c.game.opp, us, them, stage);
     const next = r.next === 'ceremony' ? c.startCeremony
       : r.next === 'retry' ? () => { c.game.scenario = scenarioFor(cup, c.game.fixture, Math.random, c.lengthMul()); c.startMatch(); }
@@ -65,7 +63,7 @@ export function createResults(c) {
   }
 
   function finishTraining() {
-    c.setMenu(); c.stadium.cheer(true); sfx('roar'); c.tracker.set({ training: true });
+    c.setMenu(); c.stadium.cheer(true); sfx('roar');
     setTimeout(() => c.message('TRAINING COMPLETE', [
       { text: 'EVERY MOVE DONE!', big: true, color: '#40ff60' }, { text: `GOALS ${c.match().goals}` },
       { text: 'NOW GO WIN SOMETHING', color: '#f2c21a' },

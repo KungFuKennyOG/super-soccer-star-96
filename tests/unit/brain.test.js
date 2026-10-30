@@ -83,12 +83,6 @@ test('teammates split into a runner into the box and a support man wide of you',
   assert.equal(defenders(w).length, 3);
 });
 
-import { LEVEL_NAMES } from '../../rules/tuning.js';
-test('scouting reports fit the banner', () => {
-  assert.equal(LEVEL_NAMES.length, BRAIN.length);
-  for (const t of LEVEL_NAMES) for (const l of t.split('\n')) assert.ok(l.length <= 31, l);
-});
-
 test('the runner keeps his run going into the box', () => {
   const w = world(0);
   for (const id of ['d1', 'd2', 'd3']) { const p = w.byId[id]; p.x = 20; p.z = -1; p.stun = 99; }

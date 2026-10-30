@@ -133,11 +133,11 @@ const menuTo = async (page, i) => {
   }
 };
 
-test('settings, challenges, and matches in the snow and rain', { timeout: 900000 }, async t => {
+test('settings, and matches in the snow and rain', { timeout: 900000 }, async t => {
   if (!threeSource) { t.skip('three.js unreachable (no CDN and no node_modules/three)'); return; }
   const { page, errors } = await openMenu();
   await page.screenshot({ path: new URL('menu-modes.png', OUT).pathname });
-  await menuTo(page, 5); await page.keyboard.press('Enter');
+  await menuTo(page, 4); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__sss.menus.screen === 'settings');
   await menuTo(page, 6);
   await page.keyboard.press('ArrowRight');                   // weather: CLEAR
@@ -146,13 +146,6 @@ test('settings, challenges, and matches in the snow and rain', { timeout: 900000
   await page.screenshot({ path: new URL('settings.png', OUT).pathname });
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__sss.menus.screen === 'mode');
-  await menuTo(page, 4); await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.__sss.menus.screen === 'challenges');
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: new URL('challenges.png', OUT).pathname });
-  await page.keyboard.press('Escape');
-  await page.waitForFunction(() => window.__sss.menus.screen === 'mode');
-
   for (const [n, kind] of [[3, 'snow'], [2, 'rain']]) {
     await page.evaluate(w => { const s = window.__sss; s.settings.weather = w; s.game.kind = 'attack'; s.game.cup = null; s.game.scenario = null; s.startMatch(); }, n);
     await page.waitForFunction(k => window.__sss.mode === 'play' && window.__sss.world.weather === k, kind, { timeout: 150000 });

@@ -11,14 +11,12 @@ import { createCup, currentFixture, scenarioFor } from '../rules/cup.js';
 import { tuneFor, levelFor } from '../rules/skill.js';
 import { ringScale, gradePass, pickTarget, laneBlocked } from '../rules/pass.js';
 import { aimPoint, assist, chargeOf, overcharge } from '../rules/shot.js';
-import { GOAL, MATCH, LEVEL_NAMES } from '../rules/tuning.js';
+import { GOAL, MATCH } from '../rules/tuning.js';
 import { norm } from '../rules/vec.js';
-import { loadSettings, saveSettings as saveSet, applyWobble as applyWob, lowRes as lowR } from './display.js';
+import { loadSettings, saveSettings as saveSet, applyWobble as applyWob, lowRes as lowR, LOCKER } from './display.js';
 import { buildStadium } from './stadium.js';
 import { pickWeather, applyWeather, WEATHER } from '../rules/weather.js';
-import { LOCKER } from '../rules/challenges.js';
 import { createWeather } from './weather.js';
-import { createTracker } from './progress.js';
 import { createResults, loadBest } from './results.js';
 import { buildBall, buildArrow, animate, placeModel } from './actors.js';
 import { createSquads } from './squad.js';
@@ -68,7 +66,6 @@ const training = createTraining(camera);
 const juice = createJuice(scene);
 juice.set(settings.juice);
 const weather = createWeather(scene);
-const tracker = createTracker(hud);
 let slowT = 0, said10 = false, callT = 0;
 $('radar').appendChild(radar.canvas);
 
@@ -116,7 +113,7 @@ function openMenu(screen, data, at = 0) {
   training.stop(world); weather.set('clear');
   if (!renderer.xr.isPresenting) { desk.pitch = 0; if (document.pointerLockElement) document.exitPointerLock(); }
   playMusic('menu');
-  menus.open(screen, ['mode', 'settings', 'challenges'].includes(screen) ? { settings, progress: tracker.progress } : data, at);
+  menus.open(screen, ['mode', 'settings'].includes(screen) ? { settings } : data, at);
 }
 const teamsForMode = kind => (kind === 'attack' ? ALL : teamsFor(kind));
 
@@ -124,7 +121,7 @@ function onMenu(act) {
   const scr = menus.screen;
   if (act.settings) { saveSettings(); applyWobble(); commentary.setMode(settings.commentary); juice.set(settings.juice); if (!settings.replays) replay.stop(); ball.setDesign(LOCKER.ball.options[settings.ball]); return; }
   if (act.mode === 'training') { game.kind = 'training'; game.cup = null; game.scenario = null; game.opp = byId(game.team.id === 'BAR' ? 'MAD' : 'BAR'); startMatch(); }
-  else if (act.mode === 'settings' || act.mode === 'challenges') openMenu(act.mode);
+  else if (act.mode === 'settings') openMenu(act.mode);
   else if (act.mode) { game.kind = act.mode; openMenu('team', { mode: act.mode, teams: teamsForMode(act.mode), start: teamsForMode(act.mode).some(t => t.id === game.team.id) ? game.team.id : null }); }
   else if (act.team) {
     game.team = act.team;
@@ -139,7 +136,7 @@ function onMenu(act) {
       openMenu('hub', { cup: game.cup });
     }
   } else if (act.back && scr === 'team') openMenu('mode');
-  else if (act.back) openMenu('mode', null, scr === 'settings' ? 5 : scr === 'challenges' ? 4 : 0);
+  else if (act.back) openMenu('mode', null, scr === 'settings' ? 4 : 0);
   else if (act.play) {
     game.fixture = currentFixture(game.cup);
     game.opp = byId(game.fixture.opp);
@@ -166,7 +163,6 @@ function setStage(level, wx) {
   menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
   hudEl.hidden = renderer.xr.isPresenting;
   if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
-  tracker.begin(game.kind, game.team.s);
   if (wx !== 'clear') setTimeout(() => { if (mode === 'play') hud.banner({ text: WEATHER[wx].name, sub: WEATHER[wx].banner, tone: 'info' }); }, 2600);
   return v.line;
 }
@@ -182,7 +178,6 @@ function startMatch() {
   mode = 'play';
   sfx('whistle', 1.4);
   setTimeout(() => commentary.event({ type: 'kickoff', weather: wx }), 900);
-  if (LEVEL_NAMES[level]) setTimeout(() => { if (mode === 'play') hud.banner({ text: 'SCOUTING REPORT', sub: LEVEL_NAMES[level], tone: 'info' }); }, 4200);
   const s = game.scenario;
   if (drills) hud.banner({ text: 'TRAINING', sub: `LEARN EVERY MOVE\n${renderer.xr.isPresenting ? 'X' : 'N'} SKIPS A DRILL`, tone: 'info', big: true });
   else if (s) hud.banner({ text: `${s.minute}' ${game.team.id} ${s.us}-${s.them} ${game.opp.id}`, sub: `${game.fixture.label}\n${s.text}\n${venue}`, tone: 'info', big: true });
@@ -191,7 +186,7 @@ function startMatch() {
 
 // full time and training done: the screens and what comes next
 const results = createResults({
-  game, tracker, hud, stadium, commentary, replay, message, openMenu, startMatch,
+  game, hud, stadium, commentary, replay, message, openMenu, startMatch,
   startCeremony: () => startCeremony(), lengthMul: () => LENGTHS[settings.length].mul, match: () => match,
   setMenu: () => { mode = 'menu'; }, showBest: b => { $('best').textContent = `SCORE ATTACK BEST ${b}`; },
 });
@@ -248,7 +243,6 @@ function feedback(ev) {
     if (e.type === 'goal' && settings.replays && !hat && !training.active) replay.goal();
     if (hat) startDance();
   }
-  tracker.note(ev);
 }
 
 // The hat-trick dance: teammates come over, then the rhythm game starts.
@@ -288,7 +282,7 @@ const loop = startLoop(renderer, (dt, t) => {
         match.points += d.score;
         hud.banner({ text: d.hits === d.count ? 'FULL COMBO!' : `DANCE ${d.hits}/${d.count}`, sub: `+${d.score}`, tone: d.hits ? 'good' : 'bad', big: true });
         match.deadT = MATCH.deadTime - 1.2;
-        if (d.hits === d.count) { commentary.event({ type: 'combo' }); tracker.set({ combo: true }); }
+        if (d.hits === d.count) commentary.event({ type: 'combo' });
       }
     }
     const r = celebration.active || replay.active ? null : tickMatch(match, simDt, world.dead, !!world.shot && !world.shot.done);
@@ -324,7 +318,6 @@ const loop = startLoop(renderer, (dt, t) => {
 
   stadium.update(dt, t);
   weather.update(t, headPosNow());
-  tracker.update(dt);
   updateHud();
   radar.draw(world, match.goals, match.points);
   if (raw.vr) { placeOnHands(); hands.update(); }
@@ -366,6 +359,6 @@ function placeOnHands() {
 
 
 // hooks for the smoke test and for poking at it from the console
-const hooks = { paused: false, get world() { return world; }, get match() { return match; }, get mode() { return mode; }, dance: celebration, startDance, desk, menus, game, intents, startMatch, startCeremony, training, stadium, tracker, settings, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
+const hooks = { paused: false, get world() { return world; }, get match() { return match; }, get mode() { return mode; }, dance: celebration, startDance, desk, menus, game, intents, startMatch, startCeremony, training, stadium, settings, placeBoard: (y, z) => hud.placeScoreboard(y, z), loop, renderer, GOAL, camera };
 window.__sss = hooks;
 window.__sssOK = true;

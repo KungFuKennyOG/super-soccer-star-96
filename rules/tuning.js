@@ -86,8 +86,3 @@ export const BRAIN = [
   { double: true, doubleRange: 18, stepUp: true, dragBite: 3, gkOut: 0.85, gkRush: true, runMargin: 1.0 },
   { double: true, doubleRange: 19, stepUp: true, dragBite: 2, gkOut: 1, gkRush: true, runMargin: 0.95 },
 ];
-// The scouting report shown a few seconds into a match at each level (banner lines, 31 characters max).
-export const LEVEL_NAMES = ['',
-  'THEY DOUBLE-TEAM NEAR THE BOX\nTHE KEEPER SWEEPS UP BEHIND',
-  'THEY PUSH UP WHEN YOU GO BACK\nPLAY IT IN BEHIND THEM',
-  'THEY TRACK YOUR RUNNERS\nMIX UP YOUR DRAG-BACKS'];

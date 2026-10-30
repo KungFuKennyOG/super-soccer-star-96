@@ -41,7 +41,7 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 
 SETTINGS on the mode screen (left/right to change): match length, PS1 wobble, commentary (off, subtitles, voice), goal replays, hit effects (hit-stop, haptics, turf and a streak on hard shots), skill moves (off, gesture, or gesture only while holding the right grip) and weather (random, clear, rain, snow). Rain makes the ball skid on; snow slows it, kills the bounce and brings out the orange ball.
 
-Under them is your locker: balls, boots and big heads, unlocked by **challenges** (16 of them, on their own screen: score a header, nutmeg three men in a match, win the World Cup with a 1-star side...).
+Under them is your locker: a ball design, boot color and big heads.
 
 ## Scoring
 
