@@ -16,36 +16,47 @@ const goalC = { x: 0, z: GOAL.z };
 // A loose ball: the nearest chases it, the rest mark; a pass in flight isn't chased, its receiver is
 // closed down instead (lob: the receiver's player object while a pass is on its way to him), so only a
 // defender already in the lane can cut it out.
-// Returns Map id -> { x, z, speed, role }.
-export function defenderTargets(defs, attackers, ball, owner, ai = AI, lob = null) {
+// Returns Map id -> { x, z, speed, role, man? }.
+// prev: what they were doing last step ({ id: { role, man, in } }, from the last call's result) so
+// nobody flips between jobs at a threshold: the presser keeps pressing unless another man is clearly
+// nearer, a marker keeps his man, and a man being marked stays marked a little further out.
+export function defenderTargets(defs, attackers, ball, owner, ai = AI, lob = null, prev = {}) {
   const out = new Map();
   const live = defs.filter(d => !d.stun);
   const carrier = owner ? attackers.find(a => a.id === owner) : null;
-  const first = closest(live.length ? live : defs, carrier || ball);
+  const was = id => prev[id] || {};
+  const nearest = (list, p, role) => {
+    const c = closest(list, p), keep = list.find(d => was(d.id).role === role);
+    return keep && c && dist(keep, p) < dist(c, p) + 1 ? keep : c;
+  };
+  const first = nearest(live.length ? live : defs, carrier || ball, 'press');
   if (first && carrier) {
-    // goal-side of him, reading where he's going; once there, in for the ball
+    // goal-side of him, reading where he's going; once there, in for the ball (and he only backs off
+    // again a little further out, so he doesn't dither at the line)
     const g = norm(goalC.x - carrier.x, goalC.z - carrier.z);
     const lead = { x: carrier.x + (carrier.vx || 0) * ai.pressLead, z: carrier.z + (carrier.vz || 0) * ai.pressLead };
     const spot = { x: lead.x + g.x * ai.pressGap, z: lead.z + g.z * ai.pressGap };
-    const there = dist(first, spot) < 0.9 || dist(first, carrier) < ai.pressIn;
-    out.set(first.id, there ? { x: ball.x, z: ball.z, speed: ai.press, role: 'press' } : { ...spot, speed: ai.press, role: 'press' });
+    const there = dist(first, spot) < 0.9 || dist(first, carrier) < ai.pressIn + (was(first.id).in ? 0.6 : 0);
+    out.set(first.id, there ? { x: ball.x, z: ball.z, speed: ai.press, role: 'press', in: true } : { ...spot, speed: ai.press, role: 'press' });
   } else if (first && lob) {
     // tight on him from the far side of the ball, ready to tackle on his first touch
-    const c = closest(live.length ? live : defs, lob), g = norm(lob.x - ball.x, lob.z - ball.z);
+    const c = nearest(live.length ? live : defs, lob, 'press'), g = norm(lob.x - ball.x, lob.z - ball.z);
     out.set(c.id, { x: lob.x + g.x * 0.9, z: lob.z + g.z * 0.9, speed: ai.chase, role: 'press' });
   } else if (first) out.set(first.id, { x: ball.x, z: ball.z, speed: ai.chase, role: 'press' });
 
   // the rest: mark the dangerous ones, nearest goal first; whoever's left with nobody worth marking covers
-  const free = attackers.filter(a => a.id !== owner).sort((a, b) => dist(a, goalC) - dist(b, goalC));
+  // (a pass's receiver is already being closed down: he doesn't need a marker too)
+  const free = attackers.filter(a => a.id !== owner && a !== lob).sort((a, b) => dist(a, goalC) - dist(b, goalC));
   const rest = defs.filter(d => !out.has(d.id));
   for (const m of free) {
     if (!rest.length) break;
-    const danger = dist(m, goalC) < ai.markDanger || m === free[0];
+    const markedBy = rest.find(d => was(d.id).role === 'mark' && was(d.id).man === m.id);
+    const danger = dist(m, goalC) < ai.markDanger + (markedBy ? 1.5 : 0) || m === free[0];
     if (!danger) continue;
-    const d = closest(rest, m);
+    const c = closest(rest, m), d = markedBy && dist(markedBy, m) < dist(c, m) + 2 ? markedBy : c;
     rest.splice(rest.indexOf(d), 1);
     const g = norm(goalC.x - m.x, goalC.z - m.z), toBall = norm(ball.x - m.x, ball.z - m.z);
-    out.set(d.id, { x: m.x + g.x * ai.markGoal + toBall.x * ai.markBall, z: m.z + g.z * ai.markGoal + toBall.z * ai.markBall, speed: ai.mark, role: 'mark' });
+    out.set(d.id, { x: m.x + g.x * ai.markGoal + toBall.x * ai.markBall, z: m.z + g.z * ai.markGoal + toBall.z * ai.markBall, speed: ai.mark, role: 'mark', man: m.id });
   }
   for (const d of rest) {
     const g = norm(goalC.x - ball.x, goalC.z - ball.z);

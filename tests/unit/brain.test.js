@@ -42,17 +42,17 @@ test('the presser comes at you from the goal side; a harmless attacker is left a
   assert.ok(cover.z < w.ball.z && Math.abs(cover.x) < 3, 'the spare man sits between the ball and goal');
 });
 
-test('later rounds mark tighter and sit the spare man closer', () => {
+test('later rounds mark tighter and have a sharper keeper', () => {
   const at = level => {
     const w = world(level);
     w.you.x = 0; w.you.z = -10; w.ball.x = 0; w.ball.z = -10.6;
     w.byId.m1.x = -12; w.byId.m1.z = -6; w.byId.m2.x = 9; w.byId.m2.z = -20;
     const t = [...defenceTargets(w).values()];
     const mark = t.find(x => x.role === 'mark'), cover = t.find(x => x.role === 'cover');
-    return { markToBall: dist(mark, w.ball), coverToBall: dist(cover, w.ball) };
+    return { markToBall: dist(mark, w.ball), cover };
   };
   assert.ok(at(3).markToBall < at(0).markToBall);
-  assert.ok(at(3).coverToBall < at(0).coverToBall);
+  assert.ok(at(3).cover && at(0).cover);
   assert.ok(tuneFor(3, 3, 3).ai.gkReact < tuneFor(3, 3, 0).ai.gkReact, 'and the keeper is sharper');
 });
 

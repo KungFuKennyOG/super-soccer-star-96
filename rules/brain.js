@@ -13,7 +13,7 @@ import { laneBlocked } from './pass.js';
 export const RUN = { swap: 2.6, switchSpace: 2, depth: 10, supportDist: 8.5, laneBonus: 3, stick: 1.2 };
 
 export function initBrain(w) {
-  w.brain = { dragRun: 0, dragT: -9, runner: null, runnerT: 0, roles: {}, spots: {} };
+  w.brain = { dragRun: 0, dragT: -9, runner: null, runnerT: 0, roles: {}, jobs: {}, spots: {} };
 }
 
 const defs = w => w.players.filter(p => p.role === 'def');
@@ -32,15 +32,15 @@ export function dragFools(w) {
   return br.dragRun <= w.tune.brain.dragBite;
 }
 
-// Defender targets: press, mark, cover (ai.js), marking tighter and the spare man closer to the ball
-// in later rounds.
+// Defender targets: press, mark, cover (ai.js), marking tighter in later rounds.
 export function defenceTargets(w) {
   const ds = defs(w), owner = w.owner ? w.byId[w.owner] : null, B = w.tune.brain;
   const home = w.players.filter(p => p.team === 'home');
-  const ai = { ...w.tune.ai, markBall: w.tune.ai.markBall + B.markTight, coverGap: w.tune.ai.coverGap - B.coverIn };
+  const ai = { ...w.tune.ai, markBall: w.tune.ai.markBall + B.markTight };
   const pp = w.pendingPass, lob = !w.owner && pp ? w.byId[pp.to] : null;    // a pass in flight: close down its receiver
-  const out = defenderTargets(ds, home, w.ball, owner && owner.team === 'home' ? owner.id : null, ai, lob);
-  for (const [id, t] of out) w.brain.roles[id] = t.role;
+  const out = defenderTargets(ds, home, w.ball, owner && owner.team === 'home' ? owner.id : null, ai, lob, w.brain.jobs);
+  w.brain.jobs = {};
+  for (const [id, t] of out) { w.brain.roles[id] = t.role; w.brain.jobs[id] = { role: t.role, man: t.man, in: t.in }; }
   return out;
 }
 
@@ -69,13 +69,14 @@ export function mateSupport(w, p) {
     else v -= Math.abs(dist(q, you) - RUN.supportDist) * 0.35 + Math.max(0, you.z - q.z - 3) * 0.3;   // close by, level or behind
     return v;
   };
-  const cands = [];
+  const cands = [{ x: lane * 4.5, z: GOAL.z + 7 }];                          // always somewhere to go
   if (runner) for (let x = -12; x <= 12; x += 3) for (let z = GOAL.z + 6; z <= Math.min(-3, you.z - 2); z += 2.5) cands.push({ x, z });
   else for (let a = 0; a < 12; a++) {
     const ang = (a / 12) * Math.PI * 2, r = RUN.supportDist;
     cands.push({ x: clamp(you.x + Math.cos(ang) * r, -15, 15), z: clamp(you.z + Math.sin(ang) * r, GOAL.z + 6, -2) });
   }
   let cur = br.spots[p.id];
+  if (cur && !(Number.isFinite(cur.x) && Number.isFinite(cur.z))) cur = null;
   if (cur && (cur.role !== (runner ? 'run' : 'support') || w.time - cur.t > 0.4)) {
     const keep = { x: cur.x, z: cur.z }, kept = score(keep);
     const best = cands.reduce((a, c) => { const v = score(c); return v > a.v ? { q: c, v } : a; }, { q: keep, v: kept + RUN.stick });

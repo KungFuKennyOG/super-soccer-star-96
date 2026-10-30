@@ -15,7 +15,7 @@ Every club has its own ground (Champions Cup ties alternate home and away), pack
 
 Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win; fall short and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
 
-The opposition gets smarter through each cup: from the quarter-finals they double-team you near the box and the keeper sweeps up through-balls; in the semis they push up when you go backwards; in the final they track your runners closest and stop falling for the same drag-back. It stays forgiving: you're the superstar. When the keeper comes off his line, a quick tap of the trigger chips him.
+The defence works as a unit: the nearest man comes at you from the goal side, dangerous runners are marked, and a spare man covers behind. Your teammates look for space: one runs into the box, the other offers a safe pass, and they give it back when you call. Through each cup the opposition marks tighter, the keeper gets sharper and sweeps up through-balls, and in the final they stop falling for the same drag-back. It stays forgiving: you're the superstar. When the keeper comes off his line, a quick tap of the trigger chips him.
 
 Teams are picked on a turntable that shows a player in the kit (on a world map for the World Cup). Stars matter: a 5-star side presses harder, tackles quicker and has a better keeper, and a 5-star team of your own runs and passes better. Kits are colors and patterns only; clubs go by city name.
 

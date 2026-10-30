@@ -28,7 +28,7 @@ export const AI = {
   press: 6.6, mark: 5.8, chase: 7.0,         // defenders
   pressGap: 0.8, pressLead: 0.1, pressIn: 2.2,  // the presser comes at you from this far goal-side (reading your run), and goes in from pressIn m
   markDanger: 21, markGoal: 2.0, markBall: 0,     // attackers inside this of goal are marked goal-side (and ball-side, by level)
-  coverGap: 5,                                // the spare man sits this far behind the ball toward goal
+  coverGap: 4.5,                              // the spare man sits this far behind the ball toward goal
   mateRun: 6.0, mateDribble: 5.6,             // your teammates
   gkMove: 3.5, gkDive: 5.0, gkReact: 0.17, gkReach: 1.04, gkCatchBelow: 19,
   tackleRange: 0.85, tackleTime: 0.22,        // a defender must stay this close to the ball this long to win it
@@ -81,7 +81,6 @@ export const AIR = {
 // (group/R16 0, QF 1, SF 2, final 3); Score Attack is 0, or 1 against 5 stars. Later rounds ask a bit
 // more of you; they never shut you down (Kenny: you're meant to feel like a superstar).
 //   markTight  how much further ball-side markers stand (on top of AI.markBall): more passes cut out
-//   coverIn    how much closer to the ball the spare defender sits (off AI.coverGap): less room to run into
 //   dragBite   drag-backs in a row (within 3 s) the presser falls for; after that he reads it
 //   gkOut      how far (0..1 of 4 m) the keeper comes off his line to narrow the angle when you're through
 //   gkRush     the keeper races out to claim through-balls he can reach first
@@ -89,8 +88,8 @@ export const AIR = {
 //   runMargin  a pass to the teammate making a run is his unless a defender is this much closer to it
 //              (perfect pass; a good one gets 70% of it)
 export const BRAIN = [
-  { markTight: 0, coverIn: 0, dragBite: 3, gkOut: 0.35, gkRush: false, gkSharp: 0, runMargin: 1.3 },
-  { markTight: 0.15, coverIn: 0.5, dragBite: 3, gkOut: 0.6, gkRush: true, gkSharp: 0.1, runMargin: 1.15 },
-  { markTight: 0.3, coverIn: 1, dragBite: 3, gkOut: 0.85, gkRush: true, gkSharp: 0.2, runMargin: 1.05 },
-  { markTight: 0.45, coverIn: 1.5, dragBite: 2, gkOut: 1, gkRush: true, gkSharp: 0.3, runMargin: 1.0 },
+  { markTight: 0, dragBite: 3, gkOut: 0.35, gkRush: false, gkSharp: 0, runMargin: 1.3 },
+  { markTight: 0.15, dragBite: 3, gkOut: 0.6, gkRush: true, gkSharp: 0.1, runMargin: 1.15 },
+  { markTight: 0.35, dragBite: 3, gkOut: 0.85, gkRush: true, gkSharp: 0.2, runMargin: 1.0 },
+  { markTight: 0.45, dragBite: 2, gkOut: 1, gkRush: true, gkSharp: 0.25, runMargin: 0.95 },
 ];

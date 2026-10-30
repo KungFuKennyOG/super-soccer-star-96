@@ -327,6 +327,9 @@ function looseBall(w, rnd, ev) {
     return;
   }
   if (keeperClaim(w, ev)) return;
+  // a pass that died short of its man (or was never getting there) is just a loose ball again
+  const pp0 = w.pendingPass;
+  if (pp0 && (w.time - pp0.t > 2.5 || (sp < 2 && dist(w.byId[pp0.to], b) > 3))) w.pendingPass = null;
   if (b.y > 1.6) return;
   // a pass's receiver gets first touch unless a defender is clearly closer; a ball just lofted
   // (a lob or cross on its way up) can't be cut out by the man next to the passer
