@@ -1,5 +1,5 @@
 // The goalkeeper's body. The sim says what he's doing (p.save { y, kind, id } when he goes for a shot,
-// p.dive -1 / 0 / 1 for which way, p.holding, p.antics on the line before a penalty); this poses it.
+// p.dive -1 / 0 / 1 for which way, p.holding); this poses it.
 //
 //   stance       crouched and square to the ball, weight forward, arms out; side-steps instead of
 //                running; stands taller and looser while the ball is far away
@@ -8,7 +8,6 @@
 //                land on his side, then a catch gathered into the chest or a parry pushed away, and
 //                back up through one knee
 //   standing     a shot straight at him: scoop it (low), take it into the chest, or catch it overhead
-//   antics       before a penalty: bouncing on his toes on the line, arms out wide, swaying
 import { restPose } from './body.js';
 
 const D = { load: 0.1, fly: 0.48, land: 0.62, ground: 1.15, kneel: 1.5, end: 1.85 };
@@ -32,7 +31,6 @@ export function animateKeeper(m, p, dt, t, ball) {
     restPose(bn);
     if (m.bigHead) bn.head.scale.setScalar(1.65);
   }
-  if (p.antics) return antics(bn, t);
   stance(m, p, dt, t, ball);
 }
 
@@ -175,18 +173,4 @@ function standSave(bn, s, p) {
     bn.neck.rotation.x = -0.35 * k;
   }
   return true;
-}
-
-// On the line before a penalty: bouncing on his toes, arms out wide and waving, swaying side to side.
-function antics(bn, t) {
-  const b = Math.abs(Math.sin(t * 5.5)), sway = Math.sin(t * 1.7);
-  bn.hips.position.y -= 0.1 - 0.05 * b;
-  bn.hips.rotation.z = 0.08 * sway; bn.spine.rotation.z = -0.06 * sway;
-  bn.spine.rotation.x = 0.18;
-  bn.upperLegL.rotation.set(-0.3, 0, 0.2); bn.upperLegR.rotation.set(-0.3, 0, -0.2);
-  bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.5 - 0.15 * b;
-  bn.footL.rotation.x = bn.footR.rotation.x = -0.2 - 0.25 * b;
-  const wave = 0.25 * Math.sin(t * 3.3);
-  bn.upperArmL.rotation.set(-0.2, 0, 1.35 + wave); bn.upperArmR.rotation.set(-0.2, 0, -1.35 + wave);
-  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.2;
 }

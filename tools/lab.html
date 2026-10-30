@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>SSS96 model lab</title>
 <!-- Dev page: a lineup of players for checking the models. npm run serve, then
-     /tools/lab.html?pose=idle|sprint|kick|keeper|dive|stand|antics|celebrate|dance&kit=MAD,BAR&yaw=0&cam=x,y,z&at=x,y,z
+     /tools/lab.html?pose=idle|sprint|kick|keeper|dive|stand|celebrate|dance&kit=MAD,BAR&yaw=0&cam=x,y,z&at=x,y,z
      keeper saves: &y=1.2 (height) &save=catch|parry &times=0.1,0.3,0.5 (one frozen moment per player, in seconds) -->
 <style>html,body{margin:0;background:#101830;overflow:hidden}canvas{display:block}</style>
 <script type="importmap">
@@ -35,7 +35,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 const speeds = { idle: 0, walk: 1.4, jog: 4.5, sprint: 8 };
-const GK = ['keeper', 'dive', 'stand', 'antics'];
+const GK = ['keeper', 'dive', 'stand'];
 const times = q.get('times') ? q.get('times').split(',').map(Number) : null;
 const gap = +(q.get('gap') || (times ? 2.2 : 1.1));
 const saveY = +(q.get('y') || 1.0), saveKind = q.get('save') || 'parry';
@@ -52,7 +52,6 @@ window.__lab = { ready: false, step(dt) { tick(dt); } };
 const ball = { x: 0, y: 0.12, z: 6 };
 function poseOne(m, p, dt, tt) {
   if (pose === 'dive' || pose === 'stand') { p.dive = pose === 'dive' ? +(q.get('dir') || 1) : 0; p.save = tt > 0.05 ? { y: saveY, kind: saveKind, id: 1 } : null; }
-  p.antics = pose === 'antics';
   animate(m, p, dt, tt, false, null, ball);
 }
 // frozen moments: each player shows the move at its own time

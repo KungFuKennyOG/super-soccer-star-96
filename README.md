@@ -9,13 +9,11 @@ You plus two teammates attack one goal against three defenders and a keeper.
 - **Score Attack:** two minutes, score as much as you can, beat your high score.
 - **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
 - **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
-- **Penalties:** a shootout against a strong side. You take every kick (look where you want it, shoot; a quick tap chips it, so a Panenka works when the keeper dives) and go in goal for theirs.
-- **Keeper Rush:** you in goal and they keep coming: drives, angled shots, one on ones, curlers, chips. Every save makes the next one harder; three goals and you're out.
 - **Training:** 19 drills, one move each: dribble, sprint, turn, knock-on, drag-back, step-over, roulette, nutmeg, rainbow flick, pass, calling for it, lob, shoot, chip, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
 
 Every club has its own ground (Champions Cup ties alternate home and away), packed with fans in both teams' colors who jump when their side scores.
 
-Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win, or level it to take it to penalties; lose and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
+Every cup match drops you into a comeback: you start behind with a few minutes left ("2 down, score 3 to win"). Lose the ball and they might score on the counter. Knockout games need the win; fall short and you spend one of your 3 continues to replay it. Win the final and you lift the cup with your squad: grab it with your grips and raise it above your head (in the browser, E then hold Up).
 
 The opposition gets smarter through each cup: from the quarter-finals they double-team you near the box and the keeper sweeps up through-balls; in the semis they push up when you go backwards; in the final they track your runners closest and stop falling for the same drag-back. It stays forgiving: you're the superstar. When the keeper comes off his line, a quick tap of the trigger chips him.
 
@@ -37,14 +35,13 @@ Teams are picked on a turntable that shows a player in the kit (on a world map f
 | Restart the attack | Y | R |
 | Skill moves (with a defender close) | Right-hand flick: sideways step-over, forward-and-down nutmeg, upward rainbow flick. Left-hand flick or circle: roulette | 1 step-over (hold A for left), 2 roulette, 3 nutmeg, 4 rainbow |
 | Skip a training drill | X | N |
-| In goal (shootouts, Keeper Rush) | Your gloves reach further than your hands: get them to the ball. Left stick moves you. | Look where the ball's going; WASD moves you |
 | Menus | Either stick to move, A or X to pick, B to go back | Arrows, Enter, Esc |
 
 ## Settings
 
 SETTINGS on the mode screen (left/right to change): match length, PS1 wobble, commentary (off, subtitles, voice), goal replays, hit effects (hit-stop, haptics, turf and a streak on hard shots), skill moves (off, gesture, or gesture only while holding the right grip) and weather (random, clear, rain, snow). Rain makes the ball skid on; snow slows it, kills the bounce and brings out the orange ball.
 
-Under them is your locker: balls, boots, keeper gloves and big heads, unlocked by **challenges** (19 of them, on their own screen: score a header, nutmeg three men in a match, win the World Cup with a 1-star side, save two in a shootout, ten saves in Keeper Rush...).
+Under them is your locker: balls, boots and big heads, unlocked by **challenges** (16 of them, on their own screen: score a header, nutmeg three men in a match, win the World Cup with a 1-star side...).
 
 ## Scoring
 

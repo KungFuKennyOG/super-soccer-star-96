@@ -1,8 +1,6 @@
-// What the full-time screens say: Score Attack, a cup match (and its shootout), a practice shootout
-// and KEEPER RUSH. Returns lines for menus.open('message') and what happens next.
+// What the full-time screens say (Score Attack, a cup match, training done) and what happens next.
 import { byId } from '../rules/teams.js';
-import { STAGE_NAMES, playUser, needsPens, scenarioFor } from '../rules/cup.js';
-import { tally } from '../rules/penalties.js';
+import { STAGE_NAMES, playUser, scenarioFor } from '../rules/cup.js';
 import { sfx } from './audio.js';
 
 const BEST_KEY = 'sss96.best';
@@ -17,15 +15,12 @@ export function attackLines(match, best, newBest) {
   ];
 }
 
-// res from playUser; pens: [yours, theirs] when it went to a shootout. Returns { lines, next } where
-// next is 'ceremony' | 'retry' | 'hub'.
-export function cupLines(cup, res, team, opp, us, them, fixtureStage, pens = null) {
-  const score = { text: `${team.id} ${us} - ${them} ${opp.id}`, big: true };
-  const lines = [score];
-  if (pens) lines.push({ text: `${pens[0]}-${pens[1]} ON PENALTIES`, color: pens[0] > pens[1] ? GREEN : RED });
+// res from playUser. Returns { lines, next } where next is 'ceremony' | 'retry' | 'hub'.
+export function cupLines(cup, res, team, opp, us, them, fixtureStage) {
+  const lines = [{ text: `${team.id} ${us} - ${them} ${opp.id}`, big: true }];
   if (res.champion) return { lines: [...lines, { text: 'YOU WIN THE CUP!', big: true, color: GOLD }, { text: `${team.name} ARE CHAMPIONS` }], next: 'ceremony' };
   if (res.retry) {
-    const why = pens ? 'OUT ON PENALTIES!' : res.result === 'draw' ? 'NOT ENOUGH - YOU NEEDED THE WIN' : 'BEATEN!';
+    const why = res.result === 'draw' ? 'NOT ENOUGH - YOU NEEDED THE WIN' : 'BEATEN!';
     return { lines: [...lines, { text: why, color: RED }, { text: 'CONTINUE?', big: true, color: GOLD }, { text: `${cup.continues} CONTINUE${cup.continues === 1 ? '' : 'S'} LEFT` }], next: 'retry' };
   }
   if (res.out) return { lines: [...lines, { text: 'KNOCKED OUT', big: true, color: RED }, { text: `CHAMPIONS: ${byId(cup.champion).name}` }], next: 'hub' };
@@ -37,39 +32,9 @@ export function cupLines(cup, res, team, opp, us, them, fixtureStage, pens = nul
   return { lines, next: 'hub' };
 }
 
-export function shootoutLines(won, score, team, opp, saves) {
-  return [
-    { text: `${team.id} ${score[0]} - ${score[1]} ${opp.id}`, big: true },
-    { text: won ? 'YOU WIN THE SHOOTOUT!' : 'THEY WIN THE SHOOTOUT', big: true, color: won ? GREEN : RED },
-    { text: `SAVES ${saves}` },
-  ];
-}
-
-export function rushLines(rush, best, newBest) {
-  return [
-    { text: `SAVES ${rush.saves}`, big: true }, { text: `POINTS ${rush.points}`, big: true, color: GOLD },
-    { text: newBest ? 'NEW BEST!' : `BEST ${best}`, color: newBest ? GREEN : '#9aa8e0' },
-  ];
-}
-
 // c: what main.js shares (see the call there)
 export function createResults(c) {
   let best = loadBest();
-  function keepingOver(e) {
-    const so = c.keeping.shootout, rush = c.keeping.rush;
-    c.setMenu();
-    if (rush) {
-      const top = c.tracker.rushBest(rush.points);
-      c.commentary.event({ type: 'rushOver' });
-      return setTimeout(() => c.message('KEEPER RUSH', rushLines(rush, c.tracker.progress.rushBest, top), () => c.openMenu('mode'), 'PRESS A FOR THE MENU'), 1200);
-    }
-    const score = tally(so).score, won = e.won;
-    c.commentary.event({ type: won ? 'shootoutWon' : 'shootoutLost' });
-    if (won) { c.stadium.cheer(true); sfx('roar'); }
-    if (c.game.cupPens) { const [us, them] = c.game.cupPens; c.game.cupPens = null; return setTimeout(() => cupResult(us, them, score), 1800); }
-    setTimeout(() => c.message('PENALTIES', shootoutLines(won, score, c.game.team, c.game.opp, so.saves), () => c.openMenu('mode'), 'PRESS A FOR THE MENU'), 1800);
-  }
-
   function fullTime() {
     c.commentary.event({ type: 'fulltime' });
     c.replay.stop();
@@ -84,21 +49,15 @@ export function createResults(c) {
       return setTimeout(() => c.message('FULL TIME', attackLines(match, best, newBest), () => c.openMenu('mode'), 'PRESS A FOR THE MENU'), 1800);
     }
     const match = c.match(), us = match.us, them = match.them;
-    if (needsPens(c.game.cup, us, them)) {
-      c.hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}\nIT GOES TO PENALTIES!`, tone: 'info', big: true });
-      c.game.cupPens = [us, them];
-      return setTimeout(() => { if (c.mode() === 'menu' && c.game.cupPens) c.startKeeping('pens', false); }, 2600);
-    }
     c.hud.banner({ text: 'FULL TIME', sub: `${us} - ${them}`, tone: us < them ? 'bad' : 'good', big: true });
-    setTimeout(() => cupResult(us, them, null), 1800);
+    setTimeout(() => cupResult(us, them), 1800);
   }
 
-  // pens: the shootout score when a level knockout went to penalties
-  function cupResult(us, them, pens) {
+  function cupResult(us, them) {
     const cup = c.game.cup, stage = c.game.fixture.stage;
-    const res = playUser(cup, us, them, Math.random, pens ? (pens[0] > pens[1] ? 'won' : 'lost') : null);
+    const res = playUser(cup, us, them);
     if (res.champion) c.tracker.set({ cupWon: cup.kind });
-    const r = cupLines(cup, res, c.game.team, c.game.opp, us, them, stage, pens);
+    const r = cupLines(cup, res, c.game.team, c.game.opp, us, them, stage);
     const next = r.next === 'ceremony' ? c.startCeremony
       : r.next === 'retry' ? () => { c.game.scenario = scenarioFor(cup, c.game.fixture, Math.random, c.lengthMul()); c.startMatch(); }
       : () => c.openMenu('hub', { cup });
@@ -112,5 +71,5 @@ export function createResults(c) {
       { text: 'NOW GO WIN SOMETHING', color: '#f2c21a' },
     ], () => c.openMenu('mode'), 'PRESS A FOR THE MENU'), 1200);
   }
-  return { fullTime, keepingOver, finishTraining };
+  return { fullTime, finishTraining };
 }

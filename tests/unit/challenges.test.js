@@ -45,19 +45,3 @@ test('end-of-match flags: cups, giant killing, score attack, training', () => {
   assert.deepEqual(checkChallenges(p, t).map(c => c.id).sort(), ['graduate', 'score']);
   assert.equal(doneCount(p), 4);
 });
-
-test('shootouts and keeper rush', () => {
-  const p = createProgress(), s = createStats('pens');
-  const kick = scored => ({ type: 'penResult', by: 'you', scored });
-  noteEvents(s, [kick(true), kick(true), kick(true), kick(false), kick(true), { type: 'shootoutOver', won: true }]);
-  assert.ok(!checkChallenges(p, s).some(c => c.id === 'icecold'), 'a miss spoils it');
-  const s2 = createStats('pens');
-  noteEvents(s2, [1, 2, 3, 4].map(() => kick(true)));
-  noteEvents(s2, [{ type: 'shootoutOver', won: true }]);                    // won 4-1: four from four counts
-  noteEvents(s2, [{ type: 'penResult', by: 'them', how: 'saved' }, { type: 'penResult', by: 'them', how: 'saved' }]);
-  assert.deepEqual(checkChallenges(p, s2).map(c => c.id).sort(), ['icecold', 'safe']);
-  const r = createStats('keeper');
-  noteEvents(r, Array.from({ length: 10 }, () => ({ type: 'rushResult', how: 'saved' })));
-  assert.deepEqual(checkChallenges(p, r).map(c => c.id), ['wall']);
-  assert.deepEqual(unlocked(p, 'gloves'), [0, 1, 2]);
-});

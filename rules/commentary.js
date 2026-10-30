@@ -2,9 +2,7 @@
 // game/assets/voice/lines.json for a sim event; game/commentary.js plays it and shows the words.
 //
 // pickLine(e, state, rnd, recent) → { id, priority } or null
-//   e:      a sim event (rules/sim.js), or { type: 'kickoff' (weather) | 'last10' | 'fulltime' | 'combo' | 'counterGoal' },
-//           or a shootout / rush moment: 'penalties' | 'pen' (by, scored, how, chip) | 'suddenDeath' | 'shootoutWon' |
-//           'shootoutLost' | 'rushStart' | 'rushSave' (tips, streak) | 'rushGoal' | 'rushOver'
+//   e:      a sim event (rules/sim.js), or { type: 'kickoff' (weather) | 'last10' | 'fulltime' | 'combo' | 'counterGoal' }
 //   state:  { us, them, scenario, hatTrick } for the match after the event was scored
 //   recent: ids said lately, avoided when there's a choice
 // Priority: a new line only cuts in over one of lower priority.
@@ -46,24 +44,6 @@ const POOLS = {
   skill: ['skill1', 'skill2', 'skill3'],
   drag: ['drag1'],
   combo: ['dance1'],
-  // penalty shootouts (rules/penalties.js) and keeper rush (rules/goalie.js)
-  pens: ['pens1', 'pens2'],
-  pengoal: ['pengoal1', 'pengoal2', 'pengoal3'],
-  pensaved: ['pensaved1', 'pensaved2'],
-  penmiss: ['penmiss1', 'penmiss2'],
-  panenka: ['panenka1'],
-  wesave: ['wesave1', 'wesave2', 'saved4'],
-  theyscore: ['theyscore1', 'theyscore2'],
-  theymiss: ['theymiss1', 'penmiss1'],
-  sudden: ['sudden1', 'sudden2'],
-  shootwon: ['shootwon1', 'shootwon2'],
-  shootlost: ['shootlost1', 'shootlost2'],
-  rushstart: ['rushstart1'],
-  rushsave: ['saved1', 'saved4', 'wesave2'],
-  tips: ['tips1', 'tips2'],
-  unbeatable: ['unbeatable1', 'unbeatable2'],
-  rushgoal: ['rushgoal1', 'rushgoal2'],
-  rushover: ['rushover1'],
 };
 export const LINE_IDS = [...new Set(Object.values(POOLS).flat())];
 
@@ -116,17 +96,6 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
     case 'last10': return say('last10', 3);
     case 'fulltime': return say('fulltime', 5);
     case 'combo': return say('combo', 3);
-    case 'penalties': return say('pens', 4);
-    case 'pen':
-      if (e.by === 'you') return e.scored ? say(e.chip ? 'panenka' : 'pengoal', 3) : say(e.how === 'saved' ? 'pensaved' : 'penmiss', 3);
-      return e.scored ? say('theyscore', 3, 0.7) : say(e.how === 'saved' ? 'wesave' : 'theymiss', 3);
-    case 'suddenDeath': return say('sudden', 4);
-    case 'shootoutWon': return say('shootwon', 5);
-    case 'shootoutLost': return say('shootlost', 5);
-    case 'rushStart': return say('rushstart', 3);
-    case 'rushSave': return e.tips ? say('tips', 3) : e.streak >= 5 && e.streak % 5 === 0 ? say('unbeatable', 3) : say('rushsave', 2, 0.6);
-    case 'rushGoal': return say('rushgoal', 3, 0.7);
-    case 'rushOver': return say('rushover', 5);
     default: return null;
   }
 }

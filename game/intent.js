@@ -23,8 +23,6 @@ export function createIntents(camera, rig, skillMode = () => 1) {
     get shotHold() { return shotHold; },
     get passHold() { return passHold; },
     // a new match: nothing held, and shoot/pass wait until both triggers have been let go
-    // the rig was turned under you: forget where your head was, or the next step reads as a jump
-    resetHead() { lastHead = null; headPrev = null; },
     reset() { gestures.reset(); leftGestures.reset(); handUp = false; lastHead = null; shotHold = passHold = null; armed = false; headPrev = null; },
     build(raw, dt, world) {
       camera.getWorldPosition(headW); camera.getWorldDirection(dirW);

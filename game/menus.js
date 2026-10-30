@@ -12,13 +12,11 @@ import { WEATHER_SETTING } from '../rules/weather.js';
 import { LOCKER, CHALLENGES, unlocked, unlockedBy, doneCount, rewardName } from '../rules/challenges.js';
 
 const W = 256, H = 192;
-const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK', pens: 'PENALTIES', keeper: 'KEEPER RUSH' };
+const CUP_NAMES = { world: "WORLD CUP '96", club: 'CHAMPIONS CUP', attack: 'SCORE ATTACK' };
 const MODES = [
   { id: 'attack', name: 'SCORE ATTACK', sub: 'BEAT YOUR HIGH SCORE' },
   { id: 'world', name: "WORLD CUP '96", sub: '32 NATIONS: GROUPS + KNOCKOUTS' },
   { id: 'club', name: 'CHAMPIONS CUP', sub: '16 CLUBS: STRAIGHT KNOCKOUTS' },
-  { id: 'pens', name: 'PENALTIES', sub: 'A SHOOTOUT: TAKE THEM AND SAVE THEM' },
-  { id: 'keeper', name: 'KEEPER RUSH', sub: 'IN GOAL: 3 LET IN AND YOU\'RE OUT' },
   { id: 'training', name: 'TRAINING', sub: 'LEARN AND TEST EVERY MOVE' },
   { id: 'challenges', name: 'CHALLENGES', sub: 'FEATS TO PULL OFF, KIT TO UNLOCK' },
   { id: 'settings', name: 'SETTINGS', sub: 'OPTIONS AND YOUR LOCKER' },
