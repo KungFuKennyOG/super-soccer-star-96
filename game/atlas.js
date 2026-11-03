@@ -119,6 +119,7 @@ function shirtColor(k, x, y, top) {
     case 'hoops': return Math.floor((y - top) / 5) % 2 ? alt : base;
     case 'checks': return (Math.floor((x + 2) / 4) + Math.floor((y - top) / 4)) % 2 ? alt : base;
     case 'band': return x < 5 || x > 59 || Math.abs(x - 32) < 5 ? alt : base;   // down the chest and the back
+    case 'halves': return x < 32 ? base : alt;                                     // split down the chest and the back
     default: return Math.abs(x - 16) < 0.8 || Math.abs(x - 48) < 0.8 ? mul(base, 0.9) : base; // side seams
   }
 }

@@ -31,6 +31,7 @@ export const GROUNDS = {
   PRT: { name: 'PORTO', ...BOWL, end: [[12, 8], [10, 9]], time: 'night', mow: 'wide', seats: ['#1f3e93', '#f2f1ea'] },
   LIS: { name: 'LISBON', ...BOWL, time: 'day', mow: 'stripes', seats: ['#c8102e', '#f2f1ea'] },
   GLA: { name: 'GLASGOW', ...TIGHT, time: 'night', mow: 'checks', seats: ['#1b7a3a', '#f2f1ea'] },
+  IST: { name: 'ISTANBUL', ...OLD, end: [[16, 15]], time: 'night', mow: 'stripes', seats: ['#b5121b', '#f6b81a'] }, // old, steep and loud
 };
 export const groundFor = id => GROUNDS[id === 'MRB' || id === 'MBB' ? 'MILAN' : id] || GROUNDS.default;
 

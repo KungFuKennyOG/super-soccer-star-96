@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NATIONS, CLUBS, ALL, byId, kitsClash, awayKit, matchKit, keeperKit } from '../../rules/teams.js';
 
-test('32 nations and 16 clubs with unique ids and sane fields', () => {
+test('32 nations and 17 clubs with unique ids and sane fields', () => {
   assert.equal(NATIONS.length, 32);
-  assert.equal(CLUBS.length, 16);
-  assert.equal(new Set(ALL.map(t => t.id)).size, 48);
+  assert.equal(CLUBS.length, 17);
+  assert.equal(new Set(ALL.map(t => t.id)).size, 49);
   for (const t of ALL) {
     assert.match(t.id, /^[A-Z]{3}$/);
     assert.ok(t.name.length <= 16, t.name);

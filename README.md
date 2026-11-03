@@ -8,7 +8,7 @@ You plus two teammates attack one goal against three defenders and a keeper.
 
 - **Score Attack:** two minutes, score as much as you can, beat your high score.
 - **World Cup '96:** pick one of 32 nations. Three group games (draws count), the top two go through, then round of 16 to the final.
-- **Champions Cup:** pick one of 16 city clubs. Straight knockouts from the round of 16.
+- **Champions Cup:** pick one of 17 city clubs; 16 are drawn into a straight knockout from the round of 16.
 - **Training:** 19 drills, one move each: dribble, sprint, turn, knock-on, drag-back, step-over, roulette, nutmeg, rainbow flick, pass, calling for it, lob, shoot, chip, flick-up, volley, header, bicycle kick, restart. A card at the top of your view says what to do and fills a progress bar; X (N in the browser) skips a drill.
 
 Every club has its own ground (Champions Cup ties alternate home and away), packed with fans in both teams' colors who jump when their side scores.

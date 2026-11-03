@@ -1,5 +1,5 @@
 // Cup runs. World Cup '96: 8 groups of 4 (pots by strength), top two go through, then knockouts.
-// Champions Cup: 16 clubs, straight knockouts. You play every one of your matches as a comeback
+// Champions Cup: your club plus 15 drawn from the rest, straight knockouts. You play every one of your matches as a comeback
 // scenario; everyone else's results are simulated from team strength. Knockout losses spend an
 // arcade continue (3 per cup) and you replay the tie; out of continues, you're out. Pure.
 import { teamsFor, byId } from './teams.js';
@@ -32,7 +32,7 @@ export function createCup(kind, user, rnd = Math.random) {
       });
     }
   } else {
-    const order = shuffle(ids, rnd);
+    const order = shuffle([user, ...shuffle(ids.filter(id => id !== user), rnd).slice(0, 15)], rnd);
     cup.rounds.r16 = [0, 1, 2, 3, 4, 5, 6, 7].map(i => tie(order[i * 2], order[i * 2 + 1]));
   }
   return cup;

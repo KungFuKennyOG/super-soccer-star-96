@@ -25,6 +25,14 @@ test('Champions Cup: 16 clubs straight into a round of 16', () => {
   assert.equal(currentFixture(cup).stage, 'r16');
 });
 
+test('Champions Cup: with 17 clubs, 16 are drawn and yours is always in', () => {
+  for (const user of ['IST', 'GLA', 'MAD']) for (let s = 1; s < 30; s++) {
+    const ids = createCup('club', user, seeded(s)).rounds.r16.flatMap(t => [t.a, t.b]);
+    assert.equal(new Set(ids).size, 16);
+    assert.ok(ids.includes(user));
+  }
+});
+
 test('winning every match: through the groups, the knockouts, and lifting the cup', () => {
   const cup = createCup('world', 'BRA', seeded(3));
   for (let i = 0; i < 3; i++) playUser(cup, 3, 0, seeded(i + 11));

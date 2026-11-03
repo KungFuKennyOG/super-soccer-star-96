@@ -142,7 +142,8 @@ export function createMenus(scene, camera) {
     // kit swatch
     const k = t.kit, sx = W / 2 - 30;
     ctx.fillStyle = k.shirt; ctx.fillRect(sx, 132, 60, 18);
-    if (k.pattern !== 'solid') { ctx.fillStyle = k.pattern === 'sleeves' ? k.shirt : k.alt; for (let x = 4; x < 60; x += 12) ctx.fillRect(sx + x, 132, 5, 18); }
+    if (k.pattern === 'halves') { ctx.fillStyle = k.alt; ctx.fillRect(sx + 30, 132, 30, 18); }
+    else if (k.pattern !== 'solid') { ctx.fillStyle = k.pattern === 'sleeves' ? k.shirt : k.alt; for (let x = 4; x < 60; x += 12) ctx.fillRect(sx + x, 132, 5, 18); }
     ctx.fillStyle = k.shorts; ctx.fillRect(sx + 6, 150, 48, 8);
     ctx.fillStyle = k.socks; ctx.fillRect(sx + 10, 158, 12, 8); ctx.fillRect(sx + 38, 158, 12, 8);
     centre(ctx, `${sel + 1}/${data.teams.length}`, 170, '#9aa8e0', 1, null);

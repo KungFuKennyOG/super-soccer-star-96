@@ -1,9 +1,10 @@
-// Every team in the game: 32 nations for the World Cup, 16 city clubs for the Champions Cup.
+// Every team in the game: 32 nations for the World Cup, 17 city clubs for the Champions Cup (each cup draws 16).
 // Kits are colors and patterns only (no crests, sponsors or club names). Strength is 1 (weak) to 5 (giant).
 // Pure data plus a few helpers; no three, no DOM.
 //
 // kit: { pattern, shirt, alt, shorts, socks, band, trim, trim2, number, outline?, sleeve? }
 //   pattern: 'solid' | 'stripes' (vertical) | 'hoops' (horizontal) | 'checks' | 'band' (one centre stripe)
+//            | 'halves' (left half shirt, right half alt)
 //            | 'sleeves' (body in shirt, sleeves in alt)
 //   alt: the pattern's second color. sleeve: sleeve color (defaults to shirt, or alt for 'sleeves').
 
@@ -97,6 +98,7 @@ export const CLUBS = [
   { id: 'PRT', name: 'PORTO', s: 3, kit: k('stripes', '#1f3e93', W, '#1f3e93', '#1f3e93', W, GOLD, { outline: '#1f3e93', sleeve: '#1f3e93' }) },
   { id: 'LIS', name: 'LISBON', s: 3, kit: k('solid', RED, null, W, RED, W, W) },
   { id: 'GLA', name: 'GLASGOW', s: 2, kit: k('hoops', GREEN, W, W, W, GREEN, BLK) },
+  { id: 'IST', name: 'ISTANBUL', s: 3, kit: k('halves', '#f6b81a', '#b5121b', '#b5121b', '#b5121b', '#b5121b', W, { outline: '#7a0c12', trim2: '#f6b81a' }) },
 ];
 
 export const ALL = [...NATIONS, ...CLUBS];
