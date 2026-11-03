@@ -77,7 +77,7 @@ const ball = buildBall(); scene.add(ball.mesh, ball.shadow);
 const arrow = buildArrow(); scene.add(arrow);
 
 let mode = 'title';   // 'title' (browser start page) | 'menu' | 'play' | 'ceremony' | 'paused'
-let celebrateT = 0, flashT = 0;
+let celebrateT = 0, flashT = 0, danceNext = false;   // danceNext: a hat-trick dance waiting for its replay to finish
 const best = loadBest();
 const controls = createControls({ renderer, rig, canvas, isPlaying: () => mode === 'play', onUnlock: () => { if (mode === 'play') showPause(); } });
 const desk = controls.desk;
@@ -159,7 +159,7 @@ function setStage(level, wx) {
   applyWeather(world, wx); stadium.setWeather(wx); weather.set(wx); ball.setDesign(look.ballName);
   hud.placeScoreboard(stadium.ground.board.y, stadium.ground.board.z);
   replay.setup(world, game.team, game.opp, stadium.ground.board, look);
-  intents.reset(); slowT = 0; said10 = false;
+  intents.reset(); slowT = 0; said10 = false; danceNext = false;
   menus.close(); stopMusic(0.4); celebration.cancel(); stadium.cheer(false);
   hudEl.hidden = renderer.xr.isPresenting;
   if (!renderer.xr.isPresenting) { desk.yaw = 0; desk.pitch = 0; desk.lock(); }
@@ -240,8 +240,8 @@ function feedback(ev) {
     const hat = isHatTrick(match, e) && !training.active;
     if (b && b.text === 'THEY SCORE!') commentary.event({ type: 'counterGoal' });
     else commentary.event(e, { us: match.us, them: match.them, scenario: !!match.scenario, hatTrick: hat });
-    if (e.type === 'goal' && settings.replays && !hat && !training.active) replay.goal();
-    if (hat) startDance();
+    if (e.type === 'goal' && settings.replays && !training.active) replay.goal();
+    if (hat) { if (replay.busy) danceNext = true; else startDance(); }   // a hat trick's replay plays first, then the dance
   }
 }
 
@@ -265,8 +265,9 @@ const loop = startLoop(renderer, (dt, t) => {
 
   if (mode === 'play' && wasPlaying && !hooks.paused) {
     if (raw.skip) training.skip();
-    if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); stadium.cheer(false); sfx('whistle', 0.6); }
+    if (raw.restart) { if (training.active) training.reset(world); else resetPlay(world); match.deadT = 0; celebration.cancel(); danceNext = false; stadium.cheer(false); sfx('whistle', 0.6); }
     if (replay.active && (raw.knock || raw.drag)) replay.stop();             // A or B skips the replay
+    if (danceNext && !replay.busy) { danceNext = false; startDance(); }     // replay over (or skipped): dance
     if (raw.vr) { raw.hand = hands.highest(camera.position.y); raw.rightHand = hands.hand('right', handW); raw.leftHand = hands.hand('left', handL); }
     const intent = intents.build(raw, dt, world);
     const ev = stepSim(world, intent, simDt);

@@ -48,6 +48,8 @@ export function createReplay(scene, renderer) {
 
   return {
     get active() { return active; },
+    // playing, or about to start after a goal
+    get busy() { return active || pendingT >= 0; },
     // per match: who's playing, and fresh replay copies of the players (you as a whole player)
     // locker: { boots, heads, ballName } so the replay copies match what's on the pitch
     setup(world, home, away, board, locker = {}) {
