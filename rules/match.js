@@ -1,5 +1,5 @@
 // The arcade layer: a two-minute clock, points, and the banner every event shows. Pure.
-import { MATCH, GOAL } from './tuning.js';
+import { MATCH, GOAL, REBOUND } from './tuning.js';
 import { GRADES } from './pass.js';
 import { SKILL } from './skills.js';
 
@@ -14,11 +14,14 @@ export function createScenarioMatch(scn) {
 }
 
 // Chance the opponent scores on the break after you lose the ball, by their strength (1..5).
-export const counterChance = s => 0.06 + 0.035 * s;
+export const counterChance = s => 0.16 + 0.025 * s;
 
-// Call on a turnover in a cup match. Returns true when they score from it.
-export function counterAttack(m, rnd = Math.random) {
-  if (!m.scenario || rnd() >= counterChance(m.scenario.oppStrength)) return false;
+// Call on a turnover in a cup match (e: the tackled / intercepted event). Returns true when they score
+// from it. A cleared rebound (e.rebound) is a much smaller chance: you did the right thing and shot.
+export function counterAttack(m, rnd = Math.random, e = null) {
+  if (!m.scenario) return false;
+  const chance = counterChance(m.scenario.oppStrength) * (e && e.rebound ? REBOUND.counter : 1);
+  if (rnd() >= chance) return false;
   m.them++;
   return true;
 }
@@ -62,7 +65,7 @@ export function scoreEvent(m, e) {
       if (e.where === 'byline') return { text: e.high ? 'OVER THE BAR' : 'WIDE', sub: '', tone: 'bad' };
       return { text: e.where === 'cleared' ? 'CLEARED' : 'OUT OF PLAY', sub: '', tone: 'bad' };
     case 'tackled': return { text: 'TACKLED', sub: 'they win it back', tone: 'bad' };
-    case 'intercepted': return { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
+    case 'intercepted': return e.rebound ? { text: 'CLEARED', sub: 'they clear the rebound', tone: 'bad' } : { text: 'INTERCEPTED', sub: 'read that pass', tone: 'bad' };
     case 'drag': return e.read ? { text: 'NOT AGAIN', sub: 'he read the drag-back', tone: 'bad' } : null;
     case 'skill': {
       if (e.read) return { text: 'NOT AGAIN', sub: `he read the ${SKILL.names[e.move].toLowerCase()}`, tone: 'bad' };

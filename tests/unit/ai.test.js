@@ -50,3 +50,10 @@ test('keeper stays between the posts and in front of the line', () => {
   const k = keeperSpot({ x: -20, z: -30 });
   assert.ok(Math.abs(k.x) < GOAL.halfW && k.z > GOAL.z);
 });
+
+test('keeper holds a hard shot struck straight at him but pushes the same one away at full stretch', () => {
+  const gk = { x: 0 };
+  assert.equal(keeperSave(gk, { x: 0.1, y: 1.1, t: 0.9, onTarget: true }, 26), 'catch');
+  assert.equal(keeperSave(gk, { x: 1.9, y: 1.1, t: 0.9, onTarget: true }, 26), 'parry');
+  assert.equal(keeperSave(gk, { x: 0.1, y: 1.1, t: 0.9, onTarget: true }, 30), 'parry', 'a rocket is still parried');
+});

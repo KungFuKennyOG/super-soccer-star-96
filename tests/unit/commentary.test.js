@@ -43,3 +43,8 @@ test('weather kick-offs get their own lines', () => {
   assert.match(id({ type: 'kickoff', weather: 'rain' }), /^rain/);
   assert.match(id({ type: 'kickoff', weather: 'clear' }), /^kickoff/);
 });
+
+test('a cleared rebound gets no "intercepted" call (the parry line has just played)', () => {
+  assert.equal(pickLine({ type: 'intercepted', rebound: true }, {}, seeded()), null);
+  assert.match(pickLine({ type: 'intercepted' }, {}, seeded()).id, /^(intercepted|tackled)/);
+});

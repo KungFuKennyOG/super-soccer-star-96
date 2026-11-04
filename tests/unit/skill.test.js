@@ -31,3 +31,12 @@ test('the same shot beats a weak keeper and gets saved by a great one', () => {
   assert.equal(keeperSave({ x: 0 }, cross, 26, tuneFor(3, 1).ai), 'beaten');
   assert.notEqual(keeperSave({ x: 0 }, cross, 26, tuneFor(3, 5).ai), 'beaten');
 });
+
+test('stars you can see: a 5-star keeper holds harder shots, 5-star teammates are quicker and pass better', () => {
+  const big = tuneFor(5, 5), small = tuneFor(1, 1);
+  assert.ok(big.ai.gkCatchBelow > small.ai.gkCatchBelow + 6, 'a great keeper holds what a poor one spills');
+  assert.ok(big.ai.mateRun / small.ai.mateRun > 1.4);
+  assert.ok(big.matePerfect - small.matePerfect >= 0.5);
+  // the pressing that compounded too hard stays inside the spread
+  assert.ok(Math.abs(big.ai.press / AI.press - 1 - SPREAD) < 1e-9);
+});

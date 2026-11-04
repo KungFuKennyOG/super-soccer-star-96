@@ -111,3 +111,24 @@ test('a zero-length step (the hit-stop) changes nothing and stays finite', () =>
   assert.equal(JSON.stringify(w.ball), before);
   for (const p of w.players) assert.ok(Number.isFinite(p.x) && Number.isFinite(p.z));
 });
+
+import { isRebound } from '../../rules/sim.js';
+test('a loose ball off a parry, block or the woodwork is a rebound until someone kicks it or it goes stale', () => {
+  const w = createWorld(fixed);
+  w.time = 10;
+  assert.ok(!isRebound(w), 'nothing came back off anything');
+  w.parryT = 9.2; assert.ok(isRebound(w), 'just parried');
+  w.parryT = -9; w.reboundT = 9.5; assert.ok(isRebound(w), 'just blocked or off the post');
+  w.kick = { by: 'm1', t: 9.8 }; assert.ok(!isRebound(w), 'a teammate has played it since');
+  w.kick = null; w.time = 20; assert.ok(!isRebound(w), 'long gone');
+});
+
+test('a shot blocked by a defender standing in its way marks a rebound', () => {
+  const w = createWorld(fixed);
+  const d = w.byId.d2; d.x = w.you.x; d.z = w.you.z - 6; d.stun = 99;
+  for (const id of ['d1', 'd3']) { w.byId[id].x = 20; w.byId[id].stun = 99; }
+  const eye = { x: w.you.x, y: 1.7, z: w.you.z };
+  const ev = run(w, 1.2, t => (t < DT ? idle({ shot: { eye, dir: unit(0, -0.02, -1), holdT: 0.8 } }) : idle()));
+  assert.ok(ev.some(e => e.type === 'blocked'), 'the shot hit him');
+  assert.ok(w.reboundT > 0, 'and the block was remembered');
+});

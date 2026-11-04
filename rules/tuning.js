@@ -30,7 +30,7 @@ export const AI = {
   markDanger: 21, markGoal: 2.0, markBall: 0,     // attackers inside this of goal are marked goal-side (and ball-side, by level)
   coverGap: 4.5,                              // the spare man sits this far behind the ball toward goal
   mateRun: 6.0, mateDribble: 5.6,             // your teammates
-  gkMove: 3.5, gkDive: 5.0, gkReact: 0.17, gkReach: 1.04, gkCatchBelow: 19,
+  gkMove: 3.5, gkDive: 5.0, gkReact: 0.17, gkReach: 1.04, gkCatchBelow: 19, gkCatchAtHim: 9, gkCatchWidth: 1.6,   // he catches below gkCatchBelow m/s, up to gkCatchAtHim more for a shot straight at him (fading out gkCatchWidth m away)
   tackleRange: 0.85, tackleTime: 0.22,        // a defender must stay this close to the ball this long to win it
   interceptSlow: 0.85, interceptFast: 0.45, fastPass: 15,
   receive: 1.3,                               // how close the ball must come to be controlled
@@ -62,6 +62,11 @@ export const SHOT = {
 };
 
 export const MATCH = { duration: 120, deadTime: 2.4 };
+
+// A shot that comes back off the keeper, a defender or the woodwork and is won by a defender within
+// `window` s (nobody kicking it since) is a clearance, not a turnover you gave away: it shows CLEARED and
+// its counter-attack chance is `counter` x the normal one (rules/match.js).
+export const REBOUND = { window: 2.5, counter: 1 / 3 };
 
 // Headers, volleys and bicycle kicks (rules/aerial.js). Heights are of the ball's centre (m).
 export const AIR = {

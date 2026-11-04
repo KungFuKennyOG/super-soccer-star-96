@@ -82,7 +82,7 @@ export function pickLine(e, state = {}, rnd = Math.random, recent = []) {
     case 'out': return e.where === 'byline' ? say(e.high ? 'over' : 'wide', 2) : null;
     case 'blocked': return say('blocked', 2);
     case 'tackled': return say('tackled', 1);
-    case 'intercepted': return say('intercepted', 1);
+    case 'intercepted': return e.rebound ? null : say('intercepted', 1);   // a cleared rebound: the parry line has just played
     case 'pass':
       if (e.cross) return say('cross', 2);
       return e.by === 'you' && e.grade === 'perfect' ? say('pass', 1, 0.5) : null;

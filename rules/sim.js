@@ -13,7 +13,7 @@
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
 // }
-import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS } from './tuning.js';
+import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS, REBOUND } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, ballSpeed } from './ball.js';
@@ -56,7 +56,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
-    kick: null, shot: null, parryT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
+    kick: null, shot: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
 }
@@ -308,9 +308,16 @@ function onBallEvent(w, e, ev) {
     ev.push({ ...e, by, kind: s ? s.kind || (s.chipped ? 'chip' : null) : null, dist: s ? Math.hypot(s.from.x - e.x, s.from.z - GOAL.z) : 0, assist: a, chain: w.perfectChain, skills: by === 'you' ? w.skills : 0 });
   } else ev.push({ ...e, by: s ? s.by : null });
   if (s) s.done = true;
-  if (e.type === 'post') w.shot = null;
+  if (e.type === 'post') { w.shot = null; w.reboundT = w.time; }
 }
 
+
+// A loose ball a defender wins within REBOUND.window of a parry, block or the woodwork, with nobody
+// kicking it since, is a cleared rebound, not a pass they read (rules/match.js: a smaller counter chance).
+export function isRebound(w) {
+  const t = Math.max(w.parryT ?? -9, w.reboundT ?? -9);
+  return w.time - t < REBOUND.window && !(w.kick && w.kick.t > t);
+}
 
 function looseBall(w, rnd, ev) {
   const b = w.ball, sp = ballSpeed(b), fresh = w.kick && w.time - w.kick.t < 0.12;
@@ -319,7 +326,7 @@ function looseBall(w, rnd, ev) {
     for (const d of defenders(w)) {
       if (b.y < 1.7 && dist(d, b) < 0.55 && !fresh) {
         b.vz = Math.abs(b.vz) * 0.3; b.vx = (rnd() - 0.5) * 8; b.vy = 1.5;
-        w.shot = null;
+        w.shot = null; w.reboundT = w.time;
         ev.push({ type: 'blocked', by: d.id });
         return;
       }
@@ -342,7 +349,7 @@ function looseBall(w, rnd, ev) {
   for (const d of defenders(w)) {
     const range = sp > AI.fastPass ? w.tune.ai.interceptFast : w.tune.ai.interceptSlow;
     const dd = dist(d, b);
-    if (!fresh && !rising && !d.stun && dd < range && !(recD < recR && recD <= dd + margin)) { ev.push({ type: 'intercepted', by: d.id }); w.owner = d.id; return; }
+    if (!fresh && !rising && !d.stun && dd < range && !(recD < recR && recD <= dd + margin)) { ev.push({ type: 'intercepted', by: d.id, rebound: isRebound(w) }); w.owner = d.id; return; }
   }
   if (sp > 27) return;
   let best = null, bd = Infinity;

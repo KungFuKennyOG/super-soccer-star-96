@@ -131,8 +131,11 @@ export function keeperSpot(ball) {
 export function keeperSave(gk, cross, speed, ai = AI) {
   if (!cross.onTarget || cross.y > GOAL.h + 0.15) return 'wide';
   const reach = ai.gkReach + Math.max(0, cross.t - ai.gkReact) * ai.gkDive - Math.max(0, cross.y - 1.6) * 1.0;
-  if (Math.abs(cross.x - gk.x) > reach) return 'beaten';
-  return speed < ai.gkCatchBelow ? 'catch' : 'parry';
+  const off = Math.abs(cross.x - gk.x);
+  if (off > reach) return 'beaten';
+  // he holds anything soft, and harder ones hit at him; one he has to stretch for is pushed away
+  const atHim = Math.max(0, 1 - off / ai.gkCatchWidth);
+  return speed < ai.gkCatchBelow + ai.gkCatchAtHim * atHim ? 'catch' : 'parry';
 }
 
 export function closest(list, p) {

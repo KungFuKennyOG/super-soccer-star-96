@@ -233,7 +233,7 @@ function feedback(ev) {
     if (e.type === 'post') { sfx('post'); sfx('ooh'); }
     if (e.type === 'out' || e.type === 'tackled' || e.type === 'intercepted') { sfx('groan'); sfx('whistle', 0.6); }
     const b = scoreEvent(match, e);
-    if (b && (e.type === 'tackled' || e.type === 'intercepted') && counterAttack(match)) {
+    if (b && (e.type === 'tackled' || e.type === 'intercepted') && counterAttack(match, Math.random, e)) {
       b.text = 'THEY SCORE!'; b.sub = `ON THE COUNTER  ${match.us}-${match.them}`; sfx('roar'); stadium.theirs();
     }
     if (b) hud.banner(b);

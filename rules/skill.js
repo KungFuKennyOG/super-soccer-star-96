@@ -1,15 +1,18 @@
 // Team stars on the pitch. A match's tuning comes from both teams' strength (1..5): the opponent's
 // stars set how hard their defenders press and tackle and how good their keeper is; yours set how
 // quick your teammates are, how often their passes are perfect, and a little of your own pace and
-// shooting. Everything moves at most ±SPREAD (10%) between 1 and 5 stars, so a giant is tougher, not unbeatable.
+// shooting. Most of it moves ±SPREAD (10%) between 1 and 5 stars: pressing and the keeper's reach compound
+// too hard past that. What you can see without it deciding every attack moves ±SEEN (20%): how hard a shot
+// their keeper holds, your teammates' pace and how often their passes are perfect. The dice (counter chance,
+// starting deficit) lean less on stars than before, so cup odds stayed where they were (Nov 2026).
 import { AI, MOVE, BRAIN } from './tuning.js';
 
-export const SPREAD = 0.1;
+export const SPREAD = 0.1, SEEN = 0.2;
 const f = s => (Math.max(1, Math.min(5, s)) - 3) / 2;       // 1 star → -1, 3 → 0, 5 → +1
 
 // level: how cleverly they defend (BRAIN in tuning.js), from levelFor.
 export function tuneFor(home = 3, away = 3, level = 0) {
-  const h = f(home), a = f(away), k = SPREAD, brain = BRAIN[Math.max(0, Math.min(BRAIN.length - 1, level))];
+  const h = f(home), a = f(away), k = SPREAD, v = SEEN, brain = BRAIN[Math.max(0, Math.min(BRAIN.length - 1, level))];
   return {
     home, away, level, brain,
     ai: {
@@ -21,8 +24,9 @@ export function tuneFor(home = 3, away = 3, level = 0) {
       dragStun: AI.dragStun * (1 - 0.5 * k * a + 0.5 * k * h),
       // their keeper
       gkReact: AI.gkReact * (1 - k * a) * (1 - brain.gkSharp), gkDive: AI.gkDive * (1 + k * a), gkReach: AI.gkReach * (1 + 0.6 * k * a) + 0.2 * brain.gkSharp,
+      gkCatchBelow: AI.gkCatchBelow * (1 + v * a),   // a good keeper holds harder shots
       // your teammates
-      mateRun: AI.mateRun * (1 + k * h), mateDribble: AI.mateDribble * (1 + k * h),
+      mateRun: AI.mateRun * (1 + v * h), mateDribble: AI.mateDribble * (1 + v * h),
     },
     // you: half the spread, so it's a nudge rather than a different player
     move: {
@@ -30,7 +34,7 @@ export function tuneFor(home = 3, away = 3, level = 0) {
       run: MOVE.run * (1 + 0.5 * k * h), sprint: MOVE.sprint * (1 + 0.5 * k * h),
       dribble: MOVE.dribble * (1 + 0.5 * k * h), dribbleSprint: MOVE.dribbleSprint * (1 + 0.5 * k * h),
     },
-    matePerfect: 0.7 + 0.15 * h,        // chance a teammate's pass back to you is perfect
+    matePerfect: 0.7 + 0.25 * h,        // chance a teammate's pass back to you is perfect
     shotErr: -0.008 * h,                // radians added to your shot spread (negative = tighter)
     shotPower: 1 + 0.5 * k * h,         // your shot speed multiplier
   };

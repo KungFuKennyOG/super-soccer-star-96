@@ -47,6 +47,7 @@ test('your third goal is a hat trick; teammates\' goals do not count toward it',
 });
 
 import { createScenarioMatch, counterAttack, counterChance } from '../../rules/match.js';
+import { REBOUND } from '../../rules/tuning.js';
 test('cup matches keep the score: your goals add to yours, counters to theirs', () => {
   const m = createScenarioMatch({ us: 0, them: 2, clock: 145, oppStrength: 4 });
   assert.equal(m.clock, 145);
@@ -66,4 +67,15 @@ test('a chip pays a bonus; claims and read drag-backs get their own banners', ()
   assert.equal(scoreEvent(m, { type: 'saved', claim: true }).text, 'CLAIMED');
   assert.equal(scoreEvent(m, { type: 'drag', read: true }).text, 'NOT AGAIN');
   assert.equal(scoreEvent(m, { type: 'drag' }), null);
+});
+
+test('a cleared rebound is a CLEARED banner and a much smaller counter chance than a lost ball', () => {
+  assert.equal(scoreEvent(createMatch(), { type: 'intercepted', by: 'd1', rebound: true }).text, 'CLEARED');
+  assert.equal(scoreEvent(createMatch(), { type: 'intercepted', by: 'd1' }).text, 'INTERCEPTED');
+  const p = counterChance(4);
+  // a roll just under the full chance scores off a lost ball, not off a cleared rebound
+  const m = createScenarioMatch({ us: 0, them: 1, clock: 130, oppStrength: 4 });
+  assert.ok(!counterAttack(m, () => p - 0.01, { type: 'intercepted', rebound: true }));
+  assert.ok(counterAttack(m, () => p - 0.01, { type: 'intercepted' }));
+  assert.ok(counterAttack(m, () => p * REBOUND.counter - 0.01, { type: 'intercepted', rebound: true }));
 });

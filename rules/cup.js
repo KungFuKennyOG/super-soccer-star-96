@@ -68,7 +68,7 @@ export function scenarioFor(cup, fx, rnd = Math.random, lengthMul = 1) {
   // later rounds are harder through how they defend (rules/brain.js), so the deficit barely grows with
   // the round, and every goal you need comes with plenty of clock (you're the superstar)
   let deficit = 1;
-  if (rnd() < 0.25 + 0.05 * depth + 0.06 * (them - us)) deficit++;
+  if (rnd() < 0.25 + 0.05 * depth + 0.03 * (them - us)) deficit++;
   deficit = Math.min(2, deficit);
   const theirs = deficit + (rnd() < 0.35 ? 1 : 0), ours = theirs - deficit;
   const clock = Math.round((85 + 45 * deficit) * lengthMul);
