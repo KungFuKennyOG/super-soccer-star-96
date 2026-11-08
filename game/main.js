@@ -292,9 +292,10 @@ const loop = startLoop(renderer, (dt, t) => {
     if (r === 'over' && mode === 'play') { mode = 'menu'; fullTime(); }
   }
 
-  // put the rig under the player's head
+  // put the rig under the player's head (not in the trophy ceremony: there you walk round for real,
+  // and pinning your head to the player cancelled every step, leaving the cup out of reach)
   const you = world.you;
-  if (raw.vr) {
+  if (mode === 'ceremony') { /* the rig stays put */ } else if (raw.vr) {
     const c = Math.cos(rig.rotation.y), s = Math.sin(rig.rotation.y);
     const hx = camera.position.x * c + camera.position.z * s, hz = -camera.position.x * s + camera.position.z * c;
     rig.position.set(you.x - hx, 0, you.z - hz);

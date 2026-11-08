@@ -75,12 +75,16 @@ function buildTrophy(kind) {
 }
 
 // hands: from game/hands.js, so the cup is held by your real grips.
+// how far in front of you the plinth stands: the hand-holds are in reach without a step (0.9 m was
+// right at the end of your arms)
+const NEAR = 0.6;
+
 export function createCeremony(scene, camera, hands) {
   const root = new THREE.Group(); root.visible = false; scene.add(root);
   const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 1.0, 12), ps1({ color: '#20264a' }));
-  plinth.position.set(0, 0.5, 0.9); root.add(plinth);
+  plinth.position.set(0, 0.5, NEAR); root.add(plinth);
   const cloth = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 12), ps1({ color: '#c8102e' }));
-  cloth.position.set(0, 1.0, 0.9); root.add(cloth);
+  cloth.position.set(0, 1.0, NEAR); root.add(cloth);
 
   // the hint card over the plinth
   const cv = canvasTex(192, 40, () => {}), ctx = cv.getContext('2d'), tex = pixelTex(cv);
@@ -111,7 +115,7 @@ export function createCeremony(scene, camera, hands) {
 
   let trophy = null, squad = [], state = null, lifted = false, liftT = 0, palette = [], nextBurst = 0;
   const head = new THREE.Vector3(), dir = new THREE.Vector3(), hand = new THREE.Vector3(), tw = new THREE.Vector3();
-  const rest = new THREE.Vector3(0, 1.02, 0.9);
+  const rest = new THREE.Vector3(0, 1.02, NEAR);
   let held = { left: null, right: null }, deskHold = false, deskY = 1.25, deskHands = [], anchors = [];
   // the lift counts once a hand holding the cup is this far above your eyes (fists just over your head).
   // It used to wait for the cup's base to clear your head, which on the club cup meant arms locked
