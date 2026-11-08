@@ -113,6 +113,11 @@ export function createCeremony(scene, camera, hands) {
   const head = new THREE.Vector3(), dir = new THREE.Vector3(), hand = new THREE.Vector3(), tw = new THREE.Vector3();
   const rest = new THREE.Vector3(0, 1.02, 0.9);
   let held = { left: null, right: null }, deskHold = false, deskY = 1.25, deskHands = [], anchors = [];
+  // the lift counts once a hand holding the cup is this far above your eyes (fists just over your head).
+  // It used to wait for the cup's base to clear your head, which on the club cup meant arms locked
+  // straight up, 44 cm over your eyes, and some lifts never counted.
+  const LIFT_ABOVE = 0.12, SKIP_AFTER = 20;
+  let waitT = 0, skipShown = false, topHand = -Infinity;
 
   function burst(at) {
     const c = palette[Math.floor(Math.random() * palette.length)];
@@ -148,7 +153,7 @@ export function createCeremony(scene, camera, hands) {
       palette = [team.kit.shirt, team.kit.alt, team.kit.shorts, '#f2c21a', '#ffffff'];
       camera.getWorldPosition(head); camera.getWorldDirection(dir);
       root.position.set(head.x, 0, head.z); root.rotation.y = Math.atan2(dir.x, dir.z);
-      root.visible = true; state = 'waiting'; lifted = false; held = { left: null, right: null }; trophy.quaternion.identity(); deskHold = false; deskY = 1.25;
+      root.visible = true; state = 'waiting'; lifted = false; held = { left: null, right: null }; trophy.quaternion.identity(); deskHold = false; deskY = 1.25; waitT = 0; skipShown = false;
       say('CHAMPIONS!', 'GRAB THE CUP AND LIFT IT ABOVE YOUR HEAD');
     },
     stop() { state = null; root.visible = conf.visible = sparks.visible = false; hands.hide('left', false); hands.hide('right', false); },
@@ -176,6 +181,8 @@ export function createCeremony(scene, camera, hands) {
           const on = held[side] !== null, h = deskHands[side === 'left' ? 0 : 1];
           h.visible = on; hands.hide(side, on);
         }
+        topHand = -Infinity;
+        for (const g of grips) if (held[g.side] !== null) topHand = Math.max(topHand, g.obj.getWorldPosition(new THREE.Vector3()).y);
         const holding = grips.filter(g => held[g.side] !== null).map(g => ({ p: local(g.obj.getWorldPosition(new THREE.Vector3())), a: anchors[held[g.side]] }));
         if (holding.length === 2 && holding[0].a !== holding[1].a) {
           // two hands: the cup turns with the line between your hands (tilt it, turn it)
@@ -200,7 +207,8 @@ export function createCeremony(scene, camera, hands) {
       }
 
       trophy.getWorldPosition(tw);
-      if (!lifted && tw.y > head.y + 0.05 && (raw.vr ? (held.left !== null || held.right !== null) : deskHold)) {
+      const up = raw.vr ? topHand > head.y + LIFT_ABOVE : deskHold && tw.y > head.y + 0.05;
+      if (!lifted && up) {
         lifted = true; liftT = 0; state = 'lifted';
         sfx('roar'); sfx('net'); playMusic('champions');
         say('CHAMPIONS!', '', '#ffffff');
@@ -235,6 +243,12 @@ export function createCeremony(scene, camera, hands) {
         });
         sparks.instanceMatrix.needsUpdate = true; if (sparks.instanceColor) sparks.instanceColor.needsUpdate = true;
         if (liftT > 6 && state === 'lifted') { state = 'ready'; say('CHAMPIONS!', 'PRESS A TO CONTINUE', '#ffffff'); }
+      }
+      // never a dead end: if the lift hasn't counted after a while, A carries on
+      if (state === 'waiting') {
+        waitT += dt;
+        if (waitT > SKIP_AFTER && !skipShown) { skipShown = true; say('CHAMPIONS!', 'LIFT IT HIGH OR PRESS A TO CONTINUE'); }
+        if (skipShown && raw.nav && raw.nav.ok) return 'done';
       }
       for (const m of squad) animate(m, { vx: 0, vz: 0, role: 'mate' }, dt, t, lifted);
       card.lookAt(head);
