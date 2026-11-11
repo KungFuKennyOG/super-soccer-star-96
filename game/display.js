@@ -5,10 +5,11 @@ import { PS1 } from './ps1.js';
 export const LINES = 480;          // browser render height: a little chunky, clearly readable
 const SETTINGS_KEY = 'sss96.settings';
 
-// match length (index into LENGTHS), PS1 wobble (0 off, 1 low, 2 full), commentary (0 off, 1 text,
+// difficulty (0 normal, 1 hard, 2 legend: DIFFICULTY in rules/tuning.js; HARD by default since Kenny found
+// the first defence too easy), match length (index into LENGTHS), PS1 wobble (0 off, 1 low, 2 full), commentary (0 off, 1 text,
 // 2 voice), goal replays and hit effects (0 off, 1 on), skill gestures (0 off, 1 on, 2 only with the right grip held),
 // weather (0 random, 1 clear, 2 rain, 3 snow), and the locker (LOCKER option indices)
-const DEFAULTS = { length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1, skills: 1, weather: 0, ball: 0, boots: 0, heads: 0 };
+const DEFAULTS = { difficulty: 1, length: 1, wobble: 1, commentary: 2, replays: 1, juice: 1, skills: 1, weather: 0, ball: 0, boots: 0, heads: 0 };
 // The locker: your ball, boots and big heads, picked in SETTINGS.
 export const LOCKER = {
   ball: { name: 'BALL', options: ['CLASSIC', 'STAR', 'RETRO', 'GOLD'] },

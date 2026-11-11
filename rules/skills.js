@@ -8,7 +8,7 @@
 //
 // A well-timed skill (a presser within reach) fools him: he stumbles or turns the wrong way and you
 // get a moment free of tackles. Doing the same move again and again stops working: after SKILL.bite
-// of one move within SKILL.memory seconds he reads it (other moves still fool him). Successful skills
+// of one move within SKILL.memory seconds he reads it (other moves still fool him; one fewer on LEGEND). Successful skills
 // in one attack add up; score after two or more and it's JOGA BONITA.
 import { dist, norm } from './vec.js';
 
@@ -39,7 +39,7 @@ export function skillFools(w, move) {
   let same = 0;
   for (let i = log.length - 1; i >= 0 && log[i].move === move; i--) same++;
   log.push({ move, t: w.time });
-  return same < SKILL.bite;
+  return same < SKILL.bite - (w.tune.skillBite || 0);
 }
 
 // Performs a skill. launch(w, player, velocity) kicks the ball loose (from the sim). Pushes a

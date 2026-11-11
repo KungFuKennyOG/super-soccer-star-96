@@ -139,7 +139,9 @@ test('settings, and matches in the snow and rain', { timeout: 900000 }, async t 
   await page.screenshot({ path: new URL('menu-modes.png', OUT).pathname });
   await menuTo(page, 4); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__sss.menus.screen === 'settings');
-  await menuTo(page, 6);
+  await page.keyboard.press('ArrowRight');                   // difficulty: HARD (the default) to LEGEND
+  await page.waitForFunction(() => window.__sss.settings.difficulty === 2);
+  await menuTo(page, 7);
   await page.keyboard.press('ArrowRight');                   // weather: CLEAR
   await page.waitForFunction(() => window.__sss.settings.weather === 1);
   await page.waitForTimeout(400);
@@ -149,6 +151,7 @@ test('settings, and matches in the snow and rain', { timeout: 900000 }, async t 
   for (const [n, kind] of [[3, 'snow'], [2, 'rain']]) {
     await page.evaluate(w => { const s = window.__sss; s.settings.weather = w; s.game.kind = 'attack'; s.game.cup = null; s.game.scenario = null; s.startMatch(); }, n);
     await page.waitForFunction(k => window.__sss.mode === 'play' && window.__sss.world.weather === k, kind, { timeout: 150000 });
+    assert.equal(await page.evaluate(() => window.__sss.world.tune.hard), 2, 'the match is tuned to the difficulty setting');
     await page.waitForTimeout(800);
     await page.screenshot({ path: new URL(`${kind}.png`, OUT).pathname });
   }

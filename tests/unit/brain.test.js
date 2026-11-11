@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld, stepSim, defenders } from '../../rules/sim.js';
 import { tuneFor, levelFor } from '../../rules/skill.js';
-import { defenceTargets, mateSupport } from '../../rules/brain.js';
+import { defenceTargets, mateSupport, CLOSE } from '../../rules/brain.js';
 import { laneBlocked } from '../../rules/pass.js';
 import { GOAL, BRAIN } from '../../rules/tuning.js';
 import { dist } from '../../rules/vec.js';
@@ -95,3 +95,30 @@ test('the runner keeps his run going into the box', () => {
   assert.ok(w.byId[runner].z < GOAL.z + 14, `he got into the box: ${w.byId[runner].z.toFixed(1)}`);
 });
 
+test('HARD: wind up a shot near a defender and he comes for the ball; a quick tap or NORMAL and he does not', () => {
+  const setup = hard => {
+    const w = createWorld(fixed, tuneFor(3, 3, 0, hard)), d = w.byId;
+    Object.assign(w.you, { x: 0, z: -16 }); Object.assign(w.ball, { x: 0, z: -16.6 });
+    Object.assign(d.d2, { x: 0, z: -14.2 });                     // the presser, behind you
+    Object.assign(d.d1, { x: -2.5, z: -18.5 }); Object.assign(d.m1, { x: -4, z: -17 });   // a marker goal-side of you, near your line
+    Object.assign(d.d3, { x: 12, z: -25 }); Object.assign(d.m2, { x: 13, z: -23 });
+    return w;
+  };
+  const closing = w => [...defenceTargets(w).values()].filter(t => t.close);
+  const w = setup(1);
+  assert.equal(closing(w).length, 0, 'nobody before you wind up');
+  w.chargeT = CLOSE.react / 2;
+  assert.equal(closing(w).length, 0, 'nor in the first instant (a chip is a quick tap)');
+  w.chargeT = CLOSE.react + 0.1;
+  const t = defenceTargets(w).get('d1');
+  assert.ok(t.close && t.role === 'mark' && t.man === 'm1', 'the marker comes, and keeps his man for afterwards');
+  assert.ok(dist(t, w.ball) < 1.5 && t.speed > w.tune.ai.chase, 'at the ball, at a sprint');
+  const n = setup(0); n.chargeT = 0.6;
+  assert.equal(closing(n).length, 0, 'NORMAL: nobody reacts');
+  // the sim counts the wind-up from the intent and drops it when you let go
+  const s = setup(1);
+  run(s, 0.3, idle({ charging: true }));
+  assert.ok(s.chargeT > 0.25);
+  run(s, 0.05, idle());
+  assert.equal(s.chargeT, 0);
+});

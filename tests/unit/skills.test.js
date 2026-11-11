@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createWorld, stepSim } from '../../rules/sim.js';
 import { createMatch, scoreEvent } from '../../rules/match.js';
 import { SKILL, presserOf } from '../../rules/skills.js';
+import { tuneFor } from '../../rules/skill.js';
 import { dist } from '../../rules/vec.js';
 
 const fixed = () => 0.5;
@@ -42,6 +43,15 @@ test('the same move over and over gets read; mixing them up keeps fooling him', 
   const mixed = ['stepover', 'roulette', 'stepover', 'roulette'].map(m => { w2.byId.d2.stun = 0; w2.time += 0.5; return skill(w2, m); });
   assert.ok(mixed.every(e => e.ok && !e.read));
   assert.equal(SKILL.bite, 2);
+});
+
+test('LEGEND reads the same move the second time; mixing still works', () => {
+  const w = oneOnOne(); w.tune = tuneFor(3, 3, 0, 2);
+  const seq = ['stepover', 'stepover'].map(m => { w.byId.d2.stun = 0; w.time += 0.5; return skill(w, m); });
+  assert.deepEqual(seq.map(e => e.read), [false, true]);
+  const w2 = oneOnOne(); w2.tune = tuneFor(3, 3, 0, 2);
+  const mixed = ['stepover', 'roulette', 'stepover'].map(m => { w2.byId.d2.stun = 0; w2.time += 0.5; return skill(w2, m); });
+  assert.ok(mixed.every(e => e.ok && !e.read));
 });
 
 test('nutmeg: through the legs of a man square in front, he turns, you collect it beyond him', () => {

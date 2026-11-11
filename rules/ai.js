@@ -29,18 +29,22 @@ export function defenderTargets(defs, attackers, ball, owner, ai = AI, lob = nul
     const c = closest(list, p), keep = list.find(d => was(d.id).role === role);
     return keep && c && dist(keep, p) < dist(c, p) + 1 ? keep : c;
   };
-  const first = nearest(live.length ? live : defs, carrier || ball, 'press');
+  const pool = live.length ? live : defs;
+  const first = nearest(pool, carrier || ball, 'press');
   if (first && carrier) {
+    const beaten = dist(first, goalC) > dist(carrier, goalC) + 0.5;
     // goal-side of him, reading where he's going; once there, in for the ball (and he only backs off
-    // again a little further out, so he doesn't dither at the line)
-    const g = norm(goalC.x - carrier.x, goalC.z - carrier.z);
-    const lead = { x: carrier.x + (carrier.vx || 0) * ai.pressLead, z: carrier.z + (carrier.vz || 0) * ai.pressLead };
+    // again a little further out, so he doesn't dither at the line). Going in, he heads for where he
+    // can meet the ball (ai.pressRead) and gets back at a sprint when he's the wrong side of you (ai.recover).
+    const g = norm(goalC.x - carrier.x, goalC.z - carrier.z), vx = carrier.vx || 0, vz = carrier.vz || 0;
+    const lead = { x: carrier.x + vx * ai.pressLead, z: carrier.z + vz * ai.pressLead };
     const spot = { x: lead.x + g.x * ai.pressGap, z: lead.z + g.z * ai.pressGap };
     const there = dist(first, spot) < 0.9 || dist(first, carrier) < ai.pressIn + (was(first.id).in ? 0.6 : 0);
-    out.set(first.id, there ? { x: ball.x, z: ball.z, speed: ai.press, role: 'press', in: true } : { ...spot, speed: ai.press, role: 'press' });
+    const speed = beaten && ai.recover > 1 ? ai.chase * ai.recover : ai.press;
+    out.set(first.id, there ? { ...meet(first, ball, vx, vz, speed, ai.pressRead), speed, role: 'press', in: true } : { ...spot, speed, role: 'press' });
   } else if (first && lob) {
     // tight on him from the far side of the ball, ready to tackle on his first touch
-    const c = nearest(live.length ? live : defs, lob, 'press'), g = norm(lob.x - ball.x, lob.z - ball.z);
+    const c = nearest(pool, lob, 'press'), g = norm(lob.x - ball.x, lob.z - ball.z);
     out.set(c.id, { x: lob.x + g.x * 0.9, z: lob.z + g.z * 0.9, speed: ai.chase, role: 'press' });
   } else if (first) out.set(first.id, { x: ball.x, z: ball.z, speed: ai.chase, role: 'press' });
 
@@ -56,14 +60,30 @@ export function defenderTargets(defs, attackers, ball, owner, ai = AI, lob = nul
     const c = closest(rest, m), d = markedBy && dist(markedBy, m) < dist(c, m) + 2 ? markedBy : c;
     rest.splice(rest.indexOf(d), 1);
     const g = norm(goalC.x - m.x, goalC.z - m.z), toBall = norm(ball.x - m.x, ball.z - m.z);
-    out.set(d.id, { x: m.x + g.x * ai.markGoal + toBall.x * ai.markBall, z: m.z + g.z * ai.markGoal + toBall.z * ai.markBall, speed: ai.mark, role: 'mark', man: m.id });
+    const at = { x: m.x + g.x * ai.markGoal + toBall.x * ai.markBall, z: m.z + g.z * ai.markGoal + toBall.z * ai.markBall };
+    // a marker who's lost his man gets back to him at a run (ai.recover)
+    const speed = (ai.recover || 1) > 1 && dist(d, at) > (ai.markLoose ?? 3) ? ai.chase * ai.recover : ai.mark;
+    out.set(d.id, { ...at, speed, role: 'mark', man: m.id });
   }
   for (const d of rest) {
     const g = norm(goalC.x - ball.x, goalC.z - ball.z);
     const back = Math.min(ai.coverGap, Math.max(1.5, dist(ball, goalC) - 6));
-    out.set(d.id, { x: ball.x + g.x * back, z: Math.max(GOAL.z + 3, ball.z + g.z * back), speed: ai.mark, role: 'cover' });
+    // the spare man stands off, but once your run brings you inside ai.coverIn he goes in too (only
+    // for you: a teammate on the ball is one man's job)
+    if (carrier && carrier.role === 'you' && ai.coverIn && dist(d, carrier) < ai.coverIn + (was(d.id).in ? 1 : 0)) out.set(d.id, { ...meet(d, ball, carrier.vx || 0, carrier.vz || 0, ai.press, ai.pressRead), speed: ai.press, role: 'cover', in: true });
+    else out.set(d.id, { x: ball.x + g.x * back, z: Math.max(GOAL.z + 3, ball.z + g.z * back), speed: ai.mark, role: 'cover' });
   }
   return out;
+}
+
+// Where a defender running at `speed` first meets a ball at p moving at (vx, vz), looking at most
+// maxT seconds ahead; if he can't get there by then, where it'll be at maxT. maxT 0: straight at it.
+export function meet(d, p, vx, vz, speed, maxT = 0) {
+  for (let t = 0.05; t <= maxT; t += 0.05) {
+    const q = { x: p.x + vx * t, z: p.z + vz * t };
+    if (dist(d, q) <= speed * t) return q;
+  }
+  return { x: p.x + vx * maxT, z: p.z + vz * maxT };
 }
 
 // Teammates off the ball: run their lane ahead of the ball, drifting away from the nearest defender.

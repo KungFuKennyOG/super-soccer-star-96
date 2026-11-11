@@ -150,7 +150,7 @@ function message(title, lines, next, ok) { menuNext = next; openMenu('message', 
 
 // Sets the stage for a match: the world, kits, ground, weather and your locker.
 function setStage(level, wx) {
-  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s, level));
+  world = createWorld(Math.random, tuneFor(game.team.s, game.opp.s, level, game.kind === 'training' ? 0 : settings.difficulty));   // drills stay on NORMAL
   const look = { boots: settings.boots, heads: settings.heads, ballName: wx === 'snow' && !settings.ball ? 'ORANGE' : LOCKER.ball.options[settings.ball] };
   models = squads.dress(world, game.team, game.opp, look);
   hands.setKit(game.team.kit);

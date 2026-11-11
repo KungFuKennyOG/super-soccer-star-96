@@ -9,6 +9,7 @@ import { byId, nationToward } from '../rules/teams.js';
 import { drawWorldMap } from './worldmap.js';
 import { table, userGroup, currentFixture, STAGE_NAMES, KO } from '../rules/cup.js';
 import { WEATHER_SETTING } from '../rules/weather.js';
+import { DIFFICULTY } from '../rules/tuning.js';
 import { LOCKER } from './display.js';
 
 const W = 256, H = 192;
@@ -29,6 +30,7 @@ export const REPLAYS = ['OFF', 'ON'];
 export const JUICE = ['OFF', 'ON'];
 export const SKILLS = ['OFF', 'GESTURE', 'GRIP + GESTURE'];
 const ROWS = [
+  { key: 'difficulty', name: 'DIFFICULTY', opts: DIFFICULTY.map(d => d.name) },
   { key: 'length', name: 'MATCH LENGTH', opts: LENGTHS.map(l => l.name) }, { key: 'wobble', name: 'PS1 WOBBLE', opts: WOBBLES },
   { key: 'commentary', name: 'COMMENTARY', opts: COMMENTARY }, { key: 'replays', name: 'GOAL REPLAYS', opts: REPLAYS },
   { key: 'juice', name: 'HIT EFFECTS', opts: JUICE }, { key: 'skills', name: 'SKILL MOVES', opts: SKILLS },

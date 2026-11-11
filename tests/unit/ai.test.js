@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defenderTargets, keeperSave, mateDecision, keeperSpot } from '../../rules/ai.js';
-import { GOAL } from '../../rules/tuning.js';
+import { defenderTargets, keeperSave, mateDecision, keeperSpot, meet } from '../../rules/ai.js';
+import { GOAL, AI } from '../../rules/tuning.js';
+import { tuneFor } from '../../rules/skill.js';
 import { dist } from '../../rules/vec.js';
 
 const defs = [{ id: 'd1', x: -7, z: -19 }, { id: 'd2', x: 0, z: -17 }, { id: 'd3', x: 7, z: -19 }];
@@ -56,4 +57,47 @@ test('keeper holds a hard shot struck straight at him but pushes the same one aw
   assert.equal(keeperSave(gk, { x: 0.1, y: 1.1, t: 0.9, onTarget: true }, 26), 'catch');
   assert.equal(keeperSave(gk, { x: 1.9, y: 1.1, t: 0.9, onTarget: true }, 26), 'parry');
   assert.equal(keeperSave(gk, { x: 0.1, y: 1.1, t: 0.9, onTarget: true }, 30), 'parry', 'a rocket is still parried');
+});
+
+test('meeting a moving ball: straight at it with no read, onto its path with one', () => {
+  const d = { x: 4, z: -20 }, ball = { x: 0, z: -14 };
+  assert.deepEqual(meet(d, ball, 0, -7.6, 7, 0), { x: 0, z: -14 });
+  const q = meet(d, ball, 0, -7.6, 7, 0.9);
+  assert.ok(q.z < -17 && Math.abs(q.x) < 1e-9, 'somewhere down the line of the run');
+  assert.ok(dist(d, q) <= 7 * ((ball.z - q.z) / 7.6) + 1e-6, 'and he can be there when the ball is');
+  // too far to get there in time: where it'll be at the end of his read
+  assert.deepEqual(meet({ x: 30, z: -20 }, ball, 0, -7.6, 7, 0.5), { x: 0, z: -14 - 7.6 * 0.5 });
+});
+
+test('HARD: the presser going in heads off your run instead of chasing the ball', () => {
+  const run = [{ id: 'you', role: 'you', x: 0, z: -12, vx: 0, vz: -7.6 }, att[1], att[2]], ball = { x: 0, z: -12.6 };
+  const ds = [{ id: 'd1', x: -7, z: -19 }, { id: 'd2', x: 1.8, z: -13 }, { id: 'd3', x: 7, z: -19 }];
+  const normal = defenderTargets(ds, run, ball, 'you', tuneFor(3, 3, 0, 0).ai).get('d2');
+  const hard = defenderTargets(ds, run, ball, 'you', tuneFor(3, 3, 0, 1).ai).get('d2');
+  assert.ok(normal.in && hard.in);
+  assert.deepEqual([normal.x, normal.z], [ball.x, ball.z]);
+  assert.ok(hard.z < ball.z - 1, 'ahead of the ball, where he can meet it');
+});
+
+test('HARD: the spare man goes in once your run reaches him, but leaves a teammate on the ball to one man', () => {
+  const ds = [{ id: 'd1', x: 0.5, z: -10.2 }, { id: 'd2', x: 0.5, z: -15 }, { id: 'd3', x: -9, z: -26 }];   // d1 presses from behind, d2 is spare
+  const mk = role => [{ id: 'c', role, x: 0, z: -12, vx: 0, vz: -7 }, { id: 'a', role: 'mate', x: -10, z: -24 }, { id: 'b', role: 'mate', x: 12, z: -2 }];
+  const ai = tuneFor(3, 3, 0, 1).ai, ball = { x: 0, z: -12.6 };
+  const yours = defenderTargets(ds, mk('you'), ball, 'c', ai).get('d2');
+  assert.equal(yours.role, 'cover'); assert.ok(yours.in, 'inside coverIn: in for the ball');
+  const far = defenderTargets(ds.map(d => (d.id === 'd2' ? { ...d, z: -18 } : d)), mk('you'), ball, 'c', ai).get('d2');
+  assert.ok(!far.in, 'further off he still stands off');
+  assert.ok(!defenderTargets(ds, mk('mate'), ball, 'c', ai).get('d2').in, 'not for a teammate');
+  assert.ok(!defenderTargets(ds, mk('you'), ball, 'c', tuneFor(3, 3, 0, 0).ai).get('d2').in, 'and never on NORMAL');
+});
+
+test('HARD: a beaten presser and a marker who has lost his man come back at a sprint', () => {
+  const ai = tuneFor(3, 3, 0, 1).ai, base = tuneFor(3, 3, 0, 0).ai;
+  const run = [{ id: 'you', role: 'you', x: 0, z: -20, vx: 0, vz: -7 }, { id: 'm1', role: 'mate', x: -6, z: -28 }, att[2]];
+  const ds = [{ id: 'd1', x: 0, z: -17 }, { id: 'd2', x: 6, z: -20 }, { id: 'd3', x: 14, z: -12 }];
+  const t = defenderTargets(ds, run, { x: 0, z: -20.6 }, 'you', ai), n = defenderTargets(ds, run, { x: 0, z: -20.6 }, 'you', base);
+  assert.equal(t.get('d1').role, 'press');
+  assert.ok(t.get('d1').speed > AI.chase && n.get('d1').speed === AI.press, 'the presser behind you');
+  assert.equal(t.get('d2').role, 'mark');
+  assert.ok(t.get('d2').speed > AI.chase && n.get('d2').speed === AI.mark, 'the marker metres off his man');
 });

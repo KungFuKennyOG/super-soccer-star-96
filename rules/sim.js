@@ -9,6 +9,7 @@
 //   skill: { move: 'stepover' | 'roulette' | 'nutmeg' | 'rainbow', side } on the frame it fires (rules/skills.js)
 //   knock, drag, call: bool (true on the frame pressed; call also comes from raising a hand, callHand 'left'/'right')
 //   shot: { eye, dir, holdT } on the frame the shot is released
+//   charging: bool      the shoot trigger is held and a shot is charging (defenders close it down on HARD and LEGEND)
 //   pass: { holdT, targetId } on the frame the pass is released
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
@@ -55,7 +56,7 @@ export function resetPlay(w, rnd = Math.random) {
   }
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
-    owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false,
+    owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false, chargeT: 0,
     kick: null, shot: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
@@ -72,6 +73,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
   w.dragGrace = Math.max(0, w.dragGrace - dt);
 
   moveYou(w, it, dt);
+  w.chargeT = it.charging && w.owner === 'you' ? (w.chargeT || 0) + dt : 0;   // how long you've been winding up a shot
   if (it.head) w.headY = it.head.y;
   watchYou(w, it, dt);
 
@@ -324,7 +326,7 @@ function looseBall(w, rnd, ev) {
   if (w.shot) {
     // a shot can only be blocked, by a defender standing right in its way
     for (const d of defenders(w)) {
-      if (b.y < 1.7 && dist(d, b) < 0.55 && !fresh) {
+      if (b.y < 1.7 && dist(d, b) < w.tune.ai.block && !fresh) {
         b.vz = Math.abs(b.vz) * 0.3; b.vx = (rnd() - 0.5) * 8; b.vy = 1.5;
         w.shot = null; w.reboundT = w.time;
         ev.push({ type: 'blocked', by: d.id });

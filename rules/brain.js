@@ -7,9 +7,11 @@
 // State lives on w.brain (reset with each attack): your recent drag-backs and which teammate runs.
 import { GOAL } from './tuning.js';
 import { clamp, dist } from './vec.js';
-import { defenderTargets } from './ai.js';
+import { defenderTargets, meet } from './ai.js';
 import { laneBlocked } from './pass.js';
 
+const goalC = { x: 0, z: GOAL.z };
+export const CLOSE = { react: 0.2, range: 26 };   // closing down a shot: reaction time (s), and not from further out than this (m)
 export const RUN = { swap: 2.6, switchSpace: 2, depth: 10, supportDist: 8.5, laneBonus: 3, stick: 1.2 };
 
 export function initBrain(w) {
@@ -39,9 +41,28 @@ export function defenceTargets(w) {
   const ai = { ...w.tune.ai, markBall: w.tune.ai.markBall + B.markTight };
   const pp = w.pendingPass, lob = !w.owner && pp ? w.byId[pp.to] : null;    // a pass in flight: close down its receiver
   const out = defenderTargets(ds, home, w.ball, owner && owner.team === 'home' ? owner.id : null, ai, lob, w.brain.jobs);
+  closeShot(w, ds, ai, out);
   w.brain.jobs = {};
   for (const [id, t] of out) { w.brain.roles[id] = t.role; w.brain.jobs[id] = { role: t.role, man: t.man, in: t.in }; }
   return out;
+}
+
+// You're winding up a shot (w.chargeT, from the intent's `charging`): a moment later (CLOSE.react: a
+// chip's quick tap is over before anyone moves) the nearest man goal-side of you inside ai.closeShot
+// metres leaves what he's doing and comes for the ball, reading your run. He keeps his job (and his
+// man) for afterwards. HARD and LEGEND only: on NORMAL nobody reacts to the wind-up.
+function closeShot(w, ds, ai, out) {
+  const you = w.you;
+  if (!ai.closeShot || w.owner !== 'you' || !(w.chargeT > CLOSE.react) || dist(you, goalC) > CLOSE.range) return;
+  let best = null, bd = ai.closeShot;
+  for (const d of ds) {
+    const t = out.get(d.id), dd = dist(d, you);
+    if (d.stun || (t && t.in) || dist(d, goalC) > dist(you, goalC) + 1 || dd >= bd) continue;
+    best = d; bd = dd;
+  }
+  if (!best) return;
+  const speed = ai.chase * ai.recover;
+  out.set(best.id, { ...out.get(best.id), ...meet(best, w.ball, you.vx, you.vz, speed, ai.pressRead), speed, close: true });
 }
 
 // Your teammates while you have the ball: one makes a run into the box, the other gives you a safe

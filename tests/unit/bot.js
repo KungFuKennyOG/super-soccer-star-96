@@ -17,23 +17,26 @@ const DT = 1 / 60;
 const LOOK = 0.3;   // a player looks at his man a moment before starting the pass ring
 const unit3 = (x, y, z) => { const l = Math.hypot(x, y, z); return { x: x / l, y: y / l, z: z / l }; };
 
-// opts: { level, stars, attacks, seed, maxT }. Returns { goals, attacks, ends: { type: count }, events: { type: count } }.
-export function playAttacks({ level = 0, stars = 3, attacks = 40, seed = 1, maxT = 18 } = {}) {
+// opts: { level, stars, hard, attacks, seed, maxT, style }. style 'pass' (default) is the player described
+// above; 'dribble' never passes: it sprints at goal, goes round whoever closes it down and shoots;
+// 'skill' is the dribbler who also throws a skill move (mixing them) at anyone who gets close.
+// Returns { goals, attacks, ends: { type: count }, events: { type: count } }.
+export function playAttacks({ level = 0, stars = 3, hard = 0, attacks = 40, seed = 1, maxT = 18, style = 'pass' } = {}) {
   const rnd = rng(seed);
-  const w = createWorld(rnd, tuneFor(3, stars, level));
+  const w = createWorld(rnd, tuneFor(3, stars, level, hard));
   const out = { goals: 0, attacks, ends: {}, events: {} };
   for (let n = 0; n < attacks; n++) {
     resetPlay(w, rnd);
     let t = 0, shotSide = rnd() < 0.5 ? -1 : 1, end = 'time';
-    const s = { passT: -9, dragT: -9, shotSide, rnd, aim: null };
+    const s = { passT: -9, dragT: -9, shotSide, rnd, aim: null, charge: null, skillT: -9, moves: 0 };
     while (t < maxT) {
-      const it = intentFor(w, t, s);
+      const it = style === 'pass' ? intentFor(w, t, s) : dribblerIntent(w, s, t, style === 'skill');
       if (it.pass) { s.passT = t; s.aim = null; }
       if (it.drag) s.dragT = t;
       const ev = stepSim(w, it, DT, rnd);
       for (const e of ev) out.events[e.type] = (out.events[e.type] || 0) + 1;
       t += DT;
-      if (w.dead) { const d = ev.find(e => ['goal', 'saved', 'out', 'tackled', 'intercepted'].includes(e.type)); end = d ? (d.type === 'out' ? `out-${d.where}` : d.type) : 'dead'; break; }
+      if (w.dead) { const d = ev.find(e => ['goal', 'saved', 'out', 'tackled', 'intercepted'].includes(e.type)); end = d ? (d.type === 'out' ? `out-${d.where}` : d.rebound ? 'cleared' : d.victim && d.victim !== 'you' ? 'mate-tackled' : d.type) : 'dead'; break; }
     }
     if (end === 'goal') out.goals++;
     out.ends[end] = (out.ends[end] || 0) + 1;
@@ -49,12 +52,18 @@ export function intentFor(w, t, s) {
   if (w.owner === 'you') {
     const dGoal = dist(you, goal), near = Math.min(...defs.map(d => dist(d, you)));
     const gk = w.byId.gk;
-    if (dGoal < 17) {
-      // shoot for a corner; a soft tap (chip) when the keeper is well off his line
+    if (dGoal < 17 || s.charge !== null) {
+      // shoot for a corner: wind it up on the run (0.85 s, like a player holding the trigger); a soft
+      // tap (chip) when the keeper is well off his line
       const out = gk.z - GOAL.z > 2.5 && dGoal < 13;
-      const aim = { x: s.shotSide * (GOAL.halfW - 0.7), y: out ? 2.0 : 0.8, z: GOAL.z };
-      const eye = { x: you.x, y: 1.7, z: you.z };
-      it.shot = { eye, dir: unit3(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: out ? 0.12 : 0.85 };
+      s.charge = (s.charge ?? 0) + DT;
+      it.charging = true; it.move = toGoal;
+      if (out || s.charge >= 0.85) {
+        const aim = { x: s.shotSide * (GOAL.halfW - 0.7), y: out ? 2.0 : 0.8, z: GOAL.z };
+        const eye = { x: you.x, y: 1.7, z: you.z };
+        it.shot = { eye, dir: unit3(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: out ? 0.12 : 0.85 };
+        s.charge = null;
+      }
       return it;
     }
     // a pass is aimed by looking at the teammate while the ring closes, like a player would
@@ -78,7 +87,7 @@ export function intentFor(w, t, s) {
     it.move = toGoal;
     return it;
   }
-  s.aim = null;
+  s.aim = null; s.charge = null;
   if (w.owner && w.byId[w.owner].role === 'mate') {
     // a one-two: call for it and edge forward, ready for the return
     it.call = w.ownT > 0.4;
@@ -89,5 +98,39 @@ export function intentFor(w, t, s) {
   const pp = w.pendingPass;
   if (!w.owner && pp && pp.to === 'you' && pp.lead && dist(you, pp.lead) > 0.4) it.move = norm(pp.lead.x - you.x, pp.lead.z - you.z);
   else if (!w.owner) it.move = norm(b.x - you.x, b.z - you.z);
+  return it;
+}
+
+// The dribbler: straight at goal at a sprint, swerving round the nearest defender, a full-power shot
+// at a top corner wound up from 17 m. No passes. skills: a step-over, roulette or drag-back (in turn)
+// whenever a defender gets within 2.4 m, as long as he isn't winding up a shot.
+const MOVES = ['stepover', 'roulette', 'drag'];
+export function dribblerIntent(w, s, t = 0, skills = false) {
+  const you = w.you, goal = { x: 0, z: GOAL.z }, toGoal = norm(goal.x - you.x, goal.z - you.z);
+  const it = { move: toGoal, facing: toGoal, sprint: true, head: { x: you.x, y: 1.64, z: you.z, vx: 0, vy: 0, vz: 0 }, gaze: { x: toGoal.x, y: 0, z: toGoal.z } };
+  if (w.owner !== 'you') {
+    s.charge = null;
+    if (!w.owner) it.move = norm(w.ball.x - you.x, w.ball.z - you.z);
+    else it.call = w.ownT > 0.4;
+    return it;
+  }
+  const near = defenders(w).reduce((a, c) => (dist(c, you) < dist(a, you) ? c : a)), nd = dist(near, you);
+  if (nd < 5) {
+    const perp = { x: -toGoal.z, z: toGoal.x }, side = Math.sign((you.x - near.x) * perp.x + (you.z - near.z) * perp.z) || 1;
+    it.move = norm(toGoal.x + perp.x * side * 0.9, toGoal.z + perp.z * side * 0.9);
+  }
+  if (skills && s.charge === null && nd < 2.4 && t - s.skillT > 0.7) {
+    const m = MOVES[s.moves++ % MOVES.length];
+    if (m === 'drag') it.drag = true; else it.skill = { move: m, side: s.shotSide };
+    s.skillT = t;
+    return it;
+  }
+  if (s.charge === null && dist(you, goal) < 17) s.charge = 0;
+  it.charging = s.charge !== null;
+  if (s.charge !== null && (s.charge += DT) >= 0.85) {
+    const aim = { x: s.shotSide * (GOAL.halfW - 0.6), y: 2.0, z: GOAL.z }, eye = { x: you.x, y: 1.7, z: you.z };
+    it.shot = { eye, dir: unit3(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: 0.85 };
+    s.charge = null;
+  }
   return it;
 }

@@ -32,6 +32,7 @@ export const AI = {
   mateRun: 6.0, mateDribble: 5.6,             // your teammates
   gkMove: 3.5, gkDive: 5.0, gkReact: 0.17, gkReach: 1.04, gkCatchBelow: 19, gkCatchAtHim: 9, gkCatchWidth: 1.6,   // he catches below gkCatchBelow m/s, up to gkCatchAtHim more for a shot straight at him (fading out gkCatchWidth m away)
   tackleRange: 0.85, tackleTime: 0.22,        // a defender must stay this close to the ball this long to win it
+  block: 0.55,                                // a defender this close to a shot's path gets a foot to it
   interceptSlow: 0.85, interceptFast: 0.45, fastPass: 15,
   receive: 1.3,                               // how close the ball must come to be controlled
   youMargin: 0.9,                             // a pass to you is yours unless a defender is this much closer to it
@@ -97,4 +98,25 @@ export const BRAIN = [
   { markTight: 0.15, dragBite: 3, gkOut: 0.6, gkRush: true, gkSharp: 0.1, runMargin: 1.15 },
   { markTight: 0.35, dragBite: 3, gkOut: 0.85, gkRush: true, gkSharp: 0.2, runMargin: 1.0 },
   { markTight: 0.45, dragBite: 2, gkOut: 1, gkRush: true, gkSharp: 0.25, runMargin: 0.95 },
+];
+
+// The DIFFICULTY setting (rules/skill.js tuneFor), on top of the cup-round levels above. NORMAL is the
+// defence as it was: it reads passes but can simply be run round (a scripted player who sprints past the
+// presser and shoots scored on 85% of attacks). HARD and LEGEND defend the dribble and the shot:
+//   pressRead  going in, the presser heads for where he can meet the ball, reading your run up to this many seconds
+//              ahead (0: he chases the ball where it is). Cut back and he's committed to the wrong line.
+//   coverIn    the spare man goes in as well once your run brings you inside this (m)
+//   closeShot  wind up a shot with a defender goal-side of you inside this (m) and he comes for the ball
+//   recover    a presser the wrong side of you, a marker who's lost his man (more than markLoose m off him) and the
+//              man closing a shot run at chase x this
+//   block      x how close to a shot's path a defender gets a foot to it
+//   tackle     x how long he needs on the ball to win it (and his reach grows by half as much)
+//   gkReact    x keeper reaction; gkReach metres further; gkDive x how fast he gets across; gkOut further off his
+//              line when you're through
+//   bite       fewer of the same skill move (and drag-back) in a row fool him
+//   mark       markers this much further ball-side, and a runner's pass needs to be this much better (m off runMargin)
+export const DIFFICULTY = [
+  { name: 'NORMAL', pressRead: 0, coverIn: 0, closeShot: 0, recover: 1, markLoose: 3, block: 1, tackle: 1, gkReact: 1, gkReach: 0, gkDive: 1, gkOut: 0, bite: 0, mark: 0 },
+  { name: 'HARD', pressRead: 0.45, coverIn: 3.25, closeShot: 4, recover: 1.12, markLoose: 2, block: 1.3, tackle: 0.9, gkReact: 0.9, gkReach: 0.06, gkDive: 1.15, gkOut: 0.2, bite: 0, mark: 0 },
+  { name: 'LEGEND', pressRead: 0.75, coverIn: 3.5, closeShot: 6, recover: 1.2, markLoose: 1.5, block: 1.6, tackle: 0.8, gkReact: 0.8, gkReach: 0.12, gkDive: 1.3, gkOut: 0.4, bite: 1, mark: 0.1 },
 ];

@@ -83,6 +83,7 @@ export function createIntents(camera, rig, skillMode = () => 1) {
           shotHold = null;
         }
       }
+      if (shotHold) intent.charging = true;   // defenders close down a wind-up on HARD and LEGEND
 
       const mates = world.players.filter(p => p.role === 'mate');
       if (raw.pass && !passHold && !shotHold) {
