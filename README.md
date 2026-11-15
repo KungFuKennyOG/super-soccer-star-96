@@ -21,6 +21,8 @@ The defence works as a unit: the nearest man comes at you from the goal side, da
 
 Teams are picked on a turntable that shows a player in the kit (on a world map for the World Cup). Stars matter: a 5-star side presses harder, tackles quicker and has a better keeper, and a 5-star team of your own runs and passes better. Kits are colors and patterns only; clubs go by city name.
 
+The boot meets the ball: you tap it along with your right boot stride by stride as you dribble, and a shot or pass is struck a split second after you let go, when the leg gets there. Replays show every player's full swing.
+
 ## Controls
 
 | | Quest 3 | Browser |

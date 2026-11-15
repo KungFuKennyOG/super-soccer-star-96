@@ -1,6 +1,7 @@
 // Contact juice (setting HIT EFFECTS OFF/ON): what makes a strike feel like a strike.
 //   hit-stop      the match freezes for a few hundredths of a second when you hit the ball, longer the harder
-//   haptics       buzz scaled by power in the hand that did it (both for a header), a heartbeat on a goal
+//   haptics       buzz scaled by power in the hand that did it (both for a header), a heartbeat on a goal,
+//                 a faint tick (and a soft tap) for each dribbling touch
 //   ball pop      the ball swells for an instant on contact
 //   grass puff    bits of turf kick up off the ball on a strike
 //   streak        a short trail behind hard shots while they fly
@@ -60,6 +61,7 @@ export function createJuice(scene) {
         const s = world.shot;
         if (s && s.decision && s.decision !== 'wide') setTimeout(() => sfx('rise'), 120);   // they've seen it's on target
       } else if (e.type === 'kick') { popT = 0; kickPuff(b, 0.5); }
+      if (e.type === 'dribble') { buzz('right', 0.12, 12); sfx('tap'); }                 // each touch on the run: a tick in the hand, a soft tap
       if (e.type === 'pass' && e.by === 'you') { popT = 0.06; buzz('left', e.grade === 'perfect' ? 0.9 : 0.5, e.grade === 'perfect' ? 70 : 40); }
       if (e.type === 'post') { buzz('both', 1, 140); popT = 0; }
       if (e.type === 'saved' || e.type === 'parried' || e.type === 'blocked') { buzz('both', 0.35, 60); trailT = 0; }

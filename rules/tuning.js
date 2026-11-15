@@ -21,8 +21,21 @@ export const MOVE = {
   accel: 24,                        // how fast you reach top speed
   knockBoost: 1.4, knockTime: 1.0, // extra speed after a knock-on
   knockKick: 6.5,                   // how far ahead a knock-on pushes the ball (m/s above your speed)
-  ballLead: 0.62,                   // ball distance ahead of your feet while dribbling
+  ballLead: 0.62,                   // ball distance ahead of your feet at a restart (on the run: DRIBBLE)
 };
+
+// Striking the ball (rules/sim.js): your shot or pass is struck this long after you let go, the time the
+// boot takes to get to the ball (the page swings the leg in that time, game/strike.js). You can't be
+// tackled in that moment, and the ball is drawn in to `lead` m ahead of you to be hit. 0 strikes at once.
+export const STRIKE = { shot: 0.083, pass: 0.069, lead: 0.5 };   // 6 and 5 frames at 72 Hz
+
+// Dribbling touches (rules/dribble.js): the ball isn't glued in front of you. Once a stride your right
+// boot taps it on from `near` m ahead; it runs up to `push` m further (at `full` m/s and above, less when
+// slower) and you catch it up for the next touch. On average it's as far ahead as it always was (0.62 m)
+// and straight in front, so it's no easier to tackle (7 cm toward the right boot doubled the bot's tackles).
+// rate: how fast the run cycle turns over (rad/s standing, plus this per m/s): the drawn legs use it too.
+// touchAt: the point in the cycle (rad) where the right boot, swinging forward, gets to the back of the ball.
+export const DRIBBLE = { near: 0.47, push: 0.23, full: 5, rate: [2.4, 1.45], touchAt: 4.2 };
 
 export const AI = {
   press: 6.6, mark: 5.8, chase: 7.0,         // defenders

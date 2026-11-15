@@ -8,18 +8,19 @@
 //   physical: {x, z}   metres the player physically stepped this frame (VR room-scale)
 //   skill: { move: 'stepover' | 'roulette' | 'nutmeg' | 'rainbow', side } on the frame it fires (rules/skills.js)
 //   knock, drag, call: bool (true on the frame pressed; call also comes from raising a hand, callHand 'left'/'right')
-//   shot: { eye, dir, holdT } on the frame the shot is released
+//   shot: { eye, dir, holdT } on the frame the shot is released (struck STRIKE.shot s later, when the boot gets there)
 //   charging: bool      the shoot trigger is held and a shot is charging (defenders close it down on HARD and LEGEND)
-//   pass: { holdT, targetId } on the frame the pass is released
+//   pass: { holdT, targetId } on the frame the pass is released (struck STRIKE.pass s later)
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
 // }
-import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS, REBOUND } from './tuning.js';
+import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS, REBOUND, STRIKE } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, ballSpeed } from './ball.js';
 import { gradePass, choosePass } from './pass.js';
-import { shotVelocity, ballistic } from './shot.js';
+import { shotVelocity, ballistic, chargeOf } from './shot.js';
+import { strides, carry } from './dribble.js';
 import { ballOnHead, canVolley, canBicycle, headerVelocity, volleyVelocity, bicycleVelocity, inBox, crossVelocity, flickVelocity } from './aerial.js';
 import { mateTarget, mateDecision, mateDribbleTarget, closest } from './ai.js';
 import { keeperTarget, keeperCheck, keeperClaim, shotPlan } from './keeper.js';
@@ -40,7 +41,7 @@ const START = [
 
 // tune: from rules/skill.js tuneFor(yourStars, theirStars); defaults to two average teams.
 export function createWorld(rnd = Math.random, tune = tuneFor()) {
-  const players = START.map(s => ({ ...s, vx: 0, vz: 0, fx: 0, fz: -1, stun: 0, tackleT: 0, dive: 0 }));
+  const players = START.map((s, i) => ({ ...s, vx: 0, vz: 0, fx: 0, fz: -1, stun: 0, tackleT: 0, dive: 0, stride: i * 1.7 }));
   const w = { players, byId: Object.fromEntries(players.map(p => [p.id, p])), ball: makeBall(), time: 0 };
   w.you = w.byId.you; w.tune = tune;
   resetPlay(w, rnd);
@@ -57,7 +58,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false, chargeT: 0,
-    kick: null, shot: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
+    kick: null, shot: null, wind: null, carry: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
 }
@@ -66,20 +67,23 @@ export const homePlayers = w => w.players.filter(p => p.team === 'home');
 export const defenders = w => w.players.filter(p => p.role === 'def');
 
 export function stepSim(w, it, dt, rnd = Math.random) {
-  const ev = [], you = w.you, b = w.ball;
+  const ev = [], b = w.ball;
   w.time += dt;
   w.knockCD = Math.max(0, w.knockCD - dt);
   w.boostT = Math.max(0, w.boostT - dt);
   w.dragGrace = Math.max(0, w.dragGrace - dt);
 
   moveYou(w, it, dt);
-  w.chargeT = it.charging && w.owner === 'you' ? (w.chargeT || 0) + dt : 0;   // how long you've been winding up a shot
+  if (w.wind && (w.dead || w.owner !== 'you')) w.wind = null;
+  const winding = it.charging || (w.wind && w.wind.kind === 'shot');
+  w.chargeT = winding && w.owner === 'you' ? (w.chargeT || 0) + dt : 0;   // how long you've been winding up a shot
   if (it.head) w.headY = it.head.y;
   watchYou(w, it, dt);
 
   if (!w.dead && w.owner === 'you') {
-    if (it.shot) shoot(w, you, it.shot.eye, it.shot.dir, it.shot.holdT, rnd, ev);
-    else if (it.pass && w.byId[it.pass.targetId]) pass(w, you, w.byId[it.pass.targetId], gradePass(it.pass.holdT), rnd, ev);
+    if (w.wind) strike(w, dt, rnd, ev);
+    else if (it.shot) windUp(w, { kind: 'shot', ...it.shot }, ev);
+    else if (it.pass && w.byId[it.pass.targetId]) windUp(w, { kind: 'pass', to: it.pass.targetId, grade: gradePass(it.pass.holdT) }, ev);
     else if (it.knock) knock(w, ev);
     else if (it.drag) drag(w, ev);
     else if (it.skill) performSkill(w, it.skill, ev, launch);
@@ -87,11 +91,14 @@ export function stepSim(w, it, dt, rnd = Math.random) {
   if (!w.dead && it.call && w.owner && w.byId[w.owner].role === 'mate' && !w.called) { w.called = true; ev.push({ type: 'called', by: w.owner, hand: it.callHand || null }); }
 
   updateAI(w, dt, rnd, ev);
+  strides(w, dt, ev);
 
   // the keeper gets there (if he does) before the ball moves on this step, so he's never late by a frame
   if (!w.dead) keeperCheck(w, rnd, ev);
+  // a ball struck on this step leaves the boot on the next one: for this one it's still on the foot
+  const struck = !!w.kick && w.kick.t === w.time;
   if (w.owner) carry(w, dt);
-  else for (const e of stepBall(b, dt, [])) onBallEvent(w, e, ev);
+  else if (!struck) for (const e of stepBall(b, dt, [])) onBallEvent(w, e, ev);
 
   if (!w.dead) {
     if (!w.owner) { if (!aerial(w, it, rnd, ev)) looseBall(w, rnd, ev); }
@@ -118,6 +125,25 @@ function moveYou(w, it, dt) {
   p.z += p.vz * dt + (it.physical ? it.physical.z : 0);
   if (it.facing) { p.fx = it.facing.x; p.fz = it.facing.z; }
   bound(p);
+}
+
+// Your shot or pass is wound up for a moment (STRIKE) and struck when the boot gets to the ball. The
+// 'windup' event tells the page how long the leg has and which way it swings.
+function windUp(w, wind, ev) {
+  const b = w.ball, to = wind.to && w.byId[wind.to];
+  const dir = to ? norm(to.x - b.x, to.z - b.z) : norm(wind.dir.x, wind.dir.z);
+  w.wind = { ...wind, t: STRIKE[wind.kind], T: STRIKE[wind.kind], lead0: w.carry ? w.carry.lead : STRIKE.lead };
+  ev.push({ type: 'windup', by: 'you', kind: wind.kind, t: w.wind.t, dir, power: wind.kind === 'shot' ? chargeOf(wind.holdT) : 0.4 });
+}
+
+function strike(w, dt, rnd, ev) {
+  const s = w.wind, you = w.you;
+  s.t -= dt;
+  if (s.t > 1e-9) return;
+  w.wind = null;
+  // aimed when you let go: the spot you were looking at then is where it goes
+  if (s.kind === 'shot') shoot(w, you, s.eye, s.dir, s.holdT, rnd, ev);
+  else pass(w, you, w.byId[s.to], s.grade, rnd, ev);
 }
 
 function shoot(w, p, eye, dir, holdT, rnd, ev) {
@@ -183,6 +209,7 @@ function startShot(w, p, ev, power, kind = null) {
 function aerial(w, it, rnd, ev) {
   const b = w.ball, you = w.you;
   if (b.y < AIR.volleyLow || (w.kick && w.kick.by === 'you' && w.time - w.kick.t < 0.3)) return false;
+  if (b.inNet || (w.shot && w.shot.by === 'you' && !w.shot.done && w.shot.decision !== 'wide')) return false;   // your own shot or chip on its way to goal: don't run into it
   const head = it.head || { x: you.x, y: (w.headY || 1.65) - 0.08, z: you.z, vx: you.vx, vy: 0, vz: you.vz };
   const gaze = it.gaze || { x: you.fx, y: 0, z: you.fz };
   let kind = null, v = null;
@@ -288,19 +315,6 @@ function mateOnBall(w, p, rnd, ev) {
 
 /* ---------- the ball ---------- */
 
-function carry(w, dt) {
-  const p = w.byId[w.owner], b = w.ball;
-  if (p.role === 'gk') { b.x = p.x; b.z = p.z + 0.35; b.y = Math.max(BALL.r, b.y - 2 * dt); b.vx = b.vy = b.vz = 0; return; } // smothered, settles to the grass
-  const s = Math.hypot(p.vx, p.vz);
-  const d = s > 0.6 ? { x: p.vx / s, z: p.vz / s } : { x: p.fx, z: p.fz };
-  const k = Math.min(1, 20 * dt);
-  b.x += p.vx * dt; b.z += p.vz * dt; // move with the carrier, then settle onto the lead spot
-  b.x += (p.x + d.x * MOVE.ballLead - b.x) * k;
-  b.z += (p.z + d.z * MOVE.ballLead - b.z) * k;
-  b.y = BALL.r; b.vx = p.vx; b.vy = 0; b.vz = p.vz;
-  b.spin += s / BALL.r * dt;
-}
-
 function onBallEvent(w, e, ev) {
   if (w.dead) return;
   const s = w.shot;
@@ -372,6 +386,7 @@ function looseBall(w, rnd, ev) {
 function tackles(w, dt, ev) {
   const owner = w.byId[w.owner];
   if (owner.team !== 'home') return;
+  if (w.wind) return;                       // the strike is already on its way: too late to nick it
   for (const d of defenders(w)) {
     if (d.stun || w.dragGrace > 0 || dist(d, w.ball) > w.tune.ai.tackleRange) { d.tackleT = 0; continue; }
     d.tackleT += dt;
