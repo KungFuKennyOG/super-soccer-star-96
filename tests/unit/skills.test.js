@@ -86,14 +86,16 @@ test('rainbow flick: over his head, and you run onto it', () => {
   assert.ok(ev.some(x => x.type === 'received' && x.id === 'you'), ev.map(x => x.type).join(','));
 });
 
-test('roulette: you spin away from the presser and keep the ball', () => {
+test('roulette: you spin round the presser, forward and out to the side, and keep the ball', () => {
   const w = oneOnOne(1.2);
-  const before = dist(w.you, w.byId.d2);
+  const z0 = w.you.z, x0 = w.you.x;
   const e = skill(w, 'roulette');
   assert.ok(e.ok);
   run(w, 0.4);
   assert.equal(w.owner, 'you');
-  assert.ok(dist(w.you, w.byId.d2) > before);
+  assert.ok(w.you.z < z0 - 0.6, `you went forward, not back (${(z0 - w.you.z).toFixed(2)} m)`);
+  assert.ok(Math.abs(w.you.x - x0) > 0.9, `and out to the side (${Math.abs(w.you.x - x0).toFixed(2)} m)`);
+  assert.ok(dist(w.you, w.byId.d2) > 0.8, 'clear of him');
 });
 
 test('no skill without a defender near: nobody to beat, no points', () => {
