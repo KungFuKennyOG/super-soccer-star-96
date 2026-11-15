@@ -7,6 +7,8 @@ import { SKINS, HAIRS, blobTex, arrowTex } from './tex.js';
 import { playerAtlas } from './atlas.js';
 import { buildBody, restPose } from './body.js';
 import { animateKeeper } from './keeperpose.js';
+import { strideRate } from '../rules/dribble.js';
+import { poseStrike, poseTouch } from './strike.js';
 
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
@@ -21,7 +23,7 @@ export function buildPlayer(kit, num, look = 0, { feetOnly = false, boots = 0 } 
   const { mesh, bone } = buildBody(material, style);
   const root = new THREE.Group();
   root.add(mesh);
-  return { root, mesh, bone, shadow: blob(), phase: Math.random() * 6, kickT: 9 };
+  return { root, mesh, bone, shadow: blob(), phase: Math.random() * 6, strike: null };
 }
 
 // You, in first person: the same body, but only your boots and lower socks are drawn.
@@ -33,23 +35,24 @@ export function buildYou(kit, boots = 0) {
 
 /* ---------- animation ---------- */
 
-// Run cycle with bent running arms and counter-twist, kick, celebration. p is the sim player; the keeper
-// has his own (game/keeperpose.js).
-// ball: the sim ball, for the keeper (game/keeperpose.js).
-export function animate(m, p, dt, t, celebrate, guide = null, ball = null) {
+// Run cycle with bent running arms and counter-twist, strikes and dribbling touches, celebration. p is the
+// sim player (his p.stride drives the run cycle, so the sim's touches are the boot's); the keeper has his
+// own (game/keeperpose.js). Place the model (placeModel) before posing it: the boot is sent to the ball.
+// ball: the sim ball, for the keeper and for the boot to meet (game/strike.js); onBall: he has it at his feet.
+export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBall = false) {
   const bn = m.bone;
   if (p.role === 'gk') { animateKeeper(m, p, dt, t, ball); return; }
   restPose(bn);
   if (m.bigHead) bn.head.scale.setScalar(1.65);           // the big-heads cheat (locker)
   const s = Math.hypot(p.vx, p.vz);
-  m.phase += dt * (2.4 + s * 1.45);
-  m.kickT += dt;
+  if (p.stride === undefined) m.phase += dt * strideRate(s); else m.phase = p.stride;
   const swing = Math.min(1, s / 6) * 0.95, ph = Math.sin(m.phase), cph = Math.cos(m.phase), run = Math.min(1, s / 3);
 
   // The stride, like the motion-captured runs of the PS1 FIFAs: the leg reaches further forward than
   // back, the knee folds hardest as the thigh comes through (heel up toward the backside), the foot
   // points as it pushes off.
-  const thigh = x => (x > 0 ? x : x * 0.7) * swing;
+  // (on the ball the stride is shorter in front, so the boots come down beside the ball, not far past it)
+  const thigh = x => (x > 0 ? x * (1 - 0.3 * (m.onBallK || 0)) : x * 0.7) * swing;
   bn.upperLegL.rotation.x = -thigh(ph); bn.upperLegR.rotation.x = -thigh(-ph);
   bn.lowerLegL.rotation.x = (Math.max(0, cph) ** 1.4 * 1.9 + 0.1) * swing;
   bn.lowerLegR.rotation.x = (Math.max(0, -cph) ** 1.4 * 1.9 + 0.1) * swing;
@@ -60,29 +63,26 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null) {
   bn.lowerLegL.rotation.x += 0.2 * still; bn.lowerLegR.rotation.x += 0.2 * still;
   bn.footL.rotation.x -= 0.1 * still; bn.footR.rotation.x -= 0.1 * still;
   bn.hips.position.y -= 0.025 * still;
-  if (m.kickT < 0.32) { // right foot strikes through
-    const k = m.kickT / 0.32;
-    bn.upperLegR.rotation.x = k < 0.4 ? 0.9 * (k / 0.4) : 0.9 - 2.4 * ((k - 0.4) / 0.6);
-    bn.lowerLegR.rotation.x = k < 0.4 ? 1.3 * (k / 0.4) : 1.3 * (1 - (k - 0.4) / 0.6);
-    bn.footR.rotation.x = 0.3;
-    bn.upperArmL.rotation.z = 0.8; bn.spine.rotation.y = -0.25 * Math.sin(k * Math.PI);
-  }
+  // a whole body bounces at each push-off and its hips twist with the stride (set before the boot is
+  // sent to the ball, so it lands on it)
+  if (!m.firstPerson) { bn.hips.position.y += (Math.abs(cph) - 0.6) * 0.06 * swing - 0.03 * swing; bn.hips.rotation.y = ph * 0.14 * swing; }
+  // the right boot goes to the ball: a strike swinging through it, or a touch on the run
+  let kick = 0;
+  if (ball && m.strike) kick = poseStrike(m, bn, ball, dt);
+  else if (ball) poseTouch(m, bn, p, ball, onBall, dt);
   if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
   if (m.special && SKILL_POSES.includes(m.special.kind)) skillPose(bn, m.special);
   if (m.special && m.special.kind === 'bicycle') { specialPose(bn, m.special); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
-  // bounce at each push-off, hips and shoulders twisting against each other, a forward lean that grows
-  // with speed and a head that stays level; arms pump bent at the elbow, opposite to the legs
-  bn.hips.position.y += (Math.abs(cph) - 0.6) * 0.06 * swing - 0.03 * swing;
-  bn.hips.rotation.y = ph * 0.14 * swing;
+  // shoulders twisting against the hips, a forward lean that grows with speed and a head that stays
+  // level; arms pump bent at the elbow, opposite to the legs
   bn.spine.rotation.x = Math.min(0.26, s * 0.034) + 0.05 * still + 0.015 * Math.sin(t * 2.2 + m.phase) * still;
   bn.chest.rotation.y = -ph * 0.26 * swing;
   bn.neck.rotation.x = -bn.spine.rotation.x * 0.6;
   bn.neck.rotation.y = ph * 0.12 * swing;
-  if (m.kickT >= 0.32) {
-    bn.upperArmL.rotation.set(ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, 0.14 + 0.06 * still); bn.upperArmR.rotation.set(-ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, -0.14 - 0.06 * still);
-  }
+  bn.upperArmL.rotation.set(ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, 0.14 + 0.06 * still); bn.upperArmR.rotation.set(-ph * swing * 0.95 - 0.1 * run - 0.18 * still, 0, -0.14 - 0.06 * still);
+  if (kick) { bn.upperArmL.rotation.z += 0.66 * kick; bn.upperArmL.rotation.x *= 1 - kick; bn.spine.rotation.y = -0.25 * kick; }   // the far arm goes out as he strikes
   bn.foreArmL.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, -ph) * swing + 0.15 * still);
   bn.foreArmR.rotation.x = -(0.25 + 1.15 * run + 0.25 * Math.max(0, ph) * swing + 0.15 * still);
   bn.chest.rotation.x += 0.07 * still; bn.neck.rotation.x += 0.02 * still;   // shoulders forward, head carried forward and level: the FIFA 98 stance

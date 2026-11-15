@@ -19,6 +19,7 @@ import { pickWeather, applyWeather, WEATHER } from '../rules/weather.js';
 import { createWeather } from './weather.js';
 import { createResults, loadBest } from './results.js';
 import { buildBall, buildArrow, animate, placeModel, handsOf } from './actors.js';
+import { startStrike, struck } from './strike.js';
 import { createSquads } from './squad.js';
 import { createMenus, LENGTHS } from './menus.js';
 import { createCeremony } from './trophy.js';
@@ -217,7 +218,11 @@ function feedback(ev) {
   for (const e of ev) {
     const m = e.by && models[e.by];
     juice.event(e, world);
-    if ((e.type === 'kick' || e.type === 'pass') && m) m.kickT = 0;
+    // the boot and the ball (game/strike.js): your swing starts when you let go and the ball leaves when
+    // it lands; a teammate's boot is on the ball the frame it goes. Your dribbling touches are just a tick.
+    if (e.type === 'windup') { if (m) startStrike(m, { kind: e.kind, wind: e.t, dir: e.dir, power: e.power }); continue; }
+    if (e.type === 'dribble') continue;
+    if ((e.type === 'kick' || e.type === 'pass') && m && e.kind !== 'header' && e.kind !== 'bicycle') struck(m, e.type === 'pass' ? 'pass' : 'shot', norm(world.ball.vx, world.ball.vz), e.power);
     if (e.type === 'kick' && e.by !== 'gk' && models.gk) models.gk.split = 0;             // the keeper's split step
     if (e.type === 'kick' && e.kind && m) m.special = { kind: e.kind, t: 0 };
     if (e.type === 'kick' && e.kind === 'bicycle') slowT = 1.3;               // slow motion for the overhead kick
@@ -305,11 +310,10 @@ const loop = startLoop(renderer, (dt, t) => {
   for (const p of world.players) {
     const m = models[p.id];
     placeModel(m, p);
-    animate(m, p, simDt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you', celebration.guide, world.ball);
+    // your own legs face where you're running, else where you look
+    if (p === you && Math.hypot(you.vx, you.vz) > 0.5) m.root.rotation.y = Math.atan2(you.vx, you.vz);
+    animate(m, p, simDt, t, celebrateT > 0 && p.team === 'home' && p.role !== 'you', celebration.guide, world.ball, world.owner === p.id && !world.dead);
   }
-  // your own legs face where you're running, else where you look
-  const yo = models.you, ys = Math.hypot(you.vx, you.vz);
-  yo.root.rotation.y = ys > 0.5 ? Math.atan2(you.vx, you.vz) : Math.atan2(you.fx, you.fz);
   ball.update(world.ball, simDt);
   holdInGloves(dt);
   juice.update(dt, ball.mesh, world.ball);

@@ -6,12 +6,15 @@ import * as THREE from 'three';
 import { ps1, pixelTex, canvasTex } from './ps1.js';
 import { drawText } from './tex.js';
 import { buildBall, animate, placeModel } from './actors.js';
+import { startStrike, struck } from './strike.js';
 import { buildSet } from './squad.js';
 
 const FPS = 72, KEEP = 8;                          // record rate and seconds kept
 const SLOTS = FPS * KEEP;
 const BEFORE = 4.2, AFTER = 0.9, SLOW_FROM = 1.3, SLOW = 0.45;   // seconds around the goal; slow-mo for the finish
 const KINDS = ['', 'header', 'volley', 'bicycle'];
+const PER = 8;                                     // numbers kept per player: x, z, vx, vz, fx, fz, flags, stride
+const SWING = 0.085;                               // a replay knows a strike is coming: everyone's swing starts this long before it
 
 export function createReplay(scene, renderer) {
   let ids = [], stride = 0, buf = null, head = 0, count = 0, simT = 0;
@@ -58,7 +61,7 @@ export function createReplay(scene, renderer) {
       ball.setDesign(locker.ballName || 'CLASSIC');
       for (const m of Object.values(ghosts)) { m.root.visible = m.shadow.visible = false; scene.add(m.root, m.shadow); }
       ids = world.players.map(p => p.id);
-      stride = 8 + ids.length * 7;
+      stride = 8 + ids.length * PER;
       buf = new Float32Array(SLOTS * stride);
       head = count = 0; simT = 0; active = false; pendingT = -1;
       jumbo.position.set(0, board.y, board.z + 0.5);
@@ -68,13 +71,14 @@ export function createReplay(scene, renderer) {
       if (!buf) return;
       simT += dt;
       const f = frameAt(head), b = world.ball;
-      f[0] = simT; f[1] = b.x; f[2] = b.y; f[3] = b.z; f[4] = b.vx; f[5] = b.vy; f[6] = b.vz; f[7] = 0;
+      // f[7]: the kind of strike this frame (KINDS), plus 8 x (who has the ball at his feet + 1)
+      f[0] = simT; f[1] = b.x; f[2] = b.y; f[3] = b.z; f[4] = b.vx; f[5] = b.vy; f[6] = b.vz; f[7] = world.dead ? 0 : 8 * (ids.indexOf(world.owner) + 1);
       world.players.forEach((p, i) => {
-        const o = 8 + i * 7;
+        const o = 8 + i * PER;
         let flags = 0;
-        for (const e of ev) if ((e.type === 'kick' || e.type === 'pass') && e.by === p.id) { flags |= 1; if (e.kind) f[7] = KINDS.indexOf(e.kind); }
+        for (const e of ev) if ((e.type === 'kick' || e.type === 'pass') && e.by === p.id) { flags |= e.type === 'pass' ? 17 : 1; if (e.kind) f[7] += KINDS.indexOf(e.kind); }
         if (p.dive < 0) flags |= 2; if (p.dive > 0) flags |= 4; if (p.holding) flags |= 8;
-        f[o] = p.x; f[o + 1] = p.z; f[o + 2] = p.vx; f[o + 3] = p.vz; f[o + 4] = p.fx; f[o + 5] = p.fz; f[o + 6] = flags;
+        f[o] = p.x; f[o + 1] = p.z; f[o + 2] = p.vx; f[o + 3] = p.vz; f[o + 4] = p.fx; f[o + 5] = p.fz; f[o + 6] = flags; f[o + 7] = p.stride;
       });
       head = (head + 1) % SLOTS; count = Math.min(SLOTS, count + 1);
       if (pendingT >= 0 && simT >= pendingT) this.start();
@@ -90,7 +94,7 @@ export function createReplay(scene, renderer) {
       }
       if (frames.length < 10) return;
       clip = frames; cursor = frames[0][0]; active = true; tvYaw = null;
-      for (const m of Object.values(ghosts)) { m.kickT = 9; m.dive = null; m.special = null; }
+      for (const m of Object.values(ghosts)) { m.strike = null; m.dive = null; m.special = null; }
     },
     stop() {
       active = false; pendingT = -1; tv.visible = jumbo.visible = false;
@@ -108,17 +112,26 @@ export function createReplay(scene, renderer) {
       while (i < clip.length - 2 && clip[i + 1][0] <= cursor) i++;
       const a = clip[i], b = clip[i + 1], k = Math.min(1, Math.max(0, (cursor - a[0]) / ((b[0] - a[0]) || 1)));
       const L = (o) => a[o] + (b[o] - a[o]) * k;
-      ball.update({ x: L(1), y: L(2), z: L(3), vx: L(4), vy: L(5), vz: L(6) }, dt * speed);
+      const bl = { x: L(1), y: L(2), z: L(3), vx: L(4), vy: L(5), vz: L(6) }, owner = Math.floor(a[7] / 8) - 1;
+      ball.update(bl, dt * speed);
       ids.forEach((id, j) => {
-        const o = 8 + j * 7, m = ghosts[id];
-        // a kick between the last frame shown and this one
-        for (const f of clip) if (f[0] > prev && f[0] <= cursor && (f[o + 6] & 1)) { m.kickT = 0; if (id === 'you' && f[7]) m.special = { kind: KINDS[f[7]], t: 0 }; }
+        const o = 8 + j * PER, m = ghosts[id];
+        // strikes (game/strike.js): the swing starts a moment before the frame the ball was struck on,
+        // so the boot gets there as it leaves; on that frame the boot is on the ball
+        for (const f of clip) {
+          if (!(f[o + 6] & 1)) continue;
+          const kind = KINDS[f[7] % 8], foot = kind !== 'header' && kind !== 'bicycle', sp = Math.hypot(f[4], f[6]) || 1;
+          const how = { kind: f[o + 6] & 16 ? 'pass' : 'shot', wind: SWING, dir: { x: f[4] / sp, z: f[6] / sp }, power: Math.min(1, sp / 30) };
+          if (foot && !m.strike && f[0] - SWING > prev && f[0] - SWING <= cursor) startStrike(m, how);
+          if (f[0] > prev && f[0] <= cursor) { if (foot) struck(m, how.kind, how.dir, how.power); if (id === 'you' && kind) m.special = { kind, t: 0 }; }
+        }
         const flags = a[o + 6];
-        const p = { x: L(o), z: L(o + 1), vx: L(o + 2), vz: L(o + 3), fx: L(o + 4), fz: L(o + 5), role: id === 'gk' ? 'gk' : id === 'you' ? 'mate' : id[0] === 'd' ? 'def' : 'mate',
+        const p = { x: L(o), z: L(o + 1), vx: L(o + 2), vz: L(o + 3), fx: L(o + 4), fz: L(o + 5), stride: L(o + 7), role: id === 'gk' ? 'gk' : id === 'you' ? 'mate' : id[0] === 'd' ? 'def' : 'mate',
           dive: flags & 2 ? -1 : flags & 4 ? 1 : 0, holding: !!(flags & 8) };
         if (p.dive) p.save = { y: Math.max(0.3, L(2)), kind: 'parry', id: 'replay' }; else m.saveId = null;
         placeModel(m, p);
-        animate(m, p, dt * speed, t, false, null, { x: L(1), z: L(3) });
+        if (id === 'you' && Math.hypot(p.vx, p.vz) > 0.5) m.root.rotation.y = Math.atan2(p.vx, p.vz);   // like your own legs on the pitch: you face the way you run
+        animate(m, p, dt * speed, t, false, null, bl, owner === j);
       });
       // the TV camera: up on the gantry along the near touchline, following the ball
       look.lerp(ball.mesh.position, look.lengthSq() ? Math.min(1, dt * 4) : 1);

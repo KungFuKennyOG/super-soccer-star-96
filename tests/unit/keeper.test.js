@@ -108,6 +108,7 @@ test('round the keeper and he cannot get back: a shot from beside him is beaten'
   w.you.x = 0; w.you.z = GOAL.z + 5.5; w.ball.x = 0; w.ball.z = GOAL.z + 5;
   const eye = { x: w.you.x, y: 1.7, z: w.you.z }, aim = { x: -1.5, y: 0.6, z: GOAL.z };
   stepSim(w, idle({ shot: { eye, dir: unit(aim.x - eye.x, aim.y - eye.y, aim.z - eye.z), holdT: 0.6 } }), DT, fixed);
+  run(w, 0.15);                                                 // the boot gets to the ball
   assert.equal(w.shot.decision, 'beaten');
   assert.ok(run(w, 2).some(e => e.type === 'goal'));
 });

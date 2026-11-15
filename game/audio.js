@@ -51,7 +51,13 @@ function crowdSwell(level, freq, secs) {
 export function sfx(name, strength = 1) {
   if (!ctx) return;
   const t = now();
-  if (name === 'kick' || name === 'pass' || name === 'touch') {
+  if (name === 'tap') {
+    // a dribbling touch: a soft low thud, much quieter than a kick
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.07);
+    env(g, 0.003, 0.09 * strength, 0.08, t);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.12);
+  } else if (name === 'kick' || name === 'pass' || name === 'touch') {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(name === 'touch' ? 140 : 180, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
     env(g, 0.003, name === 'touch' ? 0.25 : 0.4 + 0.5 * strength, 0.14, t);

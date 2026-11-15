@@ -4,8 +4,11 @@
 <meta charset="utf-8">
 <title>SSS96 model lab</title>
 <!-- Dev page: a lineup of players for checking the models. npm run serve, then
-     /tools/lab.html?pose=idle|sprint|kick|keeper|dive|stand|celebrate|dance&kit=MAD,BAR&yaw=0&cam=x,y,z&at=x,y,z
-     keeper saves: &y=1.2 (height) &save=catch|parry &times=0.1,0.3,0.5 (one frozen moment per player, in seconds) -->
+     /tools/lab.html?pose=idle|sprint|strike|dribble|keeper|dive|stand|celebrate|dance&kit=MAD,BAR&yaw=0&cam=x,y,z&at=x,y,z&fov=40
+     keeper saves: &y=1.2 (height) &save=catch|parry &times=0.1,0.3,0.5 (one frozen moment per player, in seconds)
+     the boot and the ball: pose=strike &kind=shot|pass &dir=0.4 (rad round from straight ahead) &times=0.03,0.083,0.15
+     (seconds after letting go; the ball is struck at 0.083), or pose=dribble &times=0,0.1,0.2 (seconds after a touch);
+     &you=1 shows your own first-person boots instead of whole players -->
 <style>html,body{margin:0;background:#101830;overflow:hidden}canvas{display:block}</style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js" } }
@@ -14,7 +17,10 @@
 <body>
 <script type="module">
 import * as THREE from 'three';
-import { buildPlayer, animate, placeModel, handsOf } from '../game/actors.js';
+import { buildPlayer, buildYou, animate, placeModel, handsOf } from '../game/actors.js';
+import { startStrike, struck } from '../game/strike.js';
+import { dribbleLead, strideRate } from '../rules/dribble.js';
+import { DRIBBLE, STRIKE } from '../rules/tuning.js';
 import { byId, keeperKit } from '../rules/teams.js';
 const q = new URLSearchParams(location.search);
 const kits = (q.get('kit') || 'MAD,BAR,MUN,LIV,ITA').split(',');
@@ -29,7 +35,7 @@ scene.add(new THREE.HemisphereLight('#c8d8ff', '#2a3a20', 0.6));
 const sun = new THREE.DirectionalLight('#fff0d8', 1.05); sun.position.set(-20, 40, 10); scene.add(sun);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshLambertMaterial({ color: '#3f8f3a' }));
 floor.rotation.x = -Math.PI / 2; scene.add(floor);
-const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
+const camera = new THREE.PerspectiveCamera(+(q.get('fov') || 40), innerWidth / innerHeight, 0.05, 100);
 camera.position.set(...cam); camera.lookAt(...at);
 const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(innerWidth, innerHeight);
@@ -42,7 +48,7 @@ const saveY = +(q.get('y') || 1.0), saveKind = q.get('save') || 'parry';
 const players = kits.map((id, i) => {
   const team = byId(id);
   const kit = GK.includes(pose) ? keeperKit(team.kit) : team.kit;
-  const m = buildPlayer(kit, [9, 10, 7, 4, 11, 3, 8, 5][i % 8], look + i * +(q.get('step') || 3));
+  const m = q.get('you') ? buildYou(kit) : buildPlayer(kit, [9, 10, 7, 4, 11, 3, 8, 5][i % 8], look + i * +(q.get('step') || 3));   // &you=1: your own first-person boots
   const p = { x: (i - (kits.length - 1) / 2) * gap, z: 0, fx: Math.sin(yaw), fz: Math.cos(yaw), vx: 0, vz: 0, role: GK.includes(pose) ? 'gk' : 'mate' };
   scene.add(m.root);
   return { m, p };
@@ -54,8 +60,32 @@ function poseOne(m, p, dt, tt) {
   if (pose === 'dive' || pose === 'stand') { p.dive = pose === 'dive' ? +(q.get('dir') || 1) : 0; p.save = tt > 0.05 ? { y: saveY, kind: saveKind, id: 1 } : null; }
   animate(m, p, dt, tt, false, null, ball);
 }
+// The boot and the ball, one frozen moment per player: a strike `at` seconds after letting go (he runs,
+// winds up, and the ball goes when the boot lands), or a dribble `at` seconds after a touch.
+function bootAndBall({ m, p }, at) {
+  const dt = 1 / 72, run = 6, wind = STRIKE.shot, kd = +(q.get('dir') || 0), kind = q.get('kind') || 'shot';
+  const b = { x: 0, y: 0.12, z: 0 }, dir = { x: Math.sin(yaw + kd), z: Math.cos(yaw + kd) }, x0 = p.x;
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
+  scene.add(mesh);
+  p.vx = p.fx * run; p.vz = p.fz * run; p.stride = DRIBBLE.touchAt + (pose === 'dribble' ? 0 : 2);
+  let hit = null;
+  for (let tt = 0; tt <= at + 1e-6; tt += dt) {
+    const lead = pose === 'dribble' ? dribbleLead(p.stride, run) : hit !== null ? 0 : STRIKE.lead + (dribbleLead(p.stride, run) - STRIKE.lead) * Math.max(0, 1 - tt / wind);
+    if (hit === null) { b.x = p.x + p.fx * lead; b.z = p.z + p.fz * lead; } else { const f = tt - hit, sp = kind === 'pass' ? 15 : 24; b.x += dir.x * sp * dt; b.z += dir.z * sp * dt; b.y = 0.12 + (kind === 'pass' ? 0 : 4 * f - 4.9 * f * f); }
+    placeModel(m, p);
+    if (pose === 'strike' && tt === 0) startStrike(m, { kind, wind, dir, power: 0.8 });
+    if (pose === 'strike' && hit === null && tt >= wind - 1e-6) { struck(m, kind, dir, 0.8); hit = tt; }
+    animate(m, p, dt, tt, false, null, b, pose === 'dribble');
+    p.stride += dt * strideRate(run);
+    if (tt + dt <= at + 1e-6) { p.x += p.vx * dt; p.z += p.vz * dt; }
+  }
+  const dx = p.x - x0; p.x -= dx; b.x -= dx;      // back in the lineup, the ball with him
+  const dz = p.z; p.z = 0; b.z -= dz;
+  placeModel(m, p); mesh.position.set(b.x, b.y, b.z);
+}
 // frozen moments: each player shows the move at its own time
-if (times) {
+if (times && (pose === 'strike' || pose === 'dribble')) players.forEach((pl, i) => bootAndBall(pl, times[i] ?? times[times.length - 1]));
+else if (times) {
   players.forEach(({ m, p }, i) => {
     for (let tt = 0; tt < (times[i] ?? times[times.length - 1]); tt += 1 / 60) poseOne(m, p, 1 / 60, tt);
     placeModel(m, p);
@@ -73,7 +103,6 @@ function tick(dt) {
     if (GK.includes(pose) && pose !== 'keeper') { poseOne(m, p, dt, t); placeModel(m, p); continue; }
     const s = speeds[pose] || 0;
     p.vx = p.fx * s; p.vz = p.fz * s;
-    if (pose === 'kick' && m.kickT > 0.8) m.kickT = 0;
     const guide = pose === 'dance' ? { beat: t * 1.5, move: ['left', 'right', 'up', 'out'][Math.floor(t * 1.5) % 4] } : null;
     animate(m, p, dt, t, pose === 'celebrate', guide, ball);
     placeModel(m, p);

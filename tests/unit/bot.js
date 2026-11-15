@@ -29,8 +29,13 @@ export function playAttacks({ level = 0, stars = 3, hard = 0, attacks = 40, seed
     resetPlay(w, rnd);
     let t = 0, shotSide = rnd() < 0.5 ? -1 : 1, end = 'time';
     const s = { passT: -9, dragT: -9, shotSide, rnd, aim: null, charge: null, skillT: -9, moves: 0 };
+    let last = null;
     while (t < maxT) {
-      const it = style === 'pass' ? intentFor(w, t, s) : dribblerIntent(w, s, t, style === 'skill');
+      // a strike on its way (the moment between letting go and the boot meeting the ball): he keeps running
+      // the way he was, like a player following through, and decides nothing new
+      const it = w.wind && last ? { ...last, shot: null, pass: null, drag: false, skill: null, call: false, head: { ...last.head, x: w.you.x, z: w.you.z } }
+        : style === 'pass' ? intentFor(w, t, s) : dribblerIntent(w, s, t, style === 'skill');
+      last = it;
       if (it.pass) { s.passT = t; s.aim = null; }
       if (it.drag) s.dragT = t;
       const ev = stepSim(w, it, DT, rnd);
