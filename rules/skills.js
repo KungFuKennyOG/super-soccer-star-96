@@ -2,7 +2,7 @@
 //
 // intent.skill = { move, side } on the frame it fires:
 //   stepover  fake toward `side` (-1 left, 1 right of where you face) and burst off the other way
-//   roulette  spin away from the man pressing you, ball shielded
+//   roulette  spin round the man pressing you (out to the side and on past him), ball shielded
 //   nutmeg    knock it through the legs of a defender square in front of you and run round him
 //   rainbow   flick it up over your head (and his) and run onto it
 //
@@ -60,8 +60,11 @@ export function performSkill(w, skill, ev, { launch, windUp, hold }) {
     w.boostT = Math.max(w.boostT, 0.5);
     if (d && fooled) { d.x += side * right.x * 0.5; d.z += side * right.z * 0.5; beat(0.6, 0.55); }
   } else if (move === 'roulette') {
-    const away = d ? norm(you.x - d.x, you.z - d.z) : { x: -f.x, z: -f.z };
-    const dir = norm(away.x * 0.55 + f.x * 0.45, away.z * 0.55 + f.z * 0.45);
+    // round him, not back the way you came: you spin out to the side he isn't on (dead ahead: toward the
+    // middle of the pitch) and keep going forward, so you come out level with him and past
+    const off = d ? (d.x - you.x) * right.x + (d.z - you.z) * right.z : 0;
+    const side = Math.abs(off) > 0.15 ? -Math.sign(off) : (you.x * right.x > 0 ? -1 : 1);
+    const dir = norm(f.x * 0.55 + side * right.x * 0.85, f.z * 0.55 + side * right.z * 0.85);
     dash(w, dir.x * 4.6, dir.z * 4.6, 0.38);
     hold(w, 'roulette');                                                     // the ball comes round with you under your sole
     if (d && fooled) beat(0.45, 0.85);
