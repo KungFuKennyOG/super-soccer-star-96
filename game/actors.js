@@ -8,7 +8,7 @@ import { playerAtlas } from './atlas.js';
 import { buildBody, restPose } from './body.js';
 import { animateKeeper } from './keeperpose.js';
 import { strideRate } from '../rules/dribble.js';
-import { poseStrike, poseTouch } from './strike.js';
+import { poseStrike, poseTouch, poseHold } from './strike.js';
 
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
@@ -66,12 +66,14 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   // a whole body bounces at each push-off and its hips twist with the stride (set before the boot is
   // sent to the ball, so it lands on it)
   if (!m.firstPerson) { bn.hips.position.y += (Math.abs(cph) - 0.6) * 0.06 * swing - 0.03 * swing; bn.hips.rotation.y = ph * 0.14 * swing; }
-  // the right boot goes to the ball: a strike swinging through it, or a touch on the run
+  if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
+  const sp = m.special;
+  if (sp && sp.kind === 'roulette' && sp.t < SPIN) bn.hips.rotation.y += Math.PI * 2 * sp.t / SPIN;   // the roulette spins you on the spot
+  // the right boot goes to the ball: a strike swinging through it, a touch on the run, or a skill's
+  // hold on it (the sole of a drag-back or roulette, the step-over's circle)
   let kick = 0;
   if (ball && m.strike) kick = poseStrike(m, bn, ball, dt);
-  else if (ball) poseTouch(m, bn, p, ball, onBall, dt);
-  if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
-  if (m.special && SKILL_POSES.includes(m.special.kind)) skillPose(bn, m.special);
+  else if (ball) { poseTouch(m, bn, p, ball, onBall, dt); if (sp && HOLDS.includes(sp.kind)) poseHold(m, bn, sp, ball); }
   if (m.special && m.special.kind === 'bicycle') { specialPose(bn, m.special); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
@@ -112,26 +114,8 @@ function specialPose(bn, sp) {
   }
 }
 
-// Skill moves with the feet (what you see of your own boots): the step-over circles the right foot
-// round the ball, the roulette spins you on the spot, the nutmeg is a toe-poke, the rainbow a heel
-// flick up behind you.
-const SKILL_POSES = ['stepover', 'roulette', 'nutmeg', 'rainbow'];
-function skillPose(bn, sp) {
-  const k = Math.min(1, sp.t / 0.45), up = Math.sin(Math.PI * k);
-  if (k >= 1) return;
-  if (sp.kind === 'stepover') {
-    bn.upperLegR.rotation.x = -0.55 * up; bn.upperLegR.rotation.z = -0.7 * Math.sin(2 * Math.PI * k);
-    bn.lowerLegR.rotation.x = 0.7 * up;
-  } else if (sp.kind === 'roulette') {
-    bn.hips.rotation.y += Math.PI * 2 * k;
-    bn.upperLegR.rotation.x = -0.4 * up; bn.lowerLegR.rotation.x = 0.5 * up;
-  } else if (sp.kind === 'nutmeg') {
-    bn.upperLegR.rotation.x = -0.75 * up; bn.lowerLegR.rotation.x = 0.15; bn.footR.rotation.x = -0.35 * up;
-  } else if (sp.kind === 'rainbow') {
-    bn.upperLegR.rotation.x = 0.55 * up; bn.lowerLegR.rotation.x = 2.1 * up; bn.footR.rotation.x = 0.6 * up;
-    bn.upperLegL.rotation.x = -0.25 * up;
-  }
-}
+// Skill moves and the drag-back are posed on the ball by game/strike.js (m.special = { kind, t }).
+const HOLDS = ['drag', 'roulette', 'stepover'], SPIN = 0.45;
 
 // Teammates lead the goal dance facing you, so they mirror the move: your "left" is their right arm.
 const ARM = { up: 2.8, down: 0.2, out: 1.55 };

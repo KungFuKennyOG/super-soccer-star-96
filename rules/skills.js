@@ -42,9 +42,11 @@ export function skillFools(w, move) {
   return same < SKILL.bite - (w.tune.skillBite || 0);
 }
 
-// Performs a skill. launch(w, player, velocity) kicks the ball loose (from the sim). Pushes a
-// { type: 'skill', move, ok, read, by } event; ok means you beat your man.
-export function performSkill(w, skill, ev, launch) {
+// Performs a skill. The sim lends its hands: launch(w, player, velocity) kicks the ball loose,
+// windUp(w, { kind, dir, v, then }, ev) does that a moment later (the boot needs the time: STRIKE[kind]),
+// hold(w, kind) keeps it under your sole. Pushes a { type: 'skill', move, ok, read, by } event; ok means
+// you beat your man.
+export function performSkill(w, skill, ev, { launch, windUp, hold }) {
   const you = w.you, b = w.ball, d = presserOf(w), move = skill.move;
   if (!MOVES.includes(move)) return;
   const f = norm(you.fx, you.fz), right = { x: -f.z, z: f.x };
@@ -61,6 +63,7 @@ export function performSkill(w, skill, ev, launch) {
     const away = d ? norm(you.x - d.x, you.z - d.z) : { x: -f.x, z: -f.z };
     const dir = norm(away.x * 0.55 + f.x * 0.45, away.z * 0.55 + f.z * 0.45);
     dash(w, dir.x * 4.6, dir.z * 4.6, 0.38);
+    hold(w, 'roulette');                                                     // the ball comes round with you under your sole
     if (d && fooled) beat(0.45, 0.85);
     else w.dragGrace = Math.max(w.dragGrace, 0.3);                           // you still shield it a moment
   } else if (move === 'nutmeg') {
@@ -76,8 +79,9 @@ export function performSkill(w, skill, ev, launch) {
       w.knockCD = 0.3;
     }
   } else if (move === 'rainbow') {
-    launch(w, you, { vx: f.x * 5.2, vy: 6.2, vz: f.z * 5.2 });
-    w.knockCD = 0.55; w.boostT = Math.max(w.boostT, 1.0); w.collectT = w.time;
+    // rolled up the back of your leg and flicked over from behind your heels, a moment after you start it
+    windUp(w, { kind: 'rainbow', dir: f, v: { vx: f.x * 6.4, vy: 6.2, vz: f.z * 6.4 }, then: w2 => { w2.knockCD = 0.55; w2.collectT = w2.time; w2.kick.clear = 0.8; } }, ev);   // (it goes over your own head: not yours to head on the way)
+    w.boostT = Math.max(w.boostT, 1.0);
     if (d && fooled) beat(1.5, 0);                                         // he turns to watch it go over
   }
   if (ok) w.skills = (w.skills || 0) + 1;

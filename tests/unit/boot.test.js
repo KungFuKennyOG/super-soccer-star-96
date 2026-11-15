@@ -9,7 +9,7 @@ import { animate, placeModel } from '../../game/actors.js';
 import { startStrike, struck } from '../../game/strike.js';
 import { createWorld, stepSim } from '../../rules/sim.js';
 import { perfectTime } from '../../rules/pass.js';
-import { BALL, GOAL } from '../../rules/tuning.js';
+import { BALL, GOAL, HOLD } from '../../rules/tuning.js';
 
 const fixed = () => 0.5, DT = 1 / 72;
 
@@ -77,5 +77,79 @@ for (const firstPerson of [true, false]) {
       assert.ok(Math.min(...rows.map(r => r.right)) > -0.04, `right boot never deep in the ball (${(Math.min(...rows.map(r => r.right)) * 100).toFixed(1)} cm)`);
       assert.ok(Math.min(...rows.map(r => r.left)) > 0.02, `left boot runs clear of it (${(Math.min(...rows.map(r => r.left)) * 100).toFixed(1)} cm)`);
     }
+  });
+}
+
+/* ---------- tricks: knock-on, flick-up, drag-back, skill moves ---------- */
+
+// You run (or stand) with the ball and do one thing at 1.2 s; the page's part of it (game/main.js feedback)
+// is played here. Returns one row per frame with the events and the right boot's gap to the ball.
+function trick({ firstPerson, moving = true, act }) {
+  const w = createWorld(fixed);
+  for (const id of ['d1', 'd2', 'd3']) { w.byId[id].x = 20; w.byId[id].z = -1; w.byId[id].stun = 99; }
+  const { bones, by } = buildSkeleton(), root = new THREE.Group();
+  root.add(bones[0]);
+  const m = { root, bone: by, shadow: new THREE.Object3D(), phase: 0, strike: null, firstPerson }, rows = [];
+  const unit = (x, z) => { const l = Math.hypot(x, z) || 1; return { x: x / l, z: z / l }; };
+  for (let t = 0; t < 2.2; t += DT) {
+    const it = { move: { x: 0, z: moving ? -1 : 0 }, facing: { x: 0, z: -1 }, sprint: false, ...(Math.abs(t - 1.2) < DT / 2 ? act : {}) };
+    const ev = stepSim(w, it, DT, fixed), you = w.you, b = w.ball;
+    for (const e of ev) {
+      if (e.type === 'windup') startStrike(m, { kind: e.kind, wind: e.t, dir: e.dir, power: e.power });
+      if (e.type === 'launched') struck(m, e.kind, unit(you.fx, you.fz), 0.5);
+      if (e.type === 'knock' || e.type === 'flick' || (e.type === 'skill' && e.move === 'nutmeg')) struck(m, e.type === 'flick' ? 'scoop' : 'poke', Math.hypot(b.vx, b.vz) > 0.5 ? unit(b.vx, b.vz) : unit(you.fx, you.fz), 0.4);
+      if (e.type === 'drag') m.special = { kind: 'drag', t: 0 };
+      if (e.type === 'skill') m.special = { kind: e.move, t: 0, side: 1 };
+    }
+    placeModel(m, you);
+    if (Math.hypot(you.vx, you.vz) > 0.5) m.root.rotation.y = Math.atan2(you.vx, you.vz);
+    animate(m, you, DT, t, false, null, b, w.owner === 'you' && !w.dead);
+    for (const bone of Object.values(by)) assert.ok(Number.isFinite(bone.quaternion.x + bone.quaternion.w + bone.position.y), `${bone.name} is finite`);
+    rows.push({ t, types: ev.map(e => e.type), right: gap(m, 'R', b), left: gap(m, 'L', b), far: Math.hypot(b.x - you.x, b.z - you.z), ahead: Math.hypot(b.x - you.x, b.z - you.z) * Math.sign((you.z - b.z) || 1), y: b.y, owner: w.owner });
+  }
+  return rows;
+}
+const cm = x => (x * 100).toFixed(1);
+
+for (const firstPerson of [true, false]) {
+  const who = firstPerson ? 'your own boots' : 'a whole body';
+
+  test(`${who}: a knock-on, a nutmeg's poke and the flick-up leave from the toe`, () => {
+    for (const [name, type, o] of [['knock-on', 'knock', { act: { knock: true } }], ['nutmeg', 'skill', { act: { skill: { move: 'nutmeg', side: 1 } } }], ['flick-up', 'flick', { moving: false, act: { knock: true } }]]) {
+      const rows = trick({ firstPerson, ...o }), k = rows.findIndex(r => r.types.includes(type));
+      assert.ok(k > 0, `${name} happened`);
+      assert.ok(Math.abs(rows[k].right) < 0.03, `${name}: boot ${cm(rows[k].right)} cm from the ball as it goes`);
+      if (name !== "nutmeg") assert.ok(rows[k + 8].right > 0.1, `${name}: then the ball is away`);   // (a poke at nobody barely outruns you)
+    }
+  });
+
+  test(`${who}: a drag-back and a roulette pull the ball in under the sole`, () => {
+    for (const [name, o] of [['drag-back', { act: { drag: true } }], ['roulette', { act: { skill: { move: 'roulette', side: 1 } } }]]) {
+      const rows = trick({ firstPerson, ...o }), k = rows.findIndex(r => r.types.includes(name === 'roulette' ? 'skill' : 'drag'));
+      const T = HOLD[name === 'roulette' ? 'roulette' : 'drag'], mid = rows.slice(k + Math.round(T * 0.25 / DT), k + Math.round(T * 0.5 / DT));
+      assert.ok(mid.every(r => r.owner === 'you'), `${name}: still yours`);
+      assert.ok(Math.max(...mid.map(r => Math.abs(r.right))) < 0.03, `${name}: studs on the ball (worst ${cm(Math.max(...mid.map(r => Math.abs(r.right))))} cm)`);
+      const closest = Math.min(...rows.slice(k, k + Math.round(T / DT)).map(r => r.far));
+      assert.ok(closest < HOLD.in + 0.06, `${name}: pulled in to ${closest.toFixed(2)} m`);
+      const after = rows[k + Math.round((T + 0.25) / DT)];
+      assert.ok(after.far > HOLD.in + 0.1, `${name}: and let go again (${after.far.toFixed(2)} m away)`);
+    }
+  });
+
+  test(`${who}: the rainbow is rolled up behind the heel and flicked from there`, () => {
+    const rows = trick({ firstPerson, act: { skill: { move: 'rainbow', side: 1 } } });
+    const s = rows.findIndex(r => r.types.includes('windup')), k = rows.findIndex(r => r.types.includes('launched'));
+    assert.ok(s > 0 && k > s + 5, 'it takes a moment');
+    assert.ok(rows[k].ahead < 0 && rows[k].y > BALL.r + 0.2, `flicked from behind you (${rows[k].ahead.toFixed(2)} m, ${rows[k].y.toFixed(2)} m up)`);
+    assert.ok(Math.abs(rows[k].right) < 0.04, `heel ${cm(rows[k].right)} cm from the ball as it goes`);
+    assert.ok(rows.slice(k + 10, k + 60).some(r => r.y > 1.9), 'and it goes over your head');
+  });
+
+  test(`${who}: a step-over takes the boot round the ball without touching it`, () => {
+    const rows = trick({ firstPerson, act: { skill: { move: 'stepover', side: 1 } } }), k = rows.findIndex(r => r.types.includes('skill'));
+    const during = rows.slice(k, k + Math.round(0.4 / DT));
+    assert.ok(during.every(r => r.owner === 'you'));
+    assert.ok(Math.min(...during.map(r => r.right)) > -0.02, `never in the ball (${cm(Math.min(...during.map(r => r.right)))} cm)`);
+    assert.ok(Math.min(...during.map(r => r.right)) < 0.12, `but close round it (${cm(Math.min(...during.map(r => r.right)))} cm)`);
   });
 }

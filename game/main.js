@@ -222,7 +222,12 @@ function feedback(ev) {
     // it lands; a teammate's boot is on the ball the frame it goes. Your dribbling touches are just a tick.
     if (e.type === 'windup') { if (m) startStrike(m, { kind: e.kind, wind: e.t, dir: e.dir, power: e.power }); continue; }
     if (e.type === 'dribble') continue;
-    if ((e.type === 'kick' || e.type === 'pass') && m && e.kind !== 'header' && e.kind !== 'bicycle') struck(m, e.type === 'pass' ? 'pass' : 'shot', norm(world.ball.vx, world.ball.vz), e.power);
+    // skills and tricks: a toe-poke for the knock-on and the nutmeg, a scoop for the flick-up, the heel
+    // for the rainbow (as it leaves), the sole for the drag-back
+    if (e.type === 'launched') { struck(models.you, e.kind, norm(world.you.fx, world.you.fz), 0.5); continue; }
+    if (e.type === 'knock' || e.type === 'flick' || (e.type === 'skill' && e.move === 'nutmeg')) struck(models.you, e.type === 'flick' ? 'scoop' : 'poke', Math.hypot(world.ball.vx, world.ball.vz) > 0.5 ? norm(world.ball.vx, world.ball.vz) : norm(world.you.fx, world.you.fz), 0.4);
+    if (e.type === 'drag') models.you.special = { kind: 'drag', t: 0 };
+    if ((e.type === 'kick' || e.type === 'pass') && m && e.kind !== 'header' && e.kind !== 'bicycle') struck(m, e.type === 'pass' ? 'pass' : e.kind === 'volley' ? 'volley' : 'shot', norm(world.ball.vx, world.ball.vz), e.power);
     if (e.type === 'kick' && e.by !== 'gk' && models.gk) models.gk.split = 0;             // the keeper's split step
     if (e.type === 'kick' && e.kind && m) m.special = { kind: e.kind, t: 0 };
     if (e.type === 'kick' && e.kind === 'bicycle') slowT = 1.3;               // slow motion for the overhead kick

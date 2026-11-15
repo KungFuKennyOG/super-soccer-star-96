@@ -3,7 +3,7 @@
 // Every player has a stride phase (p.stride, radians, always growing): the sim advances it and the page
 // draws the legs from it, so a touch in the sim is a boot on the ball on screen. The carrier's right boot
 // taps the ball on once a cycle; in between the ball runs ahead and he catches it up.
-import { DRIBBLE, STRIKE, BALL } from './tuning.js';
+import { DRIBBLE, STRIKE, HOLD, BALL } from './tuning.js';
 
 const TAU = Math.PI * 2;
 
@@ -46,15 +46,23 @@ export function carry(w, dt) {
   if (p.role === 'gk') { b.x = p.x; b.z = p.z + 0.35; b.y = Math.max(BALL.r, b.y - 2 * dt); b.vx = b.vy = b.vz = 0; w.carry = null; return; } // settles to the grass
   const s = Math.hypot(p.vx, p.vz);
   const d = s > 0.6 ? { x: p.vx / s, z: p.vz / s } : { x: p.fx, z: p.fz };
-  let lead = dribbleLead(p.stride, s);
-  // winding up a strike (w.wind): you catch the ball up so it's there to be hit
-  if (w.wind && p.role === 'you') lead = STRIKE.lead + (w.wind.lead0 - STRIKE.lead) * Math.max(0, w.wind.t / (w.wind.T || 1));
+  let lead = dribbleLead(p.stride, s), lift = 0, side = 0;
+  if (p.role === 'you' && w.wind) {
+    const k = 1 - Math.max(0, w.wind.t / (w.wind.T || 1));       // how far through the wind-up
+    // a rainbow: rolled back behind your heels and up the calf; a strike: you catch it up so it's there to be hit
+    if (w.wind.kind === 'rainbow') { lead = w.wind.lead0 + (HOLD.behind - w.wind.lead0) * k; lift = HOLD.up * k; side = HOLD.side * k; }
+    else lead = w.wind.lead0 + (STRIKE.lead - w.wind.lead0) * k;
+  } else if (p.role === 'you' && w.hold) {
+    // under your sole: pulled in close, then let go again
+    const k = w.hold.t / w.hold.T, pull = Math.min(1, k / HOLD.pull), back = Math.max(0, (k - HOLD.pull) / (1 - HOLD.pull));
+    lead = (w.hold.lead0 + (HOLD.in - w.hold.lead0) * pull * (2 - pull)) * (1 - back) + lead * back;
+  }
   let c = w.carry;
   if (!c || c.id !== p.id) c = w.carry = { id: p.id, ox: (b.x - p.x) / lead, oz: (b.z - p.z) / lead, lead };   // just taken: start from where the ball is
   const k = Math.min(1, 20 * dt), px = b.x, pz = b.z;
   c.ox += (d.x - c.ox) * k; c.oz += (d.z - c.oz) * k; c.lead = lead;
-  b.x = p.x + c.ox * lead; b.z = p.z + c.oz * lead;
-  b.y = BALL.r; b.vy = 0;
+  b.x = p.x + c.ox * lead - c.oz * side; b.z = p.z + c.oz * lead + c.ox * side;
+  b.y = BALL.r + lift; b.vy = 0;
   if (dt > 0) { b.vx = (b.x - px) / dt; b.vz = (b.z - pz) / dt; }
   b.spin += s / BALL.r * dt;
 }
