@@ -27,7 +27,7 @@ export const MOVE = {
 // Striking the ball (rules/sim.js): your shot or pass is struck this long after you let go, the time the
 // boot takes to get to the ball (the page swings the leg in that time, game/strike.js). You can't be
 // tackled in that moment, and the ball is drawn in to `lead` m ahead of you to be hit. 0 strikes at once.
-export const STRIKE = { shot: 0.083, pass: 0.069, lead: 0.5 };   // 6 and 5 frames at 72 Hz
+export const STRIKE = { shot: 0.083, pass: 0.042, lead: 0.5 };   // 6 and 3 frames at 72 Hz (pass was 5: one-twos under pressure got cut out)
 
 // Dribbling touches (rules/dribble.js): the ball isn't glued in front of you. Once a stride your right
 // boot taps it on from `near` m ahead; it runs up to `push` m further (at `full` m/s and above, less when
