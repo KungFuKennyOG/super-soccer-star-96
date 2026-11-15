@@ -14,7 +14,7 @@
 //   strike: { eye, dir } on the frame the shoot trigger goes down (volleys and bicycle kicks)
 //   head: { x, y, z, vx, vy, vz } your head's centre and its velocity (headers); gaze: unit 3D look
 // }
-import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS, REBOUND, STRIKE } from './tuning.js';
+import { MOVE, AI, GOAL, PITCH, BALL, AIR, PASS, REBOUND, STRIKE, HOLD } from './tuning.js';
 import { tuneFor } from './skill.js';
 import { clamp, dist, norm, steer } from './vec.js';
 import { makeBall, stepBall, ballSpeed } from './ball.js';
@@ -58,7 +58,7 @@ export function resetPlay(w, rnd = Math.random) {
   Object.assign(w.ball, makeBall(w.you.x, w.you.z - MOVE.ballLead));
   Object.assign(w, {
     owner: 'you', ownT: 0, dead: false, knockCD: 0, boostT: 0, dragGrace: 0, called: false, chargeT: 0,
-    kick: null, shot: null, wind: null, carry: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
+    kick: null, shot: null, wind: null, hold: null, carry: null, parryT: -9, reboundT: -9, skills: 0, dash: null, collectT: -9, pendingPass: null, lastAssist: null, perfectChain: 0, celebrate: null,
   });
   initBrain(w);
 }
@@ -75,6 +75,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
 
   moveYou(w, it, dt);
   if (w.wind && (w.dead || w.owner !== 'you')) w.wind = null;
+  if (w.hold && ((w.hold.t += dt) >= w.hold.T || w.dead || w.owner !== 'you')) w.hold = null;
   const winding = it.charging || (w.wind && w.wind.kind === 'shot');
   w.chargeT = winding && w.owner === 'you' ? (w.chargeT || 0) + dt : 0;   // how long you've been winding up a shot
   if (it.head) w.headY = it.head.y;
@@ -86,7 +87,7 @@ export function stepSim(w, it, dt, rnd = Math.random) {
     else if (it.pass && w.byId[it.pass.targetId]) windUp(w, { kind: 'pass', to: it.pass.targetId, grade: gradePass(it.pass.holdT) }, ev);
     else if (it.knock) knock(w, ev);
     else if (it.drag) drag(w, ev);
-    else if (it.skill) performSkill(w, it.skill, ev, launch);
+    else if (it.skill) performSkill(w, it.skill, ev, { launch, windUp, hold });
   }
   if (!w.dead && it.call && w.owner && w.byId[w.owner].role === 'mate' && !w.called) { w.called = true; ev.push({ type: 'called', by: w.owner, hand: it.callHand || null }); }
 
@@ -133,7 +134,13 @@ function windUp(w, wind, ev) {
   const b = w.ball, to = wind.to && w.byId[wind.to];
   const dir = to ? norm(to.x - b.x, to.z - b.z) : norm(wind.dir.x, wind.dir.z);
   w.wind = { ...wind, t: STRIKE[wind.kind], T: STRIKE[wind.kind], lead0: w.carry ? w.carry.lead : STRIKE.lead };
+  w.hold = null;
   ev.push({ type: 'windup', by: 'you', kind: wind.kind, t: w.wind.t, dir, power: wind.kind === 'shot' ? chargeOf(wind.holdT) : 0.4 });
+}
+
+// The sole takes hold of the ball for a moment (a drag-back, a roulette): rules/dribble.js pulls it in.
+function hold(w, kind) {
+  w.hold = { kind, t: 0, T: HOLD[kind], lead0: w.carry ? w.carry.lead : STRIKE.lead };
 }
 
 function strike(w, dt, rnd, ev) {
@@ -143,7 +150,8 @@ function strike(w, dt, rnd, ev) {
   w.wind = null;
   // aimed when you let go: the spot you were looking at then is where it goes
   if (s.kind === 'shot') shoot(w, you, s.eye, s.dir, s.holdT, rnd, ev);
-  else pass(w, you, w.byId[s.to], s.grade, rnd, ev);
+  else if (s.kind === 'pass') pass(w, you, w.byId[s.to], s.grade, rnd, ev);
+  else { launch(w, you, s.v); s.then(w); ev.push({ type: 'launched', by: 'you', kind: s.kind }); }   // a skill's flick (rules/skills.js)
 }
 
 function shoot(w, p, eye, dir, holdT, rnd, ev) {
@@ -185,6 +193,7 @@ function drag(w, ev) {
   p.vx = p.vz = 0;
   // the same trick too often and the presser reads it: no stumble, no breathing space
   const fooled = dragFools(w);
+  hold(w, 'drag');
   w.dragGrace = fooled ? w.tune.ai.dragGrace : 0.1;
   const d = closest(defenders(w), p);
   if (fooled && d && dist(d, p) < 4) d.stun = w.tune.ai.dragStun;
@@ -208,7 +217,7 @@ function startShot(w, p, ev, power, kind = null) {
 // Headers, volleys and bicycle kicks (rules/aerial.js) on a loose ball in the air. True if you hit it.
 function aerial(w, it, rnd, ev) {
   const b = w.ball, you = w.you;
-  if (b.y < AIR.volleyLow || (w.kick && w.kick.by === 'you' && w.time - w.kick.t < 0.3)) return false;
+  if (b.y < AIR.volleyLow || (w.kick && w.kick.by === 'you' && w.time - w.kick.t < (w.kick.clear || 0.3))) return false;
   if (b.inNet || (w.shot && w.shot.by === 'you' && !w.shot.done && w.shot.decision !== 'wide')) return false;   // your own shot or chip on its way to goal: don't run into it
   const head = it.head || { x: you.x, y: (w.headY || 1.65) - 0.08, z: you.z, vx: you.vx, vy: 0, vz: you.vz };
   const gaze = it.gaze || { x: you.fx, y: 0, z: you.fz };
