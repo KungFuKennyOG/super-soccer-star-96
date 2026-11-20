@@ -29,7 +29,7 @@ export const R = {
 };
 // What each region covers on the body (world heights in metres; arms are measured down from the shoulder).
 export const SPAN = {
-  shirt: [1.552, 0.848], pelvis: [1.0, 0.775], shorts: [0.92, 0.592], thigh: [0.69, 0.475], sock: [0.486, 0.06],
+  shirt: [1.552, 0.878], pelvis: [1.0, 0.775], shorts: [0.92, 0.613], thigh: [0.69, 0.475], sock: [0.486, 0.06],
   neck: [1.65, 1.5], arm: [-0.2, -0.74],   // (the sleeve's rows run seam to cuff)
 };
 const row = (span, y, h) => (span[0] - y) / (span[0] - span[1]) * h;

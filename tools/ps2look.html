@@ -76,11 +76,20 @@ const SHOTS = {
   face2: { fov: 22, cam: [0, 1.74, 1.25], at: [0, 1.7, 0], ball: [3, 3], set: t => [off, off, [-0.2, 0, 0.5, 0, 0], [0.2, 0, -0.5, 0, 0], off, off] },
   kit: { fov: 28, cam: [0, 1.15, 3.6], at: [0, 1.0, 0], ball: [0, 0.6], set: t => [[-0.5, 0, 0.1, 0, 0], [0.5, 0, -0.1, 0, 0], off, off, off, off] },
   side: { fov: 28, cam: [3.7, 1.15, 0.3], at: [0, 1.0, 0], ball: [3, 3], set: t => [[0, -0.55, 0, 0, 0], [0, 0.55, 0, 0, 0], off, off, off, off] },
+  // one player from the side, the camera going with him: [speed, which way he travels off his facing]
+  ...Object.fromEntries(Object.entries({ walk: [1.5, 0], jog: [3.6, 0], sprint: [7.4, 0], strafe: [3, Math.PI / 2], backpedal: [2.6, Math.PI] }).map(([k, [v, off]]) => [k, { fov: 24, cam: t => [Math.sin(off) * v * t + 4.6 * Math.cos(off) * 1 + 0, 1.0, Math.cos(off) * v * t + (off ? 5 : 0.4)], at: t => [Math.sin(off) * v * t, 0.95, Math.cos(off) * v * t], ball: [30, 30],
+    set: t => [[Math.sin(off) * v * t, Math.cos(off) * v * t, 0, v, 0, off], null, null, null, null, null] }])),
+  // one player through the gears: stands, walks, jogs, sprints, pulls up, stands (the camera goes with him)
+  reel: { fov: 30, cam: t => [reelX(t) + 1.2, 1.05, 5.4], at: t => [reelX(t) + 0.2, 0.95, 0], ball: t => [reelX(t) + 6, 2], set: t => [[reelX(t), 0, Math.PI / 2, reelV(t), 0], null, null, null, null, null] },
+  idle: { fov: 26, cam: [0.6, 1.25, 5.2], at: [0, 0.95, 0], ball: [2.5, 3.5], set: t => [[-1.5, 0, 0.2, 0, 0], [-0.5, 0.2, -0.1, 0, 0], [0.5, 0, 0.3, 0, 0], [1.5, 0.3, -0.3, 0, 0], null, null] },
   back: { fov: 28, cam: [0, 1.25, 3.6], at: [0, 1.0, 0], ball: [3, 3], set: t => [[-0.5, 0, Math.PI - 0.15, 0, 0], [0.5, 0, Math.PI + 0.15, 0, 0], off, off, off, off] },
   clip: { fov: 36, cam: t => [-13 + t * 6.3 + 3.2, 0.8 + 0.15 * t, 4.6 - 0.25 * t], at: t => [-13 + t * 6.3 + 0.4, 1.02, 0], ball: t => [-13 + t * 6.3 + 0.75 + 0.15 * Math.sin(t * 7), 0.1],
     set: t => [[-13 + t * 6.3, 0, Math.PI / 2, 6.3, 0], [-13 + t * 6.3 - 0.45, -0.75 + 0.1 * Math.sin(t * 2), Math.PI / 2 + 0.1, 6.3, 3.3], off, off, [8 - t, -9, -1.5, 3, 1], [-2, -14, 1.3, 2, 2]] },
 };
 const val = (v, t) => (typeof v === 'function' ? v(t) : v);
+const REEL = [[0, 0], [1.5, 0], [2, 1.5], [4, 1.5], [4.6, 3.6], [6.6, 3.6], [7.4, 7.4], [9.4, 7.4], [10.3, 0], [13, 0]];   // [time, speed]
+function reelV(t) { for (let i = 1; i < REEL.length; i++) if (t <= REEL[i][0]) { const [a, va] = REEL[i - 1], [b, vb] = REEL[i]; return va + (vb - va) * Math.max(0, (t - a) / (b - a)); } return 0; }
+function reelX(t) { let x = -20; for (let u = 0; u < t; u += 1 / 120) x += reelV(u) / 120; return x; }
 let time = +(q.get('t') || 0);
 function pose(t, dt) {
   const s = SHOTS[shot], set = s.set(t), b = val(s.ball, t);
@@ -88,8 +97,9 @@ function pose(t, dt) {
   players.forEach(({ m, p }, i) => {
     const d = set[i]; m.root.visible = m.shadow.visible = !!d;
     if (!d) return;
-    p.x = d[0]; p.z = d[1]; p.fx = Math.sin(d[2]); p.fz = Math.cos(d[2]); p.vx = p.fx * d[3]; p.vz = p.fz * d[3];
-    p.stride = d[4] + t * strideRate(d[3]);
+    const go = d[2] + (d[5] || 0);                           // d[5]: which way he travels, off the way he faces
+    p.x = d[0]; p.z = d[1]; p.fx = Math.sin(d[2]); p.fz = Math.cos(d[2]); p.vx = Math.sin(go) * d[3]; p.vz = Math.cos(go) * d[3];
+    if (p.stride === null) p.stride = d[4] + t * strideRate(d[3]); else p.stride += dt * strideRate(d[3]);   // his stride turns over with his speed
     placeModel(m, p);
     animate(m, p, dt, t + i, false, null, bp, false);
     m.shadow.position.set(p.x - LIGHT_DIR.x * 0.12, 0.01, p.z - LIGHT_DIR.z * 0.12);
@@ -98,18 +108,20 @@ function pose(t, dt) {
   camera.fov = s.fov; camera.aspect = W / H; camera.updateProjectionMatrix();
   camera.position.set(...val(s.cam, t)); camera.lookAt(...val(s.at, t));
 }
+// poses ease in over time (speed, lean, the head's turn), so a still is run up to, not jumped to
+function warm() { for (const pl of players) { pl.p.stride = null; pl.m.gait = null; } for (let k = 90; k > 0; k--) pose(time - k / 60, 1 / 60); }
 function frame(dt) {
   time += dt; pose(time, dt); renderer.render(scene, camera);
   document.getElementById('i').textContent = q.get('info') ? `${shot}  calls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}` : '';
 }
 window.__look = {
   ready: false, step: frame,
-  shot(name, t = 0) { shot = name; time = t; frame(0); frame(0); },
+  shot(name, t = 0) { shot = name; time = t; warm(); frame(0); },
   info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, textures: renderer.info.memory.textures, buildMs, playerTris: players[0].m.mesh.geometry.index.count / 3 }),
   sheet: (i, k = 0) => players[i].m.mesh.material[k].map.image.toDataURL('image/png'),
 };
 addEventListener('keydown', e => { const n = Object.keys(SHOTS)[+e.key - 1]; if (n) { shot = n; time = 0; } });
-frame(0); frame(0);
+warm(); frame(0);
 window.__look.ready = true;
 if (!q.get('still')) { let last = performance.now(); const loop = now => { frame(Math.min(0.05, (now - last) / 1000) * (q.get('t') ? 0 : 1)); last = now; requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
 </script>

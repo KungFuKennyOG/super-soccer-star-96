@@ -7,7 +7,7 @@
 import { R } from './kit.js';
 import { gauss as g, sstep, mix, hash } from './paint.js';
 
-export const HEAD = { top: 1.834, h: 0.25, cz: 0.03, wide: 1.06 };
+export const HEAD = { top: 1.858, h: 0.254, cz: 0.02, wide: 1.06 };
 // where things sit down the head (t)
 export const F = { hair: 0.24, brow: 0.43, eye: 0.497, tip: 0.642, sub: 0.672, mouth: 0.762, low: 0.79, under: 0.83, chin: 0.91 };
 const WARP = 0.75;                                       // the face gets more of the texture than the back of the head
@@ -120,7 +120,7 @@ export function addHead(b, style) {
   b.soft.push([start, b.pos.length / 3]);
   for (const s of [1, -1]) addEar(b, s);
   // neck (on R.neck's rectangle of the head's sheet, see above): short and thick, carried a little forward, widening into the trapezius
-  const N = [[1.65, 0.058, 0.064, 0.018, { head: 0.7, neck: 0.3 }], [1.605, 0.064, 0.068, 0.014, { neck: 0.7, head: 0.3 }], [1.56, 0.069, 0.071, 0.008, { neck: 1 }], [1.5, 0.086, 0.076, 0, { neck: 0.5, chest: 0.5 }]];
+  const N = [[1.65, 0.057, 0.063, 0.01, { head: 0.7, neck: 0.3 }], [1.605, 0.062, 0.066, 0.007, { neck: 0.7, head: 0.3 }], [1.56, 0.067, 0.069, 0.004, { neck: 1 }], [1.5, 0.084, 0.075, 0, { neck: 0.5, chest: 0.5 }]];
   b.loft(N.map(([y, rx, rz, z, w]) => ({ c: [0, y, z], rx, rz, v: (1.65 - y) / 0.15, w })), R.neck, { seg: 12, a0: Math.PI,
     shape: (a, r) => { const d = 0.004 * g(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), 0.75, 0.3) * g(r.c[1], 1.58, 0.05); return [Math.sin(a) * d, 0, Math.cos(a) * d]; } });   // the cords either side of the throat
   addHair(b, HAIR2[style % HAIR2.length]);

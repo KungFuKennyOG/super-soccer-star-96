@@ -40,10 +40,10 @@ export function figureGeometry(style = 0) {
 function torso(b) {
   // shirt: [y, half width, depth in front, depth behind, squareness]
   const S = [
-    [1.566, 0.073, 0.086, 0.066, 2], [1.546, 0.078, 0.09, 0.07, 2], [1.53, 0.112, 0.094, 0.085, 2], [1.51, 0.158, 0.102, 0.098, 2.1], [1.492, 0.198, 0.114, 0.109, 2.3],
-    [1.45, 0.2, 0.136, 0.128, 2.5], [1.39, 0.198, 0.156, 0.135, 2.6], [1.33, 0.192, 0.153, 0.131, 2.6], [1.26, 0.184, 0.143, 0.121, 2.5],
-    [1.18, 0.178, 0.135, 0.108, 2.4], [1.09, 0.175, 0.13, 0.1, 2.4], [1.0, 0.178, 0.13, 0.113, 2.4], [0.92, 0.185, 0.132, 0.138, 2.4],
-    [0.85, 0.193, 0.136, 0.15, 2.4], [0.858, 0.176, 0.12, 0.134, 2.4],                    // the hem, turned under
+    [1.566, 0.073, 0.086, 0.066, 2], [1.546, 0.078, 0.09, 0.07, 2], [1.53, 0.108, 0.094, 0.085, 2], [1.512, 0.14, 0.1, 0.097, 2.1], [1.485, 0.186, 0.112, 0.108, 2.3],
+    [1.45, 0.19, 0.134, 0.126, 2.5], [1.39, 0.186, 0.15, 0.132, 2.6], [1.33, 0.18, 0.147, 0.128, 2.6], [1.26, 0.172, 0.138, 0.118, 2.5],
+    [1.18, 0.166, 0.13, 0.106, 2.4], [1.09, 0.163, 0.126, 0.099, 2.4], [1.0, 0.166, 0.126, 0.111, 2.4], [0.93, 0.172, 0.128, 0.132, 2.4],
+    [0.88, 0.178, 0.132, 0.142, 2.4], [0.888, 0.162, 0.116, 0.127, 2.4],                    // the hem, turned under
   ];
   const form = bumps([
     { a: 0.52, aw: 0.55, y: 1.385, yw: 0.075, d: 0.009 }, { a: -0.52, aw: 0.55, y: 1.385, yw: 0.075, d: 0.009 },   // pectorals
@@ -61,7 +61,7 @@ function torso(b) {
   b.loft(S.map(([y, rx, f, bk, n], i) => ({ c: [0, y, 0.004 + (i < 2 ? 0.004 : 0)], rx, rz: [f, bk], n, v: i === 0 ? 0 : i === 1 ? 0.03 : i === S.length - 1 ? 0.995 : Math.max(0.045, v(SPAN.shirt, y)), w })), R.shirt, {
     seg: 30, a0: -Math.PI / 2,
     // below the chest the shirt hangs free of the body
-    shape: (a, r) => out(a, form(a, r) + drape(a, 0.009 * sstep(1.3, 0.86, r.c[1]) ** 1.3, 0.9)),
+    shape: (a, r) => out(a, form(a, r) + drape(a, 0.009 * sstep(1.3, 0.89, r.c[1]) ** 1.3, 0.9)),
   });
   // the seat of the shorts, between and above the legs
   const PV = [[1.0, 0.16, 0.11, 0.112], [0.93, 0.166, 0.114, 0.122], [0.86, 0.15, 0.1, 0.114], [0.815, 0.11, 0.06, 0.07], [0.795, 0.07, 0.03, 0.035]];
@@ -72,10 +72,10 @@ function leg(b, s, n) {
   const up = 'upperLeg' + n, lo = 'lowerLeg' + n, ft = 'foot' + n, toe = 'toe' + n, lx = s * P.hipX, mirror = s < 0;
   const io = (o, i) => (s > 0 ? [o, i] : [i, o]);        // outer and inner radius → toward +x and away from it
   // shorts leg: [y, centre out from the middle, outer, inner, front, back]. Wide, falling from the hips in folds.
-  const SH = [[0.92, 0.075, 0.094, 0.075, 0.1, 0.118, { hips: 0.7, [up]: 0.3 }], [0.86, 0.082, 0.1, 0.086, 0.108, 0.144, { hips: 0.35, [up]: 0.65 }], [0.78, 0.092, 0.11, 0.1, 0.12, 0.139, { [up]: 1 }],
-    [0.7, 0.1, 0.116, 0.108, 0.128, 0.127, { [up]: 1 }], [0.635, 0.105, 0.12, 0.111, 0.133, 0.13, { [up]: 1 }], [0.594, 0.108, 0.124, 0.113, 0.137, 0.133, { [up]: 1 }], [0.602, 0.106, 0.106, 0.096, 0.118, 0.115, { [up]: 1 }]];
+  const SH = [[0.92, 0.075, 0.09, 0.075, 0.1, 0.116, { hips: 0.7, [up]: 0.3 }], [0.86, 0.08, 0.096, 0.084, 0.108, 0.138, { hips: 0.35, [up]: 0.65 }], [0.78, 0.088, 0.103, 0.094, 0.116, 0.133, { [up]: 1 }],
+    [0.7, 0.094, 0.107, 0.1, 0.121, 0.123, { [up]: 1 }], [0.65, 0.098, 0.11, 0.102, 0.124, 0.123, { [up]: 1 }], [0.615, 0.1, 0.113, 0.104, 0.127, 0.125, { [up]: 1 }], [0.622, 0.098, 0.097, 0.088, 0.11, 0.108, { [up]: 1 }]];
   b.loft(SH.map(([y, cx, o, i, f, bk, w], k) => ({ c: [s * cx, y, 0.004], rx: io(o, i), rz: [f, bk], n: 2.2, v: k === SH.length - 1 ? 0.995 : v(SPAN.shorts, y), w })), s > 0 ? R.shortsL : R.shortsR, {
-    seg: 16, a0: Math.PI, shape: (a, r) => out(a, drape(a, 0.008 * sstep(0.9, 0.6, r.c[1]), 2 + s)) });
+    seg: 16, a0: Math.PI, shape: (a, r) => out(a, drape(a, 0.008 * sstep(0.9, 0.62, r.c[1]), 2 + s)) });
   // thigh and knee: [y, outer, inner, front, back, how far forward]
   const knee = y => { const k = sstep(P.kneeY + 0.04, P.kneeY - 0.04, y); return { [up]: 1 - k, [lo]: k }; };
   const TH = [[0.69, 0.1, 0.086, 0.106, 0.1, 0.012], [0.63, 0.097, 0.086, 0.104, 0.096, 0.015], [0.59, 0.088, 0.081, 0.095, 0.086, 0.017], [0.555, 0.076, 0.072, 0.08, 0.071, 0.017],
@@ -90,9 +90,9 @@ function leg(b, s, n) {
   // lower leg in its sock: turned over at the top, the calf high behind and fuller inside, a straight shin under the guard, a slim ankle
   const ankle = y => { const k = sstep(P.ankleY + 0.03, P.ankleY - 0.015, y), kn = sstep(P.kneeY + 0.02, P.kneeY - 0.05, y); return { [up]: (1 - kn), [lo]: kn * (1 - k), [ft]: k }; };
   const SK = [[0.486, 0.066, 0.064, 0.063, 0.066, 0.004], [0.478, 0.072, 0.07, 0.069, 0.072, 0.004], [0.452, 0.073, 0.071, 0.07, 0.073, 0.003], [0.444, 0.068, 0.066, 0.065, 0.07, 0.002],
-    [0.41, 0.071, 0.071, 0.066, 0.084, 0], [0.37, 0.074, 0.076, 0.066, 0.097, -0.002], [0.325, 0.07, 0.073, 0.064, 0.094, -0.003], [0.27, 0.06, 0.06, 0.061, 0.076, -0.003],
+    [0.41, 0.068, 0.068, 0.064, 0.078, 0], [0.37, 0.07, 0.072, 0.064, 0.088, -0.002], [0.325, 0.066, 0.069, 0.062, 0.085, -0.003], [0.27, 0.057, 0.057, 0.059, 0.07, -0.003],
     [0.21, 0.049, 0.049, 0.056, 0.058, -0.002], [0.15, 0.042, 0.042, 0.047, 0.048, 0], [0.105, 0.039, 0.039, 0.043, 0.045, 0], [0.06, 0.04, 0.04, 0.043, 0.045, 0.002]];
-  const calf = bumps([{ a: Math.PI - s * 0.75, aw: 0.7, y: 0.345, yw: 0.07, d: 0.009 }, { a: Math.PI + s * 0.7, aw: 0.6, y: 0.375, yw: 0.06, d: 0.006 },   // inner head lower and fuller, outer head higher
+  const calf = bumps([{ a: Math.PI - s * 0.75, aw: 0.7, y: 0.345, yw: 0.07, d: 0.007 }, { a: Math.PI + s * 0.7, aw: 0.6, y: 0.375, yw: 0.06, d: 0.006 },   // inner head lower and fuller, outer head higher
     { a: 0, aw: 0.7, y: 0.31, yw: 0.13, d: 0.006 }, { a: Math.PI, aw: 0.7, y: 0.14, yw: 0.06, d: -0.004 }]);                                             // shin guard, the tendon above the heel
   b.loft(SK.map(([y, o, i, f, bk, z]) => ({ c: [lx, y, z], rx: io(o, i), rz: [f, bk], v: v(SPAN.sock, y), w: ankle(y) })), R.sock, { seg: 12, a0: Math.PI, mirror, shape: (a, r) => out(a, calf(a, r)) });
   // boot: lofted heel to toe. [z, half width, half height, centre height]
@@ -108,8 +108,8 @@ function arm(b, s, n) {
   // Set-in sleeve. Its first ring is the seam round the shoulder, tilted so its top sits on the end of the
   // shoulder and its bottom in the armpit; the rings turn level as they go down the arm, wider than the arm
   // so the cloth hangs off it. [tilt (deg), centre out and down from the joint, across, depth, weights]
-  const SL = [[64, -0.034, -0.06, 0.078, 0.078, { chest: 0.55, [cl]: 0.35, [ua]: 0.1 }], [46, -0.004, -0.072, 0.075, 0.081, { [cl]: 0.45, [ua]: 0.45, chest: 0.1 }], [26, 0.002, -0.112, 0.071, 0.08, { [ua]: 0.82, [cl]: 0.18 }],
-    [9, 0.004, -0.16, 0.071, 0.08, { [ua]: 1 }], [0, 0.006, -0.215, 0.073, 0.082, { [ua]: 1 }], [0, 0.008, -0.268, 0.079, 0.087, { [ua]: 1 }], [0, 0.008, -0.26, 0.06, 0.064, { [ua]: 1 }]];
+  const SL = [[64, -0.036, -0.058, 0.074, 0.076, { chest: 0.55, [cl]: 0.35, [ua]: 0.1 }], [46, -0.008, -0.07, 0.071, 0.078, { [cl]: 0.45, [ua]: 0.45, chest: 0.1 }], [26, -0.004, -0.108, 0.064, 0.076, { [ua]: 0.82, [cl]: 0.18 }],
+    [9, -0.002, -0.156, 0.063, 0.074, { [ua]: 1 }], [0, 0, -0.205, 0.064, 0.074, { [ua]: 1 }], [0, 0.002, -0.25, 0.067, 0.076, { [ua]: 1 }], [0, 0.002, -0.243, 0.055, 0.059, { [ua]: 1 }]];
   b.loft(SL.map(([deg, dx, dy, rx, rz, w], i) => {
     const t = deg * Math.PI / 180;
     return { c: [ax + s * dx, ay + dy, 0], rx, rz, n: 2.15, ax: [Math.cos(t), s * Math.sin(t), 0], v: i === SL.length - 1 ? 0.995 : i / (SL.length - 2), w };
@@ -118,7 +118,7 @@ function arm(b, s, n) {
   // arm: [down from the shoulder, outer, inner, front, back, forward]
   const armW = dy => { const e = sstep(P.elbowDY + 0.04, P.elbowDY - 0.04, dy), h = sstep(P.wristDY + 0.02, P.wristDY - 0.02, dy); return { [ua]: 1 - e, [fa]: e * (1 - h), [hd]: h }; };
   const AR = [[-0.2, 0.056, 0.054, 0.06, 0.058, 0], [-0.265, 0.054, 0.052, 0.058, 0.056, 0], [-0.292, 0.048, 0.047, 0.05, 0.053, -0.003], [P.elbowDY, 0.046, 0.045, 0.045, 0.053, -0.005],
-    [-0.34, 0.058, 0.05, 0.054, 0.054, -0.003], [-0.385, 0.056, 0.048, 0.053, 0.05, 0], [-0.44, 0.047, 0.043, 0.046, 0.044, 0.003], [-0.5, 0.036, 0.034, 0.038, 0.036, 0.006], [P.wristDY + 0.006, 0.025, 0.024, 0.034, 0.032, 0.008],
+    [-0.34, 0.052, 0.046, 0.05, 0.05, -0.003], [-0.385, 0.05, 0.044, 0.049, 0.046, 0], [-0.44, 0.043, 0.04, 0.043, 0.041, 0.003], [-0.5, 0.034, 0.032, 0.036, 0.034, 0.006], [P.wristDY + 0.006, 0.025, 0.024, 0.034, 0.032, 0.008],
     [-0.578, 0.017, 0.017, 0.036, 0.034, 0.01], [-0.605, 0.018, 0.018, 0.045, 0.041, 0.011], [-0.638, 0.017, 0.017, 0.046, 0.042, 0.012], [-0.654, 0.013, 0.014, 0.043, 0.04, 0.012]];
   const muscle = bumps([{ a: 0, aw: 0.8, y: ay - 0.25, yw: 0.045, d: 0.005 }, { a: Math.PI, aw: 0.8, y: ay - 0.24, yw: 0.05, d: 0.004 }, { a: s * 0.9, aw: 0.7, y: ay - 0.355, yw: 0.045, d: 0.005 }]);   // biceps, triceps, the forearm's outer bulk
   b.loft(AR.map(([dy, o, i, f, bk, z]) => ({ c: [ax + s * 0.004, ay + dy, z], rx: io(o, i), rz: [f, bk], n: dy < -0.57 ? 2.6 : 2, v: v(SPAN.arm, dy), w: armW(dy) })), R.arm, { seg: 12, a0: Math.PI, mirror, capEnd: true, shape: (a, r) => out(a, muscle(a, r)) });
