@@ -11,7 +11,7 @@ const [out = 'out', ...want] = process.argv.slice(2);
 const SIZES = { vr: [1024, 1024], wide: [1280, 960], face: [1280, 720], face2: [1280, 720] };
 const shots = want.length ? want : ['duel', 'lineup', 'wide', 'vr', 'face', 'face2', 'kit', 'back'];
 await mkdir(out, { recursive: true });
-const server = await startServer(8123);
+const server = await startServer(+(process.env.PORT || 8123));
 const browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 try {
   for (const shot of shots) {

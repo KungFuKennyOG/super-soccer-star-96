@@ -18,6 +18,7 @@ export class Builder {
     return this.pos.length / 3 - 1;
   }
   // rings: [{ c, rx, rz, n (2 = ellipse, higher = boxier), v (0..1 down the region), w: weights or fn(p) }]
+  // rx may be [toward ax, away from it] and rz [toward az, away]: a body is never the same front and back.
   // listed top to bottom (or back to front with ax/az). Round each ring the angle runs from a0, 0 = toward
   // az (the front), a quarter turn = toward ax (his left). region: sheet rectangle. mirror flips u (right limbs).
   // shape(a, ring, i) → [dx, dy, dz]. uv(p, f, ring) → sheet pixels, instead of the region.
@@ -28,7 +29,8 @@ export class Builder {
     for (const r of rings) {
       const e = 2 / (r.n || 2), rax = r.ax || ax, raz = r.az || az;
       for (let i = 0; i <= seg; i++) {
-        const f = fOf ? fOf(i / seg) : i / seg, a = a0 + f * Math.PI * 2, sx = spow(Math.sin(a), e) * r.rx, sz = spow(Math.cos(a), e) * r.rz;
+        const f = fOf ? fOf(i / seg) : i / seg, a = a0 + f * Math.PI * 2, sn = Math.sin(a), cs = Math.cos(a);
+        const sx = spow(sn, e) * (r.rx.length ? r.rx[sn > 0 ? 0 : 1] : r.rx), sz = spow(cs, e) * (r.rz.length ? r.rz[cs > 0 ? 0 : 1] : r.rz);
         const p = [r.c[0] + rax[0] * sx + raz[0] * sz, r.c[1] + rax[1] * sx + raz[1] * sz, r.c[2] + rax[2] * sx + raz[2] * sz];
         if (shape) { const d = shape(a, r, i); if (d) { p[0] += d[0]; p[1] += d[1]; p[2] += d[2]; } }
         const t = uv ? uv(p, i / seg, r) : [U(i / seg), V(r)];

@@ -7,7 +7,7 @@
 import { R } from './kit.js';
 import { gauss as g, sstep } from './paint.js';
 
-export const HEAD = { top: 1.85, h: 0.245, cz: 0.02 };
+export const HEAD = { top: 1.834, h: 0.25, cz: 0.03, wide: 1.06 };
 // where things sit down the head (t)
 export const F = { hair: 0.24, brow: 0.43, eye: 0.497, tip: 0.642, sub: 0.672, mouth: 0.762, low: 0.79, under: 0.83, chin: 0.91 };
 const WARP = 0.75;                                       // the face gets more of the texture than the back of the head
@@ -34,7 +34,7 @@ const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
 export function headPoint(phi, t, off = 0) {
   const ap = Math.abs(phi), s = Math.sin(phi), c = Math.cos(phi);
   const n = 2 + 0.38 * sstep(0.3, 0.46, t) * (1 - 0.5 * sstep(0.86, 1, t)), e = 2 / n;      // the face is flatter across than the skull
-  let x = SIDE(t) * spow(s, c > 0 ? e : 1), z = c > 0 ? FRONT(t) * spow(c, e) : -BACK(t) * -c;
+  let x = HEAD.wide * SIDE(t) * spow(s, c > 0 ? e : 1), z = c > 0 ? FRONT(t) * spow(c, e) : -BACK(t) * -c;
   let dz = 0, dr = 0;
   dz += 0.002 * g(phi, 0, 0.7) * g(t, F.brow, 0.04);                                      // brow ridge
   dz -= 0.004 * g(ap, 0.36, 0.17) * g(t, F.eye + 0.004, 0.04);                             // eye sockets
@@ -88,8 +88,10 @@ export function addHead(b, style) {
       { seg: 8, ax: [0, s, 0], az: [0, 0, 1], capEnd: true, uv, shape: (a, rg) => [0, 0, -0.006 * Math.sin(a) * s * (rg.rx > 0.02 ? 1 : 0)] });
   }
   // neck
-  const N = [[1.66, 0.054, 0.06, 0.004, { head: 0.7, neck: 0.3 }], [1.61, 0.059, 0.064, 0, { neck: 0.7, head: 0.3 }], [1.56, 0.063, 0.066, -0.004, { neck: 1 }], [1.49, 0.076, 0.072, -0.006, { neck: 0.5, chest: 0.5 }]];
-  b.loft(N.map(([y, rx, rz, z, w]) => ({ c: [0, y, z], rx, rz, v: (1.66 - y) / 0.17, w })), R.neck, { seg: 12, a0: Math.PI });
+  // neck: short and thick, carried a little forward, widening into the trapezius
+  const N = [[1.65, 0.058, 0.064, 0.018, { head: 0.7, neck: 0.3 }], [1.605, 0.064, 0.068, 0.014, { neck: 0.7, head: 0.3 }], [1.56, 0.069, 0.071, 0.008, { neck: 1 }], [1.5, 0.086, 0.076, 0, { neck: 0.5, chest: 0.5 }]];
+  b.loft(N.map(([y, rx, rz, z, w]) => ({ c: [0, y, z], rx, rz, v: (1.65 - y) / 0.15, w })), R.neck, { seg: 12, a0: Math.PI,
+    shape: (a, r) => { const d = 0.004 * g(Math.abs(Math.atan2(Math.sin(a), Math.cos(a))), 0.75, 0.3) * g(r.c[1], 1.58, 0.05); return [Math.sin(a) * d, 0, Math.cos(a) * d]; } });   // the cords either side of the throat
   addHair(b, HAIR2[style % HAIR2.length]);
 }
 

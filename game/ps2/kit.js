@@ -25,8 +25,8 @@ export const R = {
 };
 // What each region covers on the body (world heights in metres; arms are measured down from the shoulder).
 export const SPAN = {
-  shirt: [1.56, 0.853], pelvis: [1.0, 0.775], shorts: [0.9, 0.615], thigh: [0.69, 0.475], sock: [0.485, 0.06],
-  neck: [1.66, 1.49], sleeve: [0.035, -0.225], arm: [-0.16, -0.716],
+  shirt: [1.552, 0.848], pelvis: [1.0, 0.775], shorts: [0.92, 0.592], thigh: [0.69, 0.475], sock: [0.486, 0.06],
+  neck: [1.65, 1.5], arm: [-0.2, -0.74],   // (the sleeve's rows run seam to cuff)
 };
 const row = (span, y, h) => (span[0] - y) / (span[0] - span[1]) * h;
 
@@ -61,9 +61,9 @@ function shirtFlat(ctx, k, num) {
       ctx.fillStyle = k.trim2; for (const x of [0, 256, 512]) ctx.fillRect(x - 1, Y(1.4), 2, r.h);
     }
     // collar: a ribbed band round the neck with a short V at the front
-    ctx.fillStyle = k.trim; ctx.fillRect(0, 0, r.w, 9);
+    ctx.fillStyle = k.trim; ctx.fillRect(0, 0, r.w, 7);
     ctx.beginPath(); ctx.moveTo(108, 0); ctx.lineTo(128, 30); ctx.lineTo(148, 0); ctx.fill();
-    ctx.fillStyle = k.trim2; ctx.fillRect(0, 9, r.w, 2);
+    ctx.fillStyle = k.trim2; ctx.fillRect(0, 7, r.w, 2);
     ctx.beginPath(); ctx.moveTo(116, 0); ctx.lineTo(128, 18); ctx.lineTo(140, 0); ctx.fillStyle = css(hex(k.shirt).map(v => v * 0.55)); ctx.fill();
     // an invented badge on his left chest: a plain shield with a star
     const bx = 172, by = Y(1.385), dark = lum(hex(k.shirt)) < 0.4, ink = dark ? '#f2f1ea' : k.trim;
@@ -157,7 +157,7 @@ function shirtShade(ctx, seed) {
     shadeCloth(c, m);
     const lift = dark * (16 + 60 * Math.max(0, f) + 14 * side);                                          // black cloth still catches the light
     c[0] += lift; c[1] += lift; c[2] += lift * 1.08;
-    if (py < 9) { const rib = 0.9 + 0.1 * Math.sin(px * 1.6); c[0] *= rib; c[1] *= rib; c[2] *= rib; }
+    if (py < 7) { const rib = 0.9 + 0.1 * Math.sin(px * 1.6); c[0] *= rib; c[1] *= rib; c[2] *= rib; }
     if (py > r.h - 4) { c[0] *= 0.86; c[1] *= 0.86; c[2] *= 0.86; }                                       // the hem's stitching
   });
 }
@@ -218,11 +218,7 @@ function limbs(ctx, skin) {
   skinRegion(ctx, R.arm, skin, 31, (u, v) => {
     const dy = SPAN.arm[0] + v * (SPAN.arm[1] - SPAN.arm[0]);
     let m = ring(u) - 0.06 * gauss(dy, -0.31, 0.03) + 0.05 * gauss(dy, -0.38, 0.05) * gauss(u, 0.62, 0.15) - 0.1 * sstep(-0.2, -0.16, dy);
-    if (dy < -0.6) {                                                                                         // the hand: knuckles, then fingers
-      const face = Math.min(Math.abs(u - 0.75), Math.abs(u - 0.25));
-      for (const o of [-0.115, 0, 0.115]) m -= 0.22 * gauss(face, Math.abs(o), 0.012) * sstep(-0.645, -0.66, dy) * (o === 0 || face > 0.05 ? 1 : 0.5);
-      m -= 0.08 * gauss(dy, -0.642, 0.006) + 0.12 * sstep(-0.69, -0.716, dy);
-    }
+    if (dy < -0.57) m -= 0.07 * gauss(dy, -0.646, 0.006) + 0.1 * sstep(-0.69, -0.74, dy) - 0.05 * gauss(dy, -0.6, 0.02) * gauss(u, 0.75, 0.1);   // knuckles, fingertips, the back of the hand
     return m;
   });
   skinRegion(ctx, R.thigh, skin, 37, (u, v) => {
