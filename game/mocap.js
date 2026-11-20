@@ -78,7 +78,7 @@ function strideLength(ladder, speed) {
 //   off the toes, the other knee punches through high, his feet land under him instead of ahead, and his
 //   arms pump from the shoulder, hand to chin and elbow high behind (strideTrunk).
 const DRIVE = { rise: 9, fade: 1.3, from: 1.5, full: 6.5, cruise: 0.3 };   // 1/s, 1/s, m/s2 of eased push, share kept at full speed
-const X = new THREE.Vector3(1, 0, 0), qx = new THREE.Quaternion(), FLOOR = 0.083;
+const X = new THREE.Vector3(1, 0, 0), qx = new THREE.Quaternion(), pt = new THREE.Vector3(), FLOOR = 0.085, SOLE = 0.085;
 const AV = { L: new THREE.Vector3(), R: new THREE.Vector3() }, AQ = { L: new THREE.Quaternion(), R: new THREE.Quaternion() };
 export function strideLegs(m, bn, g, dt = 0) {
   const w = m.mocapW = LADDER.length > 1 ? strideWeight(g) : 0;
@@ -89,22 +89,46 @@ export function strideLegs(m, bn, g, dt = 0) {
   const d0 = dr + (1 - dr) * DRIVE.cruise * g.sprint;
   m.drive = d0 * w;
   if (w <= 0) return 0;
-  strideFor(LADDER, g.s, m.phase, P0);
+  // played at the gait's own cadence (g.ph: the sim's when he runs, its own when he walks, game/gait.js)
+  strideFor(LADDER, g.s, g.ph ?? m.phase, P0);
   // the legs are the capture's unless the boots have work to do: on the ball they run either side of it and
   // reach for it (game/gait.js, game/strike.js), and your own boots stay as steady as they were
   const legs = w * (1 - (m.onBallK || 0)) * (m.firstPerson ? 0 : 1);
-  if (legs <= 0) return w;
+  if (legs <= 0) { if (m.lock) { m.lock.L.on = m.lock.R.on = false; m.lock.L.pz = m.lock.R.pz = null; } return w; }
   applyPose(bn, P0, legs, LEGS);
-  const k = (Math.min(1.42, Math.max(1, g.s * TAU / strideRate(g.s) / strideLength(LADDER, g.s))) - 1) * legs, d = d0 * legs, h = bn.hips.position;
+  const cover = g.cover ?? g.s * TAU / strideRate(g.s);
+  const k = (Math.min(1.42, Math.max(0.7, cover / strideLength(LADDER, g.s))) - 1) * legs, d = d0 * legs, h = bn.hips.position;
+  const lock = m.lock || (m.lock = { L: { on: false, wx: 0, wz: 0, ox: 0, oz: 0, oy: 0, pz: null }, R: { on: false, wx: 0, wz: 0, ox: 0, oz: 0, oy: 0, pz: null } });
+  const rp = m.root.position, ry = m.root.rotation.y, c = Math.cos(ry), sn = Math.sin(ry), fade = Math.exp(-dt * 14);
   for (const n of 'LR') {
-    const a = ankleOf(bn, n, AV[n]), rel = a.z - h.z, air = smooth((a.y - 0.1) / 0.2);
+    const a = ankleOf(bn, n, AV[n]), rel = a.z - h.z, air = smooth((a.y - 0.1) / 0.2), L = lock[n];
     footOf(bn, n, AQ[n]);
     a.z = h.z + rel * (1 + k) * (rel < 0 ? 1 + 0.3 * d : 1 - 0.2 * d);
-    a.y = Math.max(FLOOR, a.y) + Math.max(0, a.y - 0.2) * 0.5 * k                 // the heel comes through higher
+    a.y += Math.max(0, a.y - 0.2) * 0.5 * Math.max(0, k)                          // the heel comes through higher
       + (rel > 0 ? 0.16 * d * air * smooth(rel / 0.25) : 0);                      // and the knee drives up in front
     if (rel < 0) AQ[n].multiply(qx.setFromAxisAngle(X, 0.45 * d * smooth(-rel / 0.35)));   // off the toes behind
+    // a planted boot stays where it came down: while the ball of the foot is on the grass and going back under
+    // him, its spot on the pitch is kept, the sole is pressed onto the ground, and what that moved it by is
+    // eased away once it lifts (or at once if it can't be held: a turn, a restart)
+    const ball = pt.set(0, -SOLE, 0.1).applyQuaternion(AQ[n]), bz = a.z + ball.z, by = a.y + ball.y, back = dt > 0 && L.pz !== null ? (bz - L.pz) / dt : 0;
+    L.pz = bz;
+    const down = legs > 0.98 && dt > 0 && (L.on ? by < 0.07 && back < -0.2 * g.s : by < 0.04 && back < -0.45 * g.s);
+    if (down) {
+      if (!L.on) { L.on = true; const mx = a.x + ball.x + L.ox, mz = bz + L.oz; L.wx = rp.x + mx * c + mz * sn; L.wz = rp.z - mx * sn + mz * c; }
+      const dx = L.wx - rp.x, dz = L.wz - rp.z;
+      L.ox = dx * c - dz * sn - a.x - ball.x; L.oz = dx * sn + dz * c - bz;          // the ankle goes wherever keeps the ball of the foot there
+      if (Math.hypot(L.ox, L.oz) > 0.2) L.on = false;
+    } else if (dt > 0) L.on = false;
+    if (!L.on) { L.ox *= fade; L.oz *= fade; }
+    a.x += L.ox; a.z += L.oz;
+    // no part of the sole goes under the grass (the heel, the ball of the foot, the tip of the toes), and a planted one sits on it
+    const toe = bn['toe' + n];
+    let low = Math.min(ball.y, pt.set(0, -SOLE, -0.09).applyQuaternion(AQ[n]).y);
+    low = Math.min(low, pt.set(0, -0.028, 0.1).applyQuaternion(toe.quaternion).add(toe.position).applyQuaternion(AQ[n]).y);
+    L.oy += ((L.on ? -low - a.y : 0) - L.oy) * Math.min(1, dt * 30);
+    a.y = Math.max(-low, a.y + L.oy);
   }
-  h.y -= 0.075 * k + 0.05 * d; h.z += 0.04 * d;
+  h.y -= 0.075 * Math.max(0, k) + 0.05 * d; h.z += 0.04 * d;
   bn.hips.rotateX(0.28 * d);
   for (const n of 'LR') { reachLeg(bn, n, AV[n]); aimFoot(bn, n, AQ[n]); }
   return w;
