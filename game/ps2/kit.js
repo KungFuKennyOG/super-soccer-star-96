@@ -99,7 +99,7 @@ function styleOf(k) {
 }
 // The collar: how far below the top of the shirt its upper edge sits at x (it scoops at the throat), and how deep the band is.
 const BAND = 9;
-const scoop = (x, st) => (st.neck ? 13 * gauss(x, 128, 40) : 30 * Math.max(0, 1 - Math.abs(x - 128) / 40));
+const scoop = (x, st) => (st.neck ? 5 * gauss(x, 128, 46) : 30 * Math.max(0, 1 - Math.abs(x - 128) / 40));
 const CUFF = 10, TURN = 17;                            // rows: the sleeve's cuff, the sock's turnover
 // The side panels: half as wide as this at row y, from under the arm to the hem. 0 above them.
 const panel = y => (y < 80 ? 0 : 21 - 11 * ((y - 80) / 176) ** 0.7);
