@@ -58,7 +58,7 @@ function muscles(list) {
 // Ambient occlusion baked into vertex colors: every triangle shades the vertices it faces, by its
 // area and how close and square-on it is (disc approximation). Armpits, under the shirt, between the
 // legs and under the chin go darker, which is what makes the low-poly body read as solid.
-function bakeAO(g) {
+export function bakeAO(g) {
   const p = g.attributes.position.array, n = g.attributes.normal.array, idx = g.index.array;
   const tc = [], tn = [], ta = [];
   const v = (i, k) => p[i * 3 + k];

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SSS96 PS2 look test</title>
+<!-- Dev page: the PS2-look test scene (game/ps2). npm run serve, then /tools/ps2look.html?shot=duel
+     shots: duel | lineup | wide | vr | face | kit | back | clip (keys 1-8 switch). &t=1.2 freezes a moment.
+     tools/ps2shots.mjs renders them all to files. -->
+<style>html,body{margin:0;background:#101830;overflow:hidden}canvas{display:block}#i{position:fixed;left:8px;top:8px;font:12px monospace;color:#fff;text-shadow:0 0 3px #000}</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="i"></div>
+<script type="module">
+import * as THREE from 'three';
+import { animate, placeModel } from '../game/actors.js';
+import { byId } from '../rules/teams.js';
+import { strideRate } from '../rules/dribble.js';
+import { buildPlayer2, LIGHT_DIR } from '../game/ps2/player.js';
+import { buildPitch, buildLines, buildBall2 } from '../game/ps2/pitch.js';
+import { buildStand } from '../game/ps2/stand.js';
+
+const q = new URLSearchParams(location.search);
+let shot = q.get('shot') || 'duel';
+const W = +(q.get('w') || innerWidth), H = +(q.get('h') || innerHeight);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#a9bccb'); scene.fog = new THREE.Fog('#a9bccb', 70, 320);
+// soft, slightly warm daylight: most of it from the sky, a gentle sun, nothing black
+scene.add(new THREE.HemisphereLight('#e8eef8', '#4c5a42', 0.7));
+const sun = new THREE.DirectionalLight('#fff0d6', 0.85); sun.position.copy(LIGHT_DIR).multiplyScalar(50); scene.add(sun);
+const camera = new THREE.PerspectiveCamera(40, W / H, 0.05, 400);
+
+scene.add(buildPitch());
+scene.add(buildLines([[-60, -22, 40, -22], [34, -22, 34, 30], [34, -12, 17.5, -12], [17.5, -12, 17.5, 28], [-18, -22, -18, 30]]));
+const home = '#c4122c';
+const side = buildStand({ len: 110, home }); side.position.set(-12, 0, -27.5); scene.add(side);
+const end = buildStand({ len: 70, home }); end.position.set(40, 0, 6); end.rotation.y = -Math.PI / 2; scene.add(end);
+const corner = buildStand({ len: 26, home }); corner.position.set(44, 0, -31); corner.rotation.y = -Math.PI / 4; scene.add(corner);
+
+const MAD = byId('MAD').kit, TUR = byId('TUR').kit;
+const cast = [
+  { kit: TUR, num: 10, look: 0, o: { style: 0, skinI: 0, hairI: 1 } },      // short dark crop
+  { kit: MAD, num: 5, look: 1, o: { style: 2, skinI: 1, hairI: 0 } },       // slicked back
+  { kit: MAD, num: 3, look: 3, o: { style: 1, skinI: 3, hairI: 3 } },       // shaved
+  { kit: MAD, num: 23, look: 2, o: { style: 3, skinI: 0, hairI: 2 } },      // ponytail
+  { kit: TUR, num: 8, look: 4, o: { style: 4, skinI: 2, hairI: 3 } },       // curls
+  { kit: TUR, num: 4, look: 5, o: { style: 0, skinI: 4, hairI: 3 } },
+];
+const players = cast.map(c => {
+  const m = buildPlayer2(c.kit, c.num, c.look, c.o);
+  scene.add(m.root, m.shadow);
+  return { m, p: { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0, role: 'mate', stride: 0 } };
+});
+const ball = buildBall2(); scene.add(ball);
+const bp = { x: 0, y: 0.11, z: 0 };
+
+// A shot: where each player is at time t ([x, z, heading, speed, stride offset] or null = off stage),
+// the ball, the camera. Headings: 0 = toward +z (away from the main stand).
+const off = null;
+const SHOTS = {
+  duel: { fov: 30, cam: [-0.7, 0.62, 3.9], at: [0.2, 1.0, 0], ball: [0.25, 1.25], set: t => [[-0.28, 0, 0.12, 6.4, 1.9], [0.5, -0.3, 0.02, 6.2, 5.0], off, off, [-9, -10, 1.2, 2, 0], [9, -8, -1.2, 3, 2]] },
+  lineup: { fov: 30, cam: [0.5, 1.95, 2.9], at: [0, 1.36, 0], ball: [3, 3], set: t => [off, off, [-0.5, 0, 0.25, 1.5, 0.6], [0.55, 0.15, 0.2, 1.5, 3.9], off, off] },
+  wide: { fov: 30, cam: [2, 8.5, 17], at: [0, 1.2, -6], ball: [0.5, 0.2], set: t => [[-0.5, 0, 1.2, 0, 0], [0.6, -0.5, -1.4, 0, 0], [3.5, -5, -0.6, 0, 1], [-4, -6, 0.6, 2, 2], [-6.5, -2, 1.5, 0, 0], [5, 2.5, -2.2, 3, 4]] },
+  vr: { fov: 92, cam: [0.1, 1.66, 2.3], at: [0.1, 1.5, 0], ball: [0.35, 1.2], set: t => [[-0.6, 0, 0.15, 0, 0], [0.75, -0.2, -0.2, 0, 0], off, off, [-5, -9, 1, 3, 1], [6, -12, -1, 3, 2]] },
+  face: { fov: 22, cam: [0, 1.74, 1.25], at: [0, 1.7, 0], ball: [3, 3], set: t => [[-0.2, 0, 0.3, 0, 0], [0.2, 0, -0.3, 0, 0], off, off, off, off] },
+  face2: { fov: 22, cam: [0, 1.74, 1.25], at: [0, 1.7, 0], ball: [3, 3], set: t => [off, off, [-0.2, 0, 0.5, 0, 0], [0.2, 0, -0.5, 0, 0], off, off] },
+  kit: { fov: 28, cam: [0, 1.15, 3.6], at: [0, 1.0, 0], ball: [0, 0.6], set: t => [[-0.5, 0, 0.1, 0, 0], [0.5, 0, -0.1, 0, 0], off, off, off, off] },
+  back: { fov: 28, cam: [0, 1.25, 3.6], at: [0, 1.0, 0], ball: [3, 3], set: t => [[-0.5, 0, Math.PI - 0.15, 0, 0], [0.5, 0, Math.PI + 0.15, 0, 0], off, off, off, off] },
+  clip: { fov: 36, cam: t => [-13 + t * 6.3 + 3.2, 0.8 + 0.15 * t, 4.6 - 0.25 * t], at: t => [-13 + t * 6.3 + 0.4, 1.02, 0], ball: t => [-13 + t * 6.3 + 0.75 + 0.15 * Math.sin(t * 7), 0.1],
+    set: t => [[-13 + t * 6.3, 0, Math.PI / 2, 6.3, 0], [-13 + t * 6.3 - 0.45, -0.75 + 0.1 * Math.sin(t * 2), Math.PI / 2 + 0.1, 6.3, 3.3], off, off, [8 - t, -9, -1.5, 3, 1], [-2, -14, 1.3, 2, 2]] },
+};
+const val = (v, t) => (typeof v === 'function' ? v(t) : v);
+let time = +(q.get('t') || 0);
+function pose(t, dt) {
+  const s = SHOTS[shot], set = s.set(t), b = val(s.ball, t);
+  bp.x = b[0]; bp.z = b[1]; ball.position.set(bp.x, 0.11, bp.z); ball.rotation.set(t * 9, 0.4, t * 3);
+  players.forEach(({ m, p }, i) => {
+    const d = set[i]; m.root.visible = m.shadow.visible = !!d;
+    if (!d) return;
+    p.x = d[0]; p.z = d[1]; p.fx = Math.sin(d[2]); p.fz = Math.cos(d[2]); p.vx = p.fx * d[3]; p.vz = p.fz * d[3];
+    p.stride = d[4] + t * strideRate(d[3]);
+    placeModel(m, p);
+    animate(m, p, dt, t + i, false, null, bp, false);
+    m.shadow.position.set(p.x - LIGHT_DIR.x * 0.12, 0.01, p.z - LIGHT_DIR.z * 0.12);
+  });
+  camera.fov = s.fov; camera.aspect = W / H; camera.updateProjectionMatrix();
+  camera.position.set(...val(s.cam, t)); camera.lookAt(...val(s.at, t));
+}
+function frame(dt) {
+  time += dt; pose(time, dt); renderer.render(scene, camera);
+  document.getElementById('i').textContent = q.get('info') ? `${shot}  calls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}` : '';
+}
+window.__look = {
+  ready: false, step: frame,
+  shot(name, t = 0) { shot = name; time = t; frame(0); frame(0); },
+  info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, textures: renderer.info.memory.textures, playerTris: players[0].m.mesh.geometry.index.count / 3 }),
+  sheet: i => players[i].m.mesh.material.map.image.toDataURL('image/png'),
+};
+addEventListener('keydown', e => { const n = Object.keys(SHOTS)[+e.key - 1]; if (n) { shot = n; time = 0; } });
+frame(0); frame(0);
+window.__look.ready = true;
+if (!q.get('still')) { let last = performance.now(); const loop = now => { frame(Math.min(0.05, (now - last) / 1000) * (q.get('t') ? 0 : 1)); last = now; requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script>
+</body>
+</html>
