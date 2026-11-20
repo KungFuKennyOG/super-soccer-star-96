@@ -8,7 +8,7 @@ const IDX = Object.fromEntries(buildSkeleton().bones.map((b, i) => [b.name, i]))
 const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
 
 export class Builder {
-  constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; this.soft = []; this.sheet = ATLAS; this.parts = [0]; }   // soft: [from, to) vertex ranges that take only a little of the baked shade (the face: its shade is painted)
+  constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; this.soft = []; this.sheet = ATLAS; this.parts = [0]; }   // soft: [from, to, keep] vertex ranges that keep only part of the baked shade (the face, whose shade is painted; the knees, which the shorts would black out)
   // p: [x, y, z]. px, py: sheet pixels. w: { bone: weight }
   vert(p, px, py, w) {
     this.pos.push(p[0], p[1], p[2]);
@@ -76,7 +76,7 @@ export class Builder {
     bakeAO(g);                                         // soft ambient occlusion in the vertex colors
     const col = g.attributes.color.array;
     for (let i = 0; i < col.length; i++) col[i] = 0.42 + 0.58 * (col[i] - 0.55) / 0.45;
-    for (const [a, z] of this.soft) for (let i = a * 3; i < z * 3; i++) col[i] = 0.82 + 0.18 * col[i];   // gentler than the PS1 bake
+    for (const [a, z, keep = 0.18] of this.soft) for (let i = a * 3; i < z * 3; i++) col[i] = 1 - keep + keep * col[i];   // gentler than the PS1 bake
     return g;
   }
 }

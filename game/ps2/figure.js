@@ -84,7 +84,9 @@ function leg(b, s, n) {
     { a: -s * 0.6, aw: 0.6, y: 0.562, yw: 0.035, d: 0.009 },                                                        // the teardrop inside the knee
     { a: 0, aw: 0.55, y: P.kneeY, yw: 0.024, d: 0.007 }, { a: 0, aw: 0.5, y: 0.492, yw: 0.016, d: -0.004 },          // kneecap, the dip under it
     { a: Math.PI, aw: 0.5, y: P.kneeY, yw: 0.03, d: -0.006 }, { a: Math.PI - s * 0.7, aw: 0.4, y: 0.56, yw: 0.05, d: 0.005 }]);   // hollow behind the knee, hamstring tendon
+  const t0 = b.pos.length / 3;
   b.loft(TH.map(([y, o, i, f, bk, z]) => ({ c: [lx, y, z], rx: io(o, i), rz: [f, bk], v: v(SPAN.thigh, y), w: knee(y) })), R.thigh, { seg: 12, a0: Math.PI, mirror, shape: (a, r) => out(a, thigh(a, r)) });
+  b.soft.push([t0, b.pos.length / 3, 0.45]);
   // lower leg in its sock: turned over at the top, the calf high behind and fuller inside, a straight shin under the guard, a slim ankle
   const ankle = y => { const k = sstep(P.ankleY + 0.03, P.ankleY - 0.015, y), kn = sstep(P.kneeY + 0.02, P.kneeY - 0.05, y); return { [up]: (1 - kn), [lo]: kn * (1 - k), [ft]: k }; };
   const SK = [[0.486, 0.066, 0.064, 0.063, 0.066, 0.004], [0.478, 0.072, 0.07, 0.069, 0.072, 0.004], [0.452, 0.073, 0.071, 0.07, 0.073, 0.003], [0.444, 0.068, 0.066, 0.065, 0.07, 0.002],
