@@ -8,11 +8,11 @@ const IDX = Object.fromEntries(buildSkeleton().bones.map((b, i) => [b.name, i]))
 const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
 
 export class Builder {
-  constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; }
+  constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; this.soft = []; this.sheet = ATLAS; this.parts = [0]; }   // soft: [from, to) vertex ranges that take only a little of the baked shade (the face: its shade is painted)
   // p: [x, y, z]. px, py: sheet pixels. w: { bone: weight }
   vert(p, px, py, w) {
     this.pos.push(p[0], p[1], p[2]);
-    this.uv.push(px / ATLAS.w, 1 - py / ATLAS.h);
+    this.uv.push(px / this.sheet.w, 1 - py / this.sheet.h);
     const e = Object.entries(w).filter(k => k[1] > 0.001).sort((a, b) => b[1] - a[1]).slice(0, 4), sum = e.reduce((s, k) => s + k[1], 0) || 1;
     for (let i = 0; i < 4; i++) { this.si.push(e[i] ? IDX[e[i][0]] : 0); this.sw.push(e[i] ? e[i][1] / sum : 0); }
     return this.pos.length / 3 - 1;
@@ -46,6 +46,8 @@ export class Builder {
     if (capStart) cap(0, true);
     if (capEnd) cap(rings.length - 1, false);
   }
+  // Everything built from here on is a new part: its own material (group) and its own sheet.
+  part(sheet) { this.sheet = sheet; this.parts.push(this.idx.length); }
   geometry() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
@@ -53,6 +55,7 @@ export class Builder {
     g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(this.si, 4));
     g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(this.sw, 4));
     g.setIndex(this.idx);
+    this.parts.forEach((from, i) => g.addGroup(from, (this.parts[i + 1] ?? this.idx.length) - from, i));
     g.computeVertexNormals();
     // smooth across texture seams: vertices at the same spot share one normal
     const p = g.attributes.position.array, n = g.attributes.normal.array, groups = new Map();
@@ -70,7 +73,8 @@ export class Builder {
     }
     bakeAO(g);                                         // soft ambient occlusion in the vertex colors
     const col = g.attributes.color.array;
-    for (let i = 0; i < col.length; i++) col[i] = 0.5 + 0.5 * (col[i] - 0.55) / 0.45;   // gentler than the PS1 bake
+    for (let i = 0; i < col.length; i++) col[i] = 0.42 + 0.58 * (col[i] - 0.55) / 0.45;
+    for (const [a, z] of this.soft) for (let i = a * 3; i < z * 3; i++) col[i] = 0.82 + 0.18 * col[i];   // gentler than the PS1 bake
     return g;
   }
 }

@@ -8,12 +8,12 @@ import { canvas, hex, css, hash, smoothTex } from './paint.js';
 // A block of fans seen from the pitch: rows of heads and shoulders. colors: mostly the home colors.
 function crowdTex(colors) {
   const c = canvas(256, 256), x = c.getContext('2d'), cols = 20, rows = 14, cw = 256 / cols, rh = 256 / rows;
-  x.fillStyle = '#17131a'; x.fillRect(0, 0, 256, 256);
+  x.fillStyle = '#0f0c11'; x.fillRect(0, 0, 256, 256);
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
     const h = hash(i, j, 3), px = (i + (j % 2) * 0.5) * cw + (hash(i, j, 4) - 0.5) * 2.4, py = j * rh + 2;
     if (h < 0.05) continue;                                                              // an empty seat now and then
-    const shirt = hex(colors[Math.floor(hash(i, j, 5) ** 1.6 * colors.length)]).map(v => v * (0.7 + 0.4 * hash(i, j, 6)));
-    const skin = hex(SKINS[Math.floor(hash(i, j, 7) * SKINS.length)]), up = hash(i, j, 8) < 0.18;
+    const shirt = hex(colors[Math.floor(hash(i, j, 5) * colors.length)]).map(v => v * (0.42 + 0.42 * hash(i, j, 6)));
+    const skin = hex(SKINS[Math.floor(hash(i, j, 7) * SKINS.length)]).map(v => v * 0.78), up = hash(i, j, 8) < 0.18;
     for (const dx of [0, 256, -256]) {
       x.fillStyle = css(shirt); x.beginPath(); x.ellipse(px + dx + cw / 2, py + rh * 0.86, cw * 0.47, rh * 0.42, 0, 0, 7); x.fill();
       x.fillStyle = css(shirt.map(v => v * 0.6)); x.fillRect(px + dx + cw * 0.08, py + rh * 0.92, cw * 0.84, rh * 0.2);
@@ -22,7 +22,20 @@ function crowdTex(colors) {
       x.fillStyle = css(hex(['#1a110a', '#3b2513', '#0d0d0d', '#9a7034'][Math.floor(hash(i, j, 9) * 4)])); x.beginPath(); x.ellipse(px + dx + cw / 2, py + rh * 0.24, cw * 0.22, rh * 0.17, 0, Math.PI, 0); x.fill();
     }
   }
+  // a stairway down the block: pale steps, a rail
+  for (let j = 0; j < rows; j++) { x.fillStyle = j % 2 ? '#8d8f96' : '#73757c'; x.fillRect(0, j * rh, 11, rh); x.fillStyle = '#3a3b42'; x.fillRect(0, j * rh + rh - 2, 11, 2); }
+  x.fillStyle = '#c9a51e'; x.fillRect(11, 0, 1.5, 256);
+  // rows further back sit in the shade of the row in front
+  const sh = x.createLinearGradient(0, 0, 0, rh); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.28)');
+  for (let j = 0; j < rows; j++) { x.save(); x.translate(0, j * rh); x.fillStyle = sh; x.fillRect(0, 0, 256, rh); x.restore(); }
   return smoothTex(c, { repeat: [1, 1], aniso: 8 });
+}
+// A dome of sky: pale at the horizon, bluer overhead. One draw call, no texture.
+export function buildSky(horizon = '#b9c8d4', top = '#6f9ccb') {
+  const g = new THREE.SphereGeometry(380, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), a = new THREE.Color(horizon), b = new THREE.Color(top), col = [];
+  for (let i = 0; i < g.attributes.position.count; i++) { const k = Math.min(1, Math.max(0, g.attributes.position.getY(i) / 380) ** 0.6), c = a.clone().lerp(b, k); col.push(c.r, c.g, c.b); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
 }
 function stripTex(w, h, panels, draw) {
   const c = canvas(w, h), x = c.getContext('2d');
@@ -38,7 +51,7 @@ const boardsTex = () => stripTex(2048, 64, 8, (x, i, w, h) => {
 const bannerTex = (home) => stripTex(2048, 64, 8, (x, i, w, h) => {
   x.fillStyle = '#b9b6ae'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(0, h - 8, w, 8);
   if (i % 4 === 3) return;                                                                 // bare concrete between banners
-  x.fillStyle = [home, '#f1efe6', home][i % 3]; x.fillRect(8, 8, w - 16, h - 20);
+  x.fillStyle = [home, '#dcdad0', home][i % 3]; x.fillRect(8, 8, w - 16, h - 20);
   word(x, ['FORZA', 'ULTRAS', 'CURVA', 'ALE ALE', 'SEMPRE', 'VAMOS', 'NORTH END', 'ALLEZ'][i], w, h - 6, i % 3 === 1 ? home : '#f1efe6', 30);
 });
 
@@ -62,20 +75,20 @@ class Quads {
 
 // A straight stand `len` metres long, running along x, its front wall at z = 0 and rising toward -z;
 // the ad boards stand 3 m in front of it. home: the home colour. Unlit: the shade is in the colours.
-export function buildStand({ len = 80, home = '#c4122c', colors = [home, home, home, '#f1efe6', '#22222a', home, '#e8d8c0'] } = {}) {
+export function buildStand({ len = 80, home = '#c4122c', colors = [home, home, home, '#d8d6cc', '#22222a', home, '#2a2c36', home, '#8a8478', '#22222a'] } = {}) {
   const g = new THREE.Group(), x0 = -len / 2, x1 = len / 2, basic = o => new THREE.MeshBasicMaterial({ vertexColors: true, ...o });
   const crowd = new Quads(), wall = new Quads(), boards = new Quads(), banner = new Quads();
   const per = 9.6, rowsPer = 14 * 0.78;                                                    // one crowd tile: 20 fans wide, 14 rows deep
   const tier = (z0, y0, z1, y1, shade) => crowd.quad([x0, y0, z0], [x1, y0, z0], [x1, y1, z1], [x0, y1, z1], [0, 0, len / per, Math.hypot(z1 - z0, y1 - y0) / rowsPer], shade);
-  tier(-0.4, 1.3, -15, 9.6, [1, 0.92]);                                                    // lower tier, in the light
-  tier(-12.5, 11.6, -24, 22.6, [0.62, 0.3]);                                               // upper tier, under the roof
+  tier(-0.4, 1.3, -15, 9.6, [0.95, 0.8]);                                                    // lower tier, in the light
+  tier(-12.5, 11.6, -24, 22.6, [0.5, 0.2]);                                               // upper tier, under the roof
   wall.quad([x0, 0, 0], [x1, 0, 0], [x1, 1.3, 0], [x0, 1.3, 0], [0, 0, 1, 1], [0.2, 0.26]);              // front wall
   wall.quad([x0, 1.3, 0], [x1, 1.3, 0], [x1, 1.3, -0.4], [x0, 1.3, -0.4], [0, 0, 1, 1], [0.5, 0.5]);
   wall.quad([x0, 9.6, -15], [x1, 9.6, -15], [x1, 9.6, -12.5], [x0, 9.6, -12.5], [0, 0, 1, 1], [0.12, 0.2]);   // the gap under the balcony
   wall.quad([x0, 22.6, -24], [x1, 22.6, -24], [x1, 27, -24], [x0, 27, -24], [0, 0, 1, 1], [0.1, 0.07]);    // back wall
   wall.quad([x0, 27, -26], [x1, 27, -26], [x1, 25.4, -7], [x0, 25.4, -7], [0, 0, 1, 1], [0.08, 0.2]);      // underside of the roof
   wall.quad([x0, 25.4, -7], [x1, 25.4, -7], [x1, 26.5, -7], [x0, 26.5, -7], [0, 0, 1, 1], [0.78, 0.86]);   // roof edge
-  banner.quad([x0, 9.6, -12.5], [x1, 9.6, -12.5], [x1, 11.6, -12.5], [x0, 11.6, -12.5], [0, 0, len / 64, 1], [0.95, 0.85]);   // balcony front, hung with banners
+  banner.quad([x0, 9.6, -12.5], [x1, 9.6, -12.5], [x1, 11.6, -12.5], [x0, 11.6, -12.5], [0, 0, len / 64, 1], [0.8, 0.7]);   // balcony front, hung with banners
   boards.quad([x0, 0, 3], [x1, 0, 3], [x1, 0.95, 3], [x0, 0.95, 3], [0, 0, len / 56, 1], [0.94, 1]);
   wall.quad([x0, 0.95, 3], [x1, 0.95, 3], [x1, 0.95, 2.85], [x0, 0.95, 2.85], [0, 0, 1, 1], [0.3, 0.3]);
   const grey = basic({ color: 0xa8acb4 });

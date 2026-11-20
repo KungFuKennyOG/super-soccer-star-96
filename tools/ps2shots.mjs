@@ -28,7 +28,7 @@ try {
       for (let f = 0; f < 120; f++) { await page.evaluate(() => window.__look.step(1 / 30)); await page.screenshot({ path: `${out}/clip/${String(f).padStart(3, '0')}.png` }); }
     } else {
       await page.screenshot({ path: `${out}/${shot}.png` });
-      if (process.env.SHEETS) for (const i of [0, 1]) await writeFile(`${out}/sheet${i}.png`, Buffer.from((await page.evaluate(k => window.__look.sheet(k), i)).split(',')[1], 'base64'));
+      if (process.env.SHEETS) for (const i of [0, 1]) for (const k of [0, 1]) await writeFile(`${out}/sheet${i}${k ? 'head' : 'kit'}.png`, Buffer.from((await page.evaluate(([n, j]) => window.__look.sheet(n, j), [i, k])).split(',')[1], 'base64'));
     }
     console.log(shot, JSON.stringify(await page.evaluate(() => window.__look.info())));
     await page.close();

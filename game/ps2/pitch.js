@@ -10,9 +10,9 @@ function grassTex() {
   ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, 256, 256);
   eachPixel(ctx, { x: 0, y: 0, w: 256, h: 256 }, (u, v, col, px, py) => {
     // blades: short streaks, stretched up the texture; kept near mid grey (the shader multiplies it in)
-    const blade = vnoise(px * 0.9, py * 0.16, 1, 0) * 0.6 + vnoise(px * 0.45 + 40, py * 0.07, 2, 0) * 0.4;
+    const blade = vnoise(px * 0.8, py * 0.3, 1, 0) * 0.6 + vnoise(px * 0.4 + 40, py * 0.16, 2, 0) * 0.4;
     const clump = (vnoise(px / 32 * 4, py / 32 * 4, 3, 32) + vnoise(px / 64 * 4, py / 64 * 4, 4, 16)) * 0.5;
-    const g = 128 + 70 * (blade - 0.5) + 34 * (clump - 0.5) + 14 * (hash(px, py, 5) - 0.5);
+    const g = 128 + 104 * (blade - 0.5) + 44 * (clump - 0.5) + 22 * (hash(px, py, 5) - 0.5);
     col[0] = col[1] = col[2] = g;
   });
   return smoothTex(c, { repeat: [1, 1], aniso: 8 });
@@ -22,7 +22,7 @@ function grassTex() {
 export function buildPitch({ size = [140, 100], stripe = 5.5 } = {}) {
   const mat = new THREE.ShaderMaterial({
     fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uGrass: { value: null }, uStripe: { value: stripe }, uLight: { value: new THREE.Color('#30802b') }, uDark: { value: new THREE.Color('#286c28') }, uWet: { value: 0 } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uGrass: { value: null }, uStripe: { value: stripe }, uLight: { value: new THREE.Color('#486b2a') }, uDark: { value: new THREE.Color('#3d5d26') }, uWet: { value: 0 } }]),
     vertexShader: `varying vec3 vW; varying vec3 vV;
 ${THREE.ShaderChunk.fog_pars_vertex}
       void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vV = cameraPosition - w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
@@ -35,10 +35,10 @@ ${THREE.ShaderChunk.fog_pars_fragment}
         float s = abs(fract(band * 0.5) - 0.5) * 2.0;                       // a triangle wave: 0..1..0 every two bands
         float k = smoothstep(0.5 - edge, 0.5 + edge, s);
         vec3 col = mix(uDark, uLight, k);
-        float d = length(vV), near = texture2D(uGrass, vW.xz * 0.45).r, far = texture2D(uGrass, vW.zx * 0.06).r;
-        col *= 0.62 + 0.5 * mix(near, 0.5, smoothstep(6.0, 30.0, d)) + 0.26 * far;
+        float d = length(vV), near = 0.5 * (texture2D(uGrass, vW.xz * 0.45).r + texture2D(uGrass, vW.zx * 0.39 + 0.3).r), far = texture2D(uGrass, vW.zx * 0.06).r;
+        col *= 0.36 + 0.9 * mix(near, 0.5, smoothstep(5.0, 28.0, d)) + 0.36 * far;
         float graze = 1.0 - abs(normalize(vV).y);
-        col = mix(col, vec3(0.56, 0.74, 0.5), (0.3 + 0.25 * uWet) * pow(graze, 5.0));   // the sheen toward the horizon
+        col = mix(col, vec3(0.5, 0.63, 0.4), (0.34 + 0.25 * uWet) * pow(graze, 5.0));   // the sheen toward the horizon
         gl_FragColor = vec4(col, 1.0);
         ${THREE.ShaderChunk.fog_fragment}
       }`,

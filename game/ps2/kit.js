@@ -1,10 +1,11 @@
-// The PS2-look texture sheet: one 1024x512 sheet per player. The kit and the limbs are painted here,
-// the head and hair in face.js. Flat colors, patterns, numbers and marks go down first with the 2D
+// The PS2-look kit sheet: one 512x512 sheet per player, with the kit and the limbs. The head and hair
+// have their own sheet (HEAD_SHEET, painted by face.js), shared by every player with the same look. Flat colors, patterns, numbers and marks go down first with the 2D
 // canvas, then every region gets its light, shade and folds painted over it pixel by pixel.
 // Marks are invented (a plain shield, a made-up wordmark): no real crests, sponsors or makers' logos.
 import { clamp01, sstep, gauss, hex, css, lum, hash, fbm, eachPixel, shadeCloth, shadeSkin, foldField } from './paint.js';
 
-export const ATLAS = { w: 1024, h: 512 };
+export const ATLAS = { w: 512, h: 512 };
+export const HEAD_SHEET = { w: 512, h: 640 };
 // u runs round the body. Shirt: 0 = his right side, 0.25 = chest, 0.75 = back. Limbs: 0.5 = front,
 // 0.75 = outside (the right limb is mirrored), except the shorts legs, which aren't mirrored (the
 // number sits on his right leg): outside is 0.75 on the left leg and 0.25 on the right.
@@ -19,13 +20,13 @@ export const R = {
   thigh: { x: 352, y: 352, w: 64, h: 96 },
   neck: { x: 352, y: 448, w: 64, h: 64 },
   sleeve: { x: 416, y: 352, w: 96, h: 96 },
-  head: { x: 512, y: 0, w: 384, h: 384 },
-  hair: { x: 512, y: 384, w: 384, h: 128 },
+  head: { x: 0, y: 0, w: 512, h: 512 },          // these two are on the head sheet
+  hair: { x: 0, y: 512, w: 512, h: 128 },
 };
 // What each region covers on the body (world heights in metres; arms are measured down from the shoulder).
 export const SPAN = {
   shirt: [1.56, 0.853], pelvis: [1.0, 0.775], shorts: [0.9, 0.615], thigh: [0.69, 0.475], sock: [0.485, 0.06],
-  neck: [1.625, 1.49], sleeve: [0.035, -0.225], arm: [-0.16, -0.69],
+  neck: [1.66, 1.49], sleeve: [0.035, -0.225], arm: [-0.16, -0.716],
 };
 const row = (span, y, h) => (span[0] - y) / (span[0] - span[1]) * h;
 
@@ -130,7 +131,7 @@ function bootFlat(ctx, boots) {
 /* ---------- light, shade and folds ---------- */
 
 function shirtShade(ctx, seed) {
-  const r = R.shirt, rnd = rng(seed), F = [], Y = y => row(SPAN.shirt, y, r.h);
+  const r = R.shirt, rnd = rng(seed), F = [];
   for (const [x0, dir] of [[18, 1], [238, -1], [274, 1], [494, -1]]) for (let i = 0; i < 3; i++)       // pulled from each armpit
     F.push([x0 + dir * 4, 58 + i * 12, x0 + dir * (50 + 26 * i + rnd() * 12), 92 + 30 * i + rnd() * 10, 5 + rnd() * 3, 0.55 * dir]);
   for (const cx of [128, 384]) {
@@ -145,12 +146,12 @@ function shirtShade(ctx, seed) {
   const fold = foldField(F, seed);
   eachPixel(ctx, r, (u, v, c, px, py) => {
     const side = Math.cos((u - 0.25) * 4 * Math.PI), y = SPAN.shirt[0] - v * (SPAN.shirt[0] - SPAN.shirt[1]), front = gauss(u, 0.25, 0.12);
-    let m = 0.88 + 0.1 * side + 0.06 * sstep(1.2, 1.5, y) - 0.1 * sstep(0.98, 0.86, y);
+    let m = 0.86 + 0.13 * side + 0.06 * sstep(1.2, 1.5, y) - 0.1 * sstep(0.98, 0.86, y);
     m -= 0.05 * front * gauss(y, 1.285, 0.03) * (1 - gauss(u, 0.25, 0.012));                             // under the chest
     m -= 0.12 * (1 - sstep(-1, -0.72, side)) * gauss(y, 1.4, 0.06);                                      // armpits
-    m += 0.05 * (fbm(px / 40, py / 40, seed + 5) - 0.5);
+    m += 0.16 * (fbm(px / 46, py / 46, seed + 5) - 0.5);                                                  // never flat: broad light and shade
     const f = fold(px, py);
-    m *= 1 + 0.34 * f;
+    m *= 0.95 * (1 + 0.5 * f);
     m *= 0.985 + 0.03 * hash(px, py, seed) + 0.008 * Math.sin(px * 2.1) * Math.sin(py * 2.1);            // weave
     const dark = 1 - lum(c);
     shadeCloth(c, m);
@@ -169,10 +170,10 @@ function tubeShade(ctx, r, seed, { inside = 0.25, drape = 6, cross = 2, hem = 5 
   const fold = foldField(F, seed);
   eachPixel(ctx, r, (u, v, c, px, py) => {
     const f = fold(px, py), dark = 1 - lum(c);
-    let m = (0.94 - 0.16 * gauss(Math.min(Math.abs(u - inside), 1 - Math.abs(u - inside)), 0, 0.14) + 0.05 * gauss(u, 0.5, 0.2)) * (1 + 0.32 * f);
+    let m = (0.94 - 0.16 * gauss(Math.min(Math.abs(u - inside), 1 - Math.abs(u - inside)), 0, 0.14) + 0.05 * gauss(u, 0.5, 0.2)) * (1 + 0.46 * f) * (0.93 + 0.14 * fbm(px / 30, py / 30, seed + 9));
     m *= 0.985 + 0.03 * hash(px, py, seed);
     if (py > r.h - hem) m *= 0.85;
-    if (py > r.h - 2) m *= 0.55;
+    if (py > r.h - 2) m *= 0.8;
     shadeCloth(c, m);
     const lift = dark * (14 + 55 * Math.max(0, f));
     c[0] += lift; c[1] += lift; c[2] += lift * 1.08;
@@ -208,19 +209,19 @@ function bootShade(ctx) {
 function skinRegion(ctx, r, skin, seed, form) {
   fill(ctx, r, css(skin));
   eachPixel(ctx, r, (u, v, c, px, py) => {
-    const m = form(u, v) * (0.97 + 0.07 * fbm(px / 18, py / 18, seed) + 0.02 * (hash(px, py, seed) - 0.5));
+    const m = form(u, v) * (0.95 + 0.11 * fbm(px / 14, py / 14, seed) + 0.04 * (hash(px, py, seed) - 0.5));
     shadeSkin(c, m);
   });
 }
 function limbs(ctx, skin) {
-  const ring = u => 0.9 + 0.1 * Math.cos((u - 0.56) * 2 * Math.PI);                                         // lit from the front, a little to the outside
+  const ring = u => 0.84 + 0.16 * Math.cos((u - 0.56) * 2 * Math.PI);                                         // lit from the front, a little to the outside
   skinRegion(ctx, R.arm, skin, 31, (u, v) => {
     const dy = SPAN.arm[0] + v * (SPAN.arm[1] - SPAN.arm[0]);
     let m = ring(u) - 0.06 * gauss(dy, -0.31, 0.03) + 0.05 * gauss(dy, -0.38, 0.05) * gauss(u, 0.62, 0.15) - 0.1 * sstep(-0.2, -0.16, dy);
     if (dy < -0.6) {                                                                                         // the hand: knuckles, then fingers
       const face = Math.min(Math.abs(u - 0.75), Math.abs(u - 0.25));
-      for (const o of [-0.115, 0, 0.115]) m -= 0.22 * gauss(face, Math.abs(o), 0.012) * sstep(-0.635, -0.65, dy) * (o === 0 || face > 0.05 ? 1 : 0.5);
-      m -= 0.07 * gauss(dy, -0.63, 0.007) + 0.14 * sstep(-0.665, -0.69, dy);
+      for (const o of [-0.115, 0, 0.115]) m -= 0.22 * gauss(face, Math.abs(o), 0.012) * sstep(-0.645, -0.66, dy) * (o === 0 || face > 0.05 ? 1 : 0.5);
+      m -= 0.08 * gauss(dy, -0.642, 0.006) + 0.12 * sstep(-0.69, -0.716, dy);
     }
     return m;
   });

@@ -36,8 +36,8 @@ export function eachPixel(ctx, r, fn) {
   for (let py = 0; py < r.h; py++) for (let px = 0; px < r.w; px++) {
     const i = (py * r.w + px) * 4;
     c[0] = d[i]; c[1] = d[i + 1]; c[2] = d[i + 2];
-    fn((px + 0.5) / r.w, (py + 0.5) / r.h, c, px, py);
-    d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+    const a = fn((px + 0.5) / r.w, (py + 0.5) / r.h, c, px, py);          // may return an alpha (0..255)
+    d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = a === undefined ? 255 : a;
   }
   ctx.putImageData(img, r.x, r.y);
 }

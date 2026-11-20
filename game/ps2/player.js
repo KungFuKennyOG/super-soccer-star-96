@@ -5,31 +5,37 @@
 import * as THREE from 'three';
 import { buildSkeleton } from '../body.js';
 import { SKINS, HAIRS } from '../tex.js';
-import { ATLAS, paintKit } from './kit.js';
+import { ATLAS, HEAD_SHEET, paintKit } from './kit.js';
 import { paintHead } from './face.js';
 import { HAIR2 } from './headgeo.js';
 import { figureGeometry } from './figure.js';
 import { canvas, hex, smoothTex } from './paint.js';
 
 export const LIGHT_DIR = new THREE.Vector3(-0.45, 1, 0.35).normalize();   // toward the sun
-const sheets = new Map(), mats = new Map();
+const sheets = new Map();
+// the game's skin tones, a little deeper and warmer for this look
+const skinOf = i => hex(SKINS[i % SKINS.length]).map((v, k) => v * [0.95, 0.9, 0.87][k]);
 
-export function playerSheet({ kit, num, look = 0, style, boots = 0, skinI = look, hairI = look * 3 + 1 }) {
-  const key = JSON.stringify([kit, num, look, style, boots, skinI, hairI]);
+// The kit sheet: one per kit, number, skin tone and boots.
+export function kitSheet({ kit, num, skinI = 0, boots = 0 }) {
+  const key = 'k' + JSON.stringify([kit, num, skinI, boots]);
   if (sheets.has(key)) return sheets.get(key);
-  const skin = hex(SKINS[skinI % SKINS.length]), hair = hex(HAIRS[hairI % HAIRS.length]);
   const c = canvas(ATLAS.w, ATLAS.h), ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, ATLAS.w, ATLAS.h);
-  paintKit(ctx, { kit, num, skin, boots });
-  paintHead(ctx, { skin, hair, st: HAIR2[style % HAIR2.length], stubble: look % 3 !== 0, look });
-  const t = smoothTex(c, { aniso: 4 });
-  sheets.set(key, t);
-  return t;
+  paintKit(ctx, { kit, num, skin: skinOf(skinI), boots });
+  const m = new THREE.MeshPhongMaterial({ map: smoothTex(c), vertexColors: true, specular: 0x2b2a27, shininess: 10 });   // a low, broad highlight: the soft sheen
+  sheets.set(key, m);
+  return m;
 }
-
-// The player material: lit per pixel with a low, broad highlight (the soft sheen on kits and skin).
-export function ps2Material(map) {
-  return new THREE.MeshPhongMaterial({ map, vertexColors: true, specular: 0x201f1c, shininess: 12 });
+// The head sheet: one per look (skin, hair color, hairstyle, face), shared by every player who has it.
+export function headSheet({ look = 0, style = 0, skinI = look, hairI = look * 3 + 1 }) {
+  const key = 'h' + JSON.stringify([look, style, skinI, hairI]);
+  if (sheets.has(key)) return sheets.get(key);
+  const c = canvas(HEAD_SHEET.w, HEAD_SHEET.h), ctx = c.getContext('2d', { willReadFrequently: true });
+  paintHead(ctx, { skin: skinOf(skinI), hair: hex(HAIRS[hairI % HAIRS.length]), st: HAIR2[style % HAIR2.length], stubble: look % 3 !== 0, look });
+  const m = new THREE.MeshPhongMaterial({ map: smoothTex(c), vertexColors: true, specular: 0x24221e, shininess: 16, alphaTest: 0.5 });   // alpha test: the hair's ragged tips
+  sheets.set(key, m);
+  return m;
 }
 
 // The body's shape thrown flat on the grass along the sun: one extra draw of the same skinned mesh,
@@ -64,11 +70,10 @@ function blob() {
 }
 
 // kit: a kit spec from rules/teams.js. look picks skin, hair color and (unless given) the hairstyle.
-export function buildPlayer2(kit, num, look = 0, { style = [0, 2, 1, 0, 4, 0, 3, 2][look % 8], boots = 0, skinI, hairI } = {}) {
-  const tex = playerSheet({ kit, num, look, style, boots, skinI, hairI });
-  if (!mats.has(tex.uuid)) mats.set(tex.uuid, ps2Material(tex));
+export function buildPlayer2(kit, num, look = 0, { style = [0, 2, 1, 0, 4, 0, 3, 2][look % 8], boots = 0, skinI = look, hairI = look * 3 + 1 } = {}) {
+  const mats = [kitSheet({ kit, num, skinI, boots }), headSheet({ look, style, skinI, hairI })];
   const { bones, by } = buildSkeleton(), geo = figureGeometry(style);
-  const mesh = new THREE.SkinnedMesh(geo, mats.get(tex.uuid));
+  const mesh = new THREE.SkinnedMesh(geo, mats);
   mesh.add(bones[0]); mesh.updateMatrixWorld(true); mesh.bind(new THREE.Skeleton(bones)); mesh.frustumCulled = false;
   const cast = new THREE.SkinnedMesh(geo, flatShadow());
   cast.bind(mesh.skeleton, mesh.bindMatrix); cast.frustumCulled = false; cast.renderOrder = 2;
