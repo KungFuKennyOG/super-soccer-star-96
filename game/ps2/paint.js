@@ -41,11 +41,6 @@ export function eachPixel(ctx, r, fn) {
   }
   ctx.putImageData(img, r.x, r.y);
 }
-// Light and shade on cloth: white goes cool grey in the folds instead of dirty, colors deepen.
-export function shadeCloth(c, m) {
-  const cool = clamp01((1 - m) * 1.6) * lum(c);
-  c[0] *= m * (1 - 0.07 * cool); c[1] *= m * (1 - 0.03 * cool); c[2] *= m * (1 + 0.05 * cool);
-}
 // Skin goes warmer and redder in the shade.
 export function shadeSkin(c, m) {
   const d = clamp01(1 - m);
@@ -60,24 +55,91 @@ export function smoothTex(src, { repeat, aniso = 4 } = {}) {
   return t;
 }
 
-// Folds painted into cloth. A fold is a soft ridge along a line: light on the side facing up, dark below.
-// folds: [[x1, y1, x2, y2, width, strength]] in pixels. Returns fn(x, y) → about -1..1.
-export function foldField(folds, seed = 0) {
-  const pre = folds.map(([x1, y1, x2, y2, w, s]) => {
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-    return { x1, y1, ux: dx / len, uy: dy / len, len, w, s, r: w * 3 };
-  });
-  return (x, y) => {
-    const wx = x + (vnoise(x / 23, y / 23, seed + 1) - 0.5) * 9, wy = y + (vnoise(x / 23, y / 23, seed + 2) - 0.5) * 9;
-    let v = 0;
-    for (const f of pre) {
-      const px = wx - f.x1, py = wy - f.y1, along = px * f.ux + py * f.uy;
-      if (along < -f.r || along > f.len + f.r) continue;
-      const d = px * -f.uy + py * f.ux;
-      if (d > f.r || d < -f.r) continue;
-      const a = along / f.len, taper = a < 0 || a > 1 ? 0 : Math.sin(Math.PI * a) ** 0.6, k = d / f.w;
-      v += f.s * taper * (-1.7 * k * Math.exp(-k * k) + 0.25 * Math.exp(-k * k * 0.5));
-    }
-    return v;
+// Cloth, lit by m (1 = as dyed) with a sheen hi (0..1) on what faces the light. White goes a cool
+// grey-green in the folds, the way the kits in the 2003 games were painted, never dirty; colors
+// deepen; black cloth still catches the light.
+export function tone(c, m, hi = 0) {
+  const L = lum(c), cool = clamp01((1 - m) * 1.5) * L, lift = (1 - L) * (1 - L) * (9 + 78 * hi) + 30 * hi * L * (1 - L);
+  const k = m > 1 ? 1 : m, over = m > 1 ? (m - 1) * 0.7 : 0, top = Math.max(c[0], c[1], c[2], 1) / 0.6;   // the sheen keeps some of the cloth's color
+  const r = lift * (0.4 + c[0] / top), g = lift * (0.4 + c[1] / top), b = lift * (0.44 + c[2] / top);
+  c[0] = c[0] * k * (1 - 0.1 * cool) + (255 - c[0]) * over + r;
+  c[1] = c[1] * k * (1 - 0.028 * cool) + (255 - c[1]) * over + g;
+  c[2] = c[2] * k * (1 - 0.01 * cool) + (255 - c[2]) * over + b;
+}
+
+// Fine cloth: grain, and a knit you only see close up. A small tile of it, read at (x, y), about 0.95..1.05.
+let GRAIN;
+export function grain(x, y) {
+  if (!GRAIN) { GRAIN = new Float32Array(4096); for (let i = 0; i < 4096; i++) { const gx = i & 63, gy = i >> 6; GRAIN[i] = 0.952 + 0.034 * hash(gx, gy, 5) + 0.05 * vnoise(gx / 2.667, gy / 2.667, 8, 24) + ((gx + gy) & 1) * 0.012; } }
+  return GRAIN[((y & 63) << 6) | (x & 63)];
+}
+
+// Cloth as a relief. Folds are pressed into a height map (rolls of cloth with a soft upper slope and a
+// steep underside, pinched creases), then the map is lit from above and its hollows are darkened: every
+// fold gets a soft highlight, a dark core and a shadow under it without being drawn one by one.
+// w, h: the region in pixels. cells: noise cells across the wobble (it wraps, so folds can cross u = 0).
+export function relief(w, h, seed = 0, { wobble = 8, cells = 8 } = {}) {
+  const H = new Float32Array(w * h), ox = new Float32Array(w * h), oy = new Float32Array(w * h), g = w / cells;
+  // the wobble is smooth, so it's worked out on every fourth pixel and stretched (w is a multiple of 4)
+  const cw = w >> 2, ch = (h >> 2) + 2, ax = new Float32Array(cw * ch), ay = new Float32Array(cw * ch);
+  for (let y = 0, i = 0; y < ch; y++) for (let x = 0; x < cw; x++, i++) {
+    const nx = 4 * x / g, ny = 4 * y / g;
+    ax[i] = (vnoise(nx, ny, seed + 1, cells) + 0.4 * vnoise(nx * 2, ny * 2, seed + 4, cells * 2) - 0.7) * wobble * 1.5;
+    ay[i] = (vnoise(nx, ny, seed + 2, cells) + 0.4 * vnoise(nx * 2, ny * 2, seed + 5, cells * 2) - 0.7) * wobble * 1.5;
+  }
+  for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+    const a = (y >> 2) * cw + (x >> 2), b = (y >> 2) * cw + ((x >> 2) + 1) % cw, tx = (x & 3) / 4, ty = (y & 3) / 4;
+    ox[i] = (ax[a] * (1 - tx) + ax[b] * tx) * (1 - ty) + (ax[a + cw] * (1 - tx) + ax[b + cw] * tx) * ty;
+    oy[i] = (ay[a] * (1 - tx) + ay[b] * tx) * (1 - ty) + (ay[a + cw] * (1 - tx) + ay[b + cw] * tx) * ty;
+  }
+  return {
+    H, w, h,
+    // The same smooth noise as a blotch of light and shade, -1..1.
+    blotch: (x, y) => ox[y * w + x] / (wobble * 1.05),
+    // A fold from (x1, y1) to (x2, y2), `wd` pixels wide. s: how hard it stands out (below 0: a crease pressed in).
+    // sag: how far its middle hangs below the straight line (a share of its length). lean: 1 = a steep
+    // underside and a long upper slope, -1 the other way. fan: it widens toward its end (-1..1).
+    fold(x1, y1, x2, y2, wd, s, { sag = 0, lean = 0, fan = 0 } = {}) {
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, sg = ux >= 0 ? 1 : -1;
+      const pad = wd * (1 + Math.abs(fan)) * 3.2 + wobble * 1.5 + Math.abs(sag) * len;
+      const xa = Math.floor(Math.min(x1, x2) - pad), xb = Math.ceil(Math.max(x1, x2) + pad);
+      const ya = Math.max(0, Math.floor(Math.min(y1, y2) - pad)), yb = Math.min(h - 1, Math.ceil(Math.max(y1, y2) + pad));
+      for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) {
+        const i = y * w + ((x % w) + w) % w, px = x + ox[i] - x1, py = y + oy[i] - y1, a = (px * ux + py * uy) / len;
+        if (a <= 0 || a >= 1) continue;
+        const e = 4 * a * (1 - a), wl = wd * (1 + fan * (2 * a - 1)), d = sg * (py * ux - px * uy) - sag * len * e;
+        const k = d / (wl * (d > 0 ? 1 - 0.55 * lean : 1 + 0.55 * lean));
+        if (k > 3 || k < -3) continue;
+        H[i] += s * wl * Math.sqrt(e) * Math.exp(-k * k);
+      }
+    },
+    // The light on it, about -1..1 for each pixel: lit from (lx, ly) (up is ly < 0), hollows darkened.
+    light({ lx = -0.35, ly = -0.94, hollow = 1 } = {}) {
+      const F = new Float32Array(w * h), near = blur(H, w, h, 3), far = blur(near, w, h, 7);
+      for (let y = 0, i = 0; y < h; y++) {
+        const up = y > 0 ? -w : 0, dn = y < h - 1 ? w : 0;
+        for (let x = 0; x < w; x++, i++) {
+          const l = x > 0 ? i - 1 : i + w - 1, r = x < w - 1 ? i + 1 : i - w + 1;
+          const v = -0.7 * ((H[r] - H[l]) * lx + (H[i + dn] - H[i + up]) * ly) + hollow * (0.05 * (H[i] - near[i]) + 0.07 * (H[i] - far[i]));
+          F[i] = v / (1 + 0.45 * Math.abs(v));
+        }
+      }
+      return F;
+    },
   };
+}
+// A box blur, wrapping across x.
+function blur(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h), n = 2 * r + 1;
+  for (let y = 0; y < h; y++) {
+    let sum = 0;
+    for (let x = -r; x <= r; x++) sum += src[y * w + (x + w) % w];
+    for (let x = 0; x < w; x++) { tmp[y * w + x] = sum / n; sum += src[y * w + (x + r + 1) % w] - src[y * w + (x - r + w) % w]; }
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) { out[y * w + x] = sum / n; sum += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]; }
+  }
+  return out;
 }
