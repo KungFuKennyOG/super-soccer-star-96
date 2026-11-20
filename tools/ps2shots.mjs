@@ -22,7 +22,7 @@ try {
     page.on('pageerror', e => console.log('[page error]', e.message));
     await page.route(THREE_URL, r => r.fulfill({ path: LOCAL_THREE, contentType: 'text/javascript' }));
     const name = shot.split('@')[0], t = shot.split('@')[1] || 0;
-    await page.goto(`${server.url}/tools/ps2look.html?shot=${name}&still=1&w=${w}&h=${h}&t=${t}${process.env.RAW ? '&raw=' + process.env.RAW : ''}`);
+    await page.goto(`${server.url}/tools/ps2look.html?shot=${name}&still=1&w=${w}&h=${h}&t=${t}${process.env.RAW ? '&raw=' + process.env.RAW : ''}${process.env.Q ? '&' + process.env.Q : ''}`);
     await page.waitForFunction(() => window.__look && window.__look.ready, null, { timeout: 120000 });
     if (name === 'clip' || process.env.FILM) {              // FILM=seconds films any shot from its start
       const frames = Math.round(30 * +(process.env.FILM || 4));
