@@ -34,8 +34,8 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#b9c8d4'); scene.fog = new THREE.Fog('#b9c8d4', 70, 320);
 // soft, slightly warm daylight: most of it from the sky, a gentle sun, nothing black
-scene.add(new THREE.HemisphereLight('#dfe6f0', '#38372c', 0.66));
-const sun = new THREE.DirectionalLight('#fff0d6', 0.95); sun.position.copy(LIGHT_DIR).multiplyScalar(50); scene.add(sun);
+scene.add(new THREE.HemisphereLight('#dfe6f0', '#38372c', 0.62));
+const sun = new THREE.DirectionalLight('#fff0d6', 0.68); sun.position.copy(LIGHT_DIR).multiplyScalar(50); scene.add(sun);
 const camera = new THREE.PerspectiveCamera(40, W / H, 0.05, 400);
 
 scene.add(buildSky(), buildPitch());
