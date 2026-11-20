@@ -40,10 +40,10 @@ export function figureGeometry(style = 0) {
 function torso(b) {
   // shirt: [y, half width, depth in front, depth behind, squareness]
   const S = [
-    [1.552, 0.074, 0.088, 0.066, 2], [1.543, 0.083, 0.09, 0.071, 2], [1.528, 0.112, 0.093, 0.084, 2], [1.51, 0.158, 0.102, 0.098, 2.1], [1.492, 0.198, 0.114, 0.109, 2.3],
-    [1.45, 0.2, 0.136, 0.122, 2.5], [1.39, 0.198, 0.152, 0.128, 2.6], [1.33, 0.192, 0.15, 0.126, 2.6], [1.26, 0.184, 0.142, 0.12, 2.5],
-    [1.18, 0.178, 0.136, 0.117, 2.4], [1.09, 0.175, 0.132, 0.117, 2.4], [1.0, 0.178, 0.132, 0.121, 2.4], [0.92, 0.185, 0.134, 0.127, 2.4],
-    [0.85, 0.193, 0.138, 0.131, 2.4], [0.858, 0.176, 0.121, 0.115, 2.4],                    // the hem, turned under
+    [1.566, 0.073, 0.086, 0.066, 2], [1.546, 0.078, 0.09, 0.07, 2], [1.53, 0.112, 0.094, 0.085, 2], [1.51, 0.158, 0.102, 0.098, 2.1], [1.492, 0.198, 0.114, 0.109, 2.3],
+    [1.45, 0.2, 0.136, 0.128, 2.5], [1.39, 0.198, 0.156, 0.135, 2.6], [1.33, 0.192, 0.153, 0.131, 2.6], [1.26, 0.184, 0.143, 0.121, 2.5],
+    [1.18, 0.178, 0.135, 0.108, 2.4], [1.09, 0.175, 0.13, 0.1, 2.4], [1.0, 0.178, 0.13, 0.113, 2.4], [0.92, 0.185, 0.132, 0.138, 2.4],
+    [0.85, 0.193, 0.136, 0.15, 2.4], [0.858, 0.176, 0.12, 0.134, 2.4],                    // the hem, turned under
   ];
   const form = bumps([
     { a: 0.52, aw: 0.55, y: 1.385, yw: 0.075, d: 0.009 }, { a: -0.52, aw: 0.55, y: 1.385, yw: 0.075, d: 0.009 },   // pectorals
@@ -57,7 +57,8 @@ function torso(b) {
     const nk = sstep(1.5, 1.555, y) * 0.7, ch = sstep(1.1, 1.3, y), sp = sstep(0.9, 1.08, y);
     return { neck: nk, [cl]: side * (1 - nk), chest: ch * (1 - nk) * (1 - side), spine: (1 - ch) * sp, hips: (1 - ch) * (1 - sp) };
   };
-  b.loft(S.map(([y, rx, f, bk, n], i) => ({ c: [0, y, 0.004], rx, rz: [f, bk], n, v: i === S.length - 1 ? 0.995 : v(SPAN.shirt, y), w })), R.shirt, {
+  // (the first two rings are the collar: a band standing round the neck, on the collar's rows of the sheet)
+  b.loft(S.map(([y, rx, f, bk, n], i) => ({ c: [0, y, 0.004 + (i < 2 ? 0.004 : 0)], rx, rz: [f, bk], n, v: i === 0 ? 0 : i === 1 ? 0.03 : i === S.length - 1 ? 0.995 : Math.max(0.045, v(SPAN.shirt, y)), w })), R.shirt, {
     seg: 30, a0: -Math.PI / 2,
     // below the chest the shirt hangs free of the body
     shape: (a, r) => out(a, form(a, r) + drape(a, 0.009 * sstep(1.3, 0.86, r.c[1]) ** 1.3, 0.9)),
@@ -71,7 +72,7 @@ function leg(b, s, n) {
   const up = 'upperLeg' + n, lo = 'lowerLeg' + n, ft = 'foot' + n, toe = 'toe' + n, lx = s * P.hipX, mirror = s < 0;
   const io = (o, i) => (s > 0 ? [o, i] : [i, o]);        // outer and inner radius → toward +x and away from it
   // shorts leg: [y, centre out from the middle, outer, inner, front, back]. Wide, falling from the hips in folds.
-  const SH = [[0.92, 0.075, 0.094, 0.075, 0.1, 0.106, { hips: 0.7, [up]: 0.3 }], [0.86, 0.082, 0.1, 0.086, 0.108, 0.118, { hips: 0.35, [up]: 0.65 }], [0.78, 0.092, 0.11, 0.1, 0.12, 0.125, { [up]: 1 }],
+  const SH = [[0.92, 0.075, 0.094, 0.075, 0.1, 0.118, { hips: 0.7, [up]: 0.3 }], [0.86, 0.082, 0.1, 0.086, 0.108, 0.144, { hips: 0.35, [up]: 0.65 }], [0.78, 0.092, 0.11, 0.1, 0.12, 0.139, { [up]: 1 }],
     [0.7, 0.1, 0.116, 0.108, 0.128, 0.127, { [up]: 1 }], [0.635, 0.105, 0.12, 0.111, 0.133, 0.13, { [up]: 1 }], [0.594, 0.108, 0.124, 0.113, 0.137, 0.133, { [up]: 1 }], [0.602, 0.106, 0.106, 0.096, 0.118, 0.115, { [up]: 1 }]];
   b.loft(SH.map(([y, cx, o, i, f, bk, w], k) => ({ c: [s * cx, y, 0.004], rx: io(o, i), rz: [f, bk], n: 2.2, v: k === SH.length - 1 ? 0.995 : v(SPAN.shorts, y), w })), s > 0 ? R.shortsL : R.shortsR, {
     seg: 16, a0: Math.PI, shape: (a, r) => out(a, drape(a, 0.008 * sstep(0.9, 0.6, r.c[1]), 2 + s)) });
@@ -105,7 +106,7 @@ function arm(b, s, n) {
   // Set-in sleeve. Its first ring is the seam round the shoulder, tilted so its top sits on the end of the
   // shoulder and its bottom in the armpit; the rings turn level as they go down the arm, wider than the arm
   // so the cloth hangs off it. [tilt (deg), centre out and down from the joint, across, depth, weights]
-  const SL = [[64, -0.034, -0.06, 0.078, 0.078, { chest: 0.55, [cl]: 0.35, [ua]: 0.1 }], [46, -0.002, -0.072, 0.078, 0.081, { [cl]: 0.45, [ua]: 0.45, chest: 0.1 }], [26, 0.002, -0.112, 0.071, 0.08, { [ua]: 0.82, [cl]: 0.18 }],
+  const SL = [[64, -0.034, -0.06, 0.078, 0.078, { chest: 0.55, [cl]: 0.35, [ua]: 0.1 }], [46, -0.004, -0.072, 0.075, 0.081, { [cl]: 0.45, [ua]: 0.45, chest: 0.1 }], [26, 0.002, -0.112, 0.071, 0.08, { [ua]: 0.82, [cl]: 0.18 }],
     [9, 0.004, -0.16, 0.071, 0.08, { [ua]: 1 }], [0, 0.006, -0.215, 0.073, 0.082, { [ua]: 1 }], [0, 0.008, -0.268, 0.079, 0.087, { [ua]: 1 }], [0, 0.008, -0.26, 0.06, 0.064, { [ua]: 1 }]];
   b.loft(SL.map(([deg, dx, dy, rx, rz, w], i) => {
     const t = deg * Math.PI / 180;
