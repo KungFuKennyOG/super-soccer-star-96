@@ -3,9 +3,29 @@
 import * as THREE from 'three';
 import { buildSkeleton, bakeAO } from '../body.js';
 import { ATLAS } from './kit.js';
+import { sstep } from './paint.js';
 
 const IDX = Object.fromEntries(buildSkeleton().bones.map((b, i) => [b.name, i]));
 const spow = (v, e) => Math.sign(v) * Math.abs(v) ** e;
+
+// ---- what the parts of the figure share ----
+// where a height falls in a region's span (kit.js SPAN): 0 at its top, 1 at its bottom
+export const vOf = (span, y) => (span[0] - y) / (span[0] - span[1]);
+const ang = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+// muscles and hollows on a section: { a: angle (0 = front, a quarter turn = his left), aw, y, yw, d }
+export const bumps = list => (a, r) => {
+  let d = 0;
+  for (const m of list) d += m.d * Math.max(0, 1 - (ang(a, m.a) / m.aw) ** 2) * Math.max(0, 1 - ((r.c[1] - m.y) / m.yw) ** 2);
+  return d;
+};
+// d metres straight out from a ring at angle a (along the ring's own axes when it is turned)
+export const out = (a, d, r) => {
+  const x = r && r.ax || [1, 0, 0], z = r && r.az || [0, 0, 1], sn = Math.sin(a) * d, cs = Math.cos(a) * d;
+  return [x[0] * sn + z[0] * cs, x[1] * sn + z[1] * cs, x[2] * sn + z[2] * cs];
+};
+// How much of the neck's turn a height takes. The collar and the neck inside it use the same, so the
+// neck never comes through the shirt; the base of the neck stays with the shoulders.
+export const neckW = y => sstep(1.515, 1.62, y);
 
 export class Builder {
   constructor() { this.pos = []; this.uv = []; this.si = []; this.sw = []; this.idx = []; this.soft = []; this.sheet = ATLAS; this.parts = [0]; }   // soft: [from, to, keep] vertex ranges that keep only part of the baked shade (the face, whose shade is painted; the knees, which the shorts would black out)
@@ -19,6 +39,8 @@ export class Builder {
   }
   // rings: [{ c, rx, rz, n (2 = ellipse, higher = boxier), v (0..1 down the region), w: weights or fn(p) }]
   // rx may be [toward ax, away from it] and rz [toward az, away]: a body is never the same front and back.
+  // n may be a pair like rx: one half of the ring boxier than the other (the shorts' legs, square where they meet).
+  // A ring may have its own ax and az (a tilted collar, a sleeve's seam, a turned wrist).
   // listed top to bottom (or back to front with ax/az). Round each ring the angle runs from a0, 0 = toward
   // az (the front), a quarter turn = toward ax (his left). region: sheet rectangle. mirror flips u (right limbs).
   // shape(a, ring, i) → [dx, dy, dz]. uv(p, f, ring) → sheet pixels, instead of the region.
@@ -27,9 +49,10 @@ export class Builder {
     const U = f => region.x + 1.5 + (region.w - 3) * (mirror ? 1 - f : f), V = r => region.y + region.h * Math.min(0.992, Math.max(0.008, r.v));
     const W = (r, p) => (typeof r.w === 'function' ? r.w(p) : r.w);
     for (const r of rings) {
-      const e = 2 / (r.n || 2), rax = r.ax || ax, raz = r.az || az;
+      const rax = r.ax || ax, raz = r.az || az;
       for (let i = 0; i <= seg; i++) {
         const f = fOf ? fOf(i / seg) : i / seg, a = a0 + f * Math.PI * 2, sn = Math.sin(a), cs = Math.cos(a);
+        const e = 2 / (r.n && r.n.length ? r.n[sn > 0 ? 0 : 1] : r.n || 2);
         const sx = spow(sn, e) * (r.rx.length ? r.rx[sn > 0 ? 0 : 1] : r.rx), sz = spow(cs, e) * (r.rz.length ? r.rz[cs > 0 ? 0 : 1] : r.rz);
         const p = [r.c[0] + rax[0] * sx + raz[0] * sz, r.c[1] + rax[1] * sx + raz[1] * sz, r.c[2] + rax[2] * sx + raz[2] * sz];
         if (shape) { const d = shape(a, r, i); if (d) { p[0] += d[0]; p[1] += d[1]; p[2] += d[2]; } }
