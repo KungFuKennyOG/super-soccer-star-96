@@ -91,11 +91,11 @@ function badge(ctx, x, y, s, ink, field, star) {
 /* ---------- the flat kit ---------- */
 
 // What the kit is cut like, picked from its colors so every kit keeps its own look:
-// neck: 0 = a V, 1 = a round collar with a slit. cut: 0 = side panels edged with piping,
+// neck: 1 = a round collar with a slit (0 = a V: not used, Kenny, Nov 2026: the V made necks read long). cut: 0 = side panels edged with piping,
 // 1 = piping curving from the collar to the armhole, 2 = side panels in the trim color.
 function styleOf(k) {
   const h = hash(parseInt(k.shirt.slice(1), 16) & 0xffff, parseInt(k.trim.slice(1), 16) & 0xffff, 11), plain = k.pattern === 'solid' || k.pattern === 'sleeves';
-  return { plain, neck: h < 0.5 ? 0 : 1, cut: Math.floor(h * 977) % 3, hoops: Math.floor(h * 131) % 2 };
+  return { plain, neck: 1, cut: Math.floor(h * 977) % 3, hoops: Math.floor(h * 131) % 2 };
 }
 // The collar: how far below the top of the shirt its upper edge sits at x (it scoops at the throat), and how deep the band is.
 const BAND = 9;

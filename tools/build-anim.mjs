@@ -26,6 +26,8 @@ export const CLIPS = {
   walk: ['35_02', 'stride'], walkB: ['35_28', 'stride'], walkC: ['141_25', 'stride'],
   jog: ['16_36', 'stride'], jogB: ['35_20', 'stride'], jogC: ['143_01', 'stride'],
   run: ['09_06', 'stride'], runB: ['16_46', 'stride'], runC: ['127_07', 'stride'],
+  // a 'loop' is [from, to] seconds of a capture played round and round, e.g. stand: ['137_28', 'loop', { from: 2, to: 12 }].
+  // None is baked: the library's standing takes (113_21, 77_02, 141_20, 137_28) have a tilted or bowed head, fidgeting or hands on hips.
 };
 
 // game bone ← captured joint, and whether it is matched by direction (to the joint's first child)
@@ -190,13 +192,32 @@ function stride(name, bvh, want, flip = false) {
   return { kind: 'stride', speed: +best.v.toFixed(3), period: +period.toFixed(4), n: N, q, h };
 }
 
+/* ---------- a loop: a stretch of someone standing ---------- */
+
+const HZ = 12;
+function loop(name, bvh, { from, to }) {
+  const R = rig(bvh), src = newPose(bvh), f0 = Math.round(from / bvh.dt), f1 = Math.min(bvh.frames - 1, Math.round(to / bvh.dt)), feet = [], org = new THREE.Vector3(), fwd = new THREE.Vector3();
+  for (let f = f0; f <= f1; f++) { pose(bvh, f, src); feet.push(src.p[R.id.LeftFoot].y, src.p[R.id.RightFoot].y); org.add(src.p[R.id.Hips]); fwd.add(new THREE.Vector3(0, 0, 1).applyQuaternion(src.q[R.id.Hips])); }
+  R.floor = median(feet); org.multiplyScalar(1 / (f1 - f0 + 1)).setY(0);
+  const yaw = Math.atan2(fwd.x, fwd.z), n = Math.round((f1 - f0) * bvh.dt * HZ), A = newOut(), first = newOut(), last = newOut(), q = [], h = [];
+  retarget(bvh, R, pose(bvh, f0, src), yaw, org, first); retarget(bvh, R, pose(bvh, f1, src), yaw, org, last);
+  for (let i = 0; i < n; i++) {
+    const ph = i / n, w = Math.max(0, (ph - 0.75) / 0.25), e = w * w * (3 - 2 * w);       // the last quarter eases onto the first pose
+    retarget(bvh, R, pose(bvh, Math.round(f0 + (f1 - f0) * ph), src), yaw, org, A);
+    for (const nm of NAMES) { const r = A.q[nm].multiply(tmpQ.copy(last.q[nm]).invert().multiply(first.q[nm]).slerp(IDENT, 1 - e).clone()); q.push(r.x, r.y, r.z, r.w); }
+    A.hips.add(first.hips.clone().sub(last.hips).multiplyScalar(e)); h.push(A.hips.x, A.hips.y, A.hips.z);
+  }
+  if (REPORT) console.log(`${name.padEnd(8)} loop ${((f1 - f0) * bvh.dt).toFixed(1)} s, ${n} poses, hips ${Math.min(...h.filter((_, i) => i % 3 === 1)).toFixed(3)}..${Math.max(...h.filter((_, i) => i % 3 === 1)).toFixed(3)}`);
+  return { kind: 'loop', speed: 0, period: +((f1 - f0) * bvh.dt).toFixed(3), n, q, h };
+}
+
 /* ---------- write ---------- */
 
 const clips = {};
 for (const [name, [file, kind, opt]] of Object.entries(CLIPS)) {
   // (subjects 141 and 143 were captured at 60 Hz though their files say 120: checked against gravity in their runs' flight)
   const bvh = parseBVH(await readFile(`${dir}/${file}.bvh`, 'utf8'), /^14[13]_/.test(file) ? 60 : 0);
-  try { if (kind === 'stride') clips[name] = stride(name, bvh, opt?.want); } catch (e) { console.log(String(e.message)); }
+  try { clips[name] = kind === 'loop' ? loop(name, bvh, opt) : stride(name, bvh, opt?.want); } catch (e) { console.log(String(e.message)); }
 }
 const r = v => +v.toFixed(4);
 const body = Object.entries(clips).map(([name, c]) => `  ${name}: { kind: '${c.kind}', speed: ${c.speed}, period: ${c.period}, n: ${c.n},\n    q: [${c.q.map(r).join(',')}],\n    h: [${c.h.map(r).join(',')}] },`).join('\n');
