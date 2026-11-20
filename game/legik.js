@@ -50,3 +50,38 @@ export function aimFoot(bn, n, q) {
   q1.copy(bn.hips.quaternion).multiply(up.quaternion).multiply(lo.quaternion).invert();
   ft.quaternion.copy(q1.multiply(q));
 }
+
+const q3 = new THREE.Quaternion(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3(), v5 = new THREE.Vector3(), basis = new THREE.Matrix4();
+// Bends the shoulder and elbow so the wrist is at `target` (Vector3, model space), the elbow pointing the
+// way `pole` says (Vector3, model space, need not be unit). Arms are named like legs: 'L' or 'R'. The
+// trunk must be posed first. A target out of reach gets a straight arm pointing at it.
+export function reachArm(bn, n, target, pole) {
+  const up = bn['upperArm' + n], lo = bn['foreArm' + n], hand = bn['hand' + n], cl = bn['clavicle' + n];
+  const L1 = lo.position.length(), L2 = hand.position.length();
+  // the shoulder joint, and the frame the upper arm hangs in (hips, spine, chest, clavicle)
+  q3.copy(bn.hips.quaternion); v3.copy(bn.spine.position).applyQuaternion(q3).add(bn.hips.position);
+  q3.multiply(bn.spine.quaternion); v3.add(v4.copy(bn.chest.position).applyQuaternion(q3));
+  q3.multiply(bn.chest.quaternion); v3.add(v4.copy(cl.position).applyQuaternion(q3));
+  q3.multiply(cl.quaternion); v3.add(v4.copy(up.position).applyQuaternion(q3));
+  q3.invert();
+  v3.subVectors(target, v3).applyQuaternion(q3);                 // shoulder to wrist, as the clavicle sees it
+  v4.copy(pole).applyQuaternion(q3);
+  const want = v3.length(), D = Math.min(L1 + L2 - 0.003, Math.max(Math.abs(L1 - L2) + 0.03, want));
+  v3.multiplyScalar(1 / (want || 1));
+  v4.addScaledVector(v3, -v4.dot(v3)).normalize();               // the pole, square to the reach
+  // the upper arm leans off the line to the wrist toward the pole; the forearm closes the triangle
+  const a = Math.acos(Math.min(1, Math.max(-1, (L1 * L1 + D * D - L2 * L2) / (2 * L1 * D))));
+  const bend = Math.PI - Math.acos(Math.min(1, Math.max(-1, (L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2))));
+  v5.copy(v3).multiplyScalar(Math.cos(a)).addScaledVector(v4, Math.sin(a));     // along the upper arm
+  // its bone: -y down the arm, +z the side the forearm folds to (away from the pole), x across
+  v5.negate(); v4.negate(); v4.addScaledVector(v5, -v4.dot(v5)).normalize(); v3.crossVectors(v5, v4);
+  up.quaternion.setFromRotationMatrix(basis.makeBasis(v3, v5, v4));
+  lo.rotation.set(-bend, 0, 0);
+}
+
+// Turns the hand so it points the way `q` says (Quaternion, model space) whatever the arm is doing.
+export function aimHand(bn, n, q) {
+  q3.copy(bn.hips.quaternion).multiply(bn.spine.quaternion).multiply(bn.chest.quaternion).multiply(bn['clavicle' + n].quaternion)
+    .multiply(bn['upperArm' + n].quaternion).multiply(bn['foreArm' + n].quaternion).invert();
+  bn['hand' + n].quaternion.copy(q3.multiply(q));
+}

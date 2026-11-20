@@ -94,7 +94,7 @@ export function createReplay(scene, renderer) {
       }
       if (frames.length < 10) return;
       clip = frames; cursor = frames[0][0]; active = true; tvYaw = null;
-      for (const m of Object.values(ghosts)) { m.strike = null; m.dive = null; m.special = null; }
+      for (const m of Object.values(ghosts)) { m.strike = null; m.dive = null; m.special = null; m.gait = null; m.kickK = m.cheerK = 0; }   // (the gait starts afresh: nobody turns round from where the last replay left him)
     },
     stop() {
       active = false; pendingT = -1; tv.visible = jumbo.visible = false;

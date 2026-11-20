@@ -9,7 +9,9 @@ import { buildBody, restPose } from './body.js';
 import { animateKeeper } from './keeperpose.js';
 import { strideRate } from '../rules/dribble.js';
 import { poseStrike, poseTouch, poseHold } from './strike.js';
-import { poseLegs, poseUpper } from './gait.js';
+import { faceBody, poseLegs } from './gait.js';
+import { poseUpper, layerLean, layerReady, layerBreath, layerKick, layerLook, strikeSwing } from './carriage.js';
+import { specialPose, dancePose, celebratePose } from './poses.js';
 
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
@@ -36,10 +38,12 @@ export function buildYou(kit, boots = 0) {
 
 /* ---------- animation ---------- */
 
-// Standing, walking and running (game/gait.js), strikes and dribbling touches, celebration. p is the
-// sim player (his p.stride drives the run cycle, so the sim's touches are the boot's); the keeper has his
-// own (game/keeperpose.js). Place the model (placeModel) before posing it: the boot is sent to the ball.
-// ball: the sim ball, for the keeper and for the boot to meet (game/strike.js); onBall: he has it at his feet.
+// Standing, walking and running (game/gait.js for the hips and legs, game/carriage.js above them),
+// strikes and dribbling touches (game/strike.js), headers, the dance and celebrating (game/poses.js).
+// p is the sim player (his p.stride drives the run cycle, so the sim's touches are the boot's); the keeper
+// has his own (game/keeperpose.js). Place the model (placeModel) before posing it: the boot is sent to the
+// ball, and the model's heading is eased from the one placeModel gave it.
+// ball: the sim ball, for the keeper and for the boot to meet; onBall: he has it at his feet.
 export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBall = false) {
   const bn = m.bone;
   if (p.role === 'gk') { animateKeeper(m, p, dt, t, ball); return; }
@@ -47,8 +51,9 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   if (m.bigHead) bn.head.scale.setScalar(1.65);           // the big-heads cheat (locker)
   const s = Math.hypot(p.vx, p.vz);
   if (p.stride === undefined) m.phase += dt * strideRate(s); else m.phase = p.stride;
-  // legs, feet and hips: the feet follow their paths over the ground and the legs are bent to them
-  // (game/gait.js; set before the boot is sent to the ball, so it lands on it)
+  // the body turns after the sim's facing; then legs, feet and hips: the feet follow their paths over the
+  // ground and the legs are bent to them (set before the boot is sent to the ball, so it lands on it)
+  if (!m.firstPerson) faceBody(m, p, dt, celebrate || guide ? null : ball, onBall || !!m.strike);
   const g = poseLegs(m, bn, p, dt);
   if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
   const sp = m.special;
@@ -56,59 +61,27 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   // the right boot goes to the ball: a strike swinging through it, a touch on the run, or a skill's
   // hold on it (the sole of a drag-back or roulette, the step-over's circle)
   let kick = 0;
-  if (ball && m.strike) kick = poseStrike(m, bn, ball, dt);
+  const st = m.strike;
+  if (ball && st) kick = poseStrike(m, bn, ball, dt);
   else if (ball) { poseTouch(m, bn, p, ball, onBall, dt); if (sp && HOLDS.includes(sp.kind)) poseHold(m, bn, sp, ball); }
-  if (m.special && m.special.kind === 'bicycle') { specialPose(bn, m.special); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
+  if (sp && sp.kind === 'bicycle') { specialPose(bn, sp); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
-  // above the hips: lean, shoulders against the pelvis, arms, a head that watches the ball (game/gait.js)
-  poseUpper(m, bn, p, dt, t, g, ball, kick);
-
-  if (m.special && m.special.kind === 'header') specialPose(bn, m.special);
+  // above the hips: how he carries himself, then what is laid over it: lean, the ready crouch, breath,
+  // a strike's arms (eased in: a teammate's strike starts on the ball), the head on the ball
+  poseUpper(m, bn, g, dt, t);
+  layerLean(bn, g); layerReady(bn, g); layerBreath(bn, g, dt);
+  m.kickK = (m.kickK || 0) + (kick - (m.kickK || 0)) * Math.min(1, dt * 22);
+  layerKick(bn, m.kickK, strikeSwing(st));
   if (guide && p.role === 'mate') { dancePose(bn, guide); return; }
-  if (celebrate) {
-    bn.hips.position.y += Math.abs(Math.sin(t * 7 + m.phase)) * 0.45;
-    bn.upperArmL.rotation.set(0, 0, 2.6); bn.upperArmR.rotation.set(0, 0, -2.6);
-    bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = -0.3;
-  }
-}
-
-// Moves from the air (m.special = { kind, t }, set when the kick happens): the bicycle kick throws the
-// body back and swings the striking leg over the head; a header is a hop with the neck snapping forward.
-function specialPose(bn, sp) {
-  const k = Math.min(1, sp.t / 0.9), up = Math.sin(Math.PI * Math.min(1, k * 1.4));
-  if (sp.kind === 'bicycle') {
-    bn.hips.rotation.x = -1.5 * up; bn.hips.position.y += 0.55 * up;
-    bn.upperLegR.rotation.x = -2.7 * up; bn.lowerLegR.rotation.x = 0.3 * (1 - up);
-    bn.upperLegL.rotation.x = -0.9 * up; bn.lowerLegL.rotation.x = 1.2 * up;
-    bn.upperArmL.rotation.set(0, 0, 1.4 * up); bn.upperArmR.rotation.set(0, 0, -1.4 * up);
-    bn.neck.rotation.x = 0.4 * up;
-  } else if (sp.kind === 'header') {
-    bn.hips.position.y += 0.16 * up; bn.spine.rotation.x += 0.25 * up; bn.neck.rotation.x = 0.5 * Math.sin(Math.PI * k);
-    bn.upperArmL.rotation.z = 0.5 * up; bn.upperArmR.rotation.z = -0.5 * up;
-  }
+  layerLook(m, bn, g, celebrate ? null : ball, dt);
+  if (sp && sp.kind === 'header') specialPose(bn, sp);
+  m.cheerK = Math.min(1, Math.max(0, (m.cheerK || 0) + (celebrate ? dt : -dt) * 4));       // arms go up, and come down, in a quarter of a second
+  if (m.cheerK > 0) celebratePose(bn, g, t, m.cheerK * m.cheerK * (3 - 2 * m.cheerK));
 }
 
 // Skill moves and the drag-back are posed on the ball by game/strike.js (m.special = { kind, t }).
 const HOLDS = ['drag', 'roulette', 'stepover'], SPIN = 0.45;
-
-// Teammates lead the goal dance facing you, so they mirror the move: your "left" is their right arm.
-const ARM = { up: 2.8, down: 0.2, out: 1.55 };
-function dancePose(bn, g) {
-  const bounce = Math.abs(Math.sin(Math.PI * g.beat));
-  bn.hips.position.y -= 0.09 * bounce;
-  bn.upperLegL.rotation.set(-0.25 * bounce, 0, 0.1); bn.upperLegR.rotation.set(-0.25 * bounce, 0, -0.1);
-  bn.lowerLegL.rotation.x = bn.lowerLegR.rotation.x = 0.5 * bounce;
-  bn.chest.rotation.y = 0.15 * Math.sin(Math.PI * g.beat);
-  bn.neck.rotation.z = 0.12 * Math.sin(Math.PI * g.beat);
-  let l = 'down', r = 'down';                       // the mate's own arms
-  if (g.move === 'left') r = 'up';
-  if (g.move === 'right') l = 'up';
-  if (g.move === 'up') l = r = 'up';
-  if (g.move === 'out') l = r = 'out';
-  bn.upperArmL.rotation.set(0, 0, ARM[l]); bn.upperArmR.rotation.set(0, 0, -ARM[r]);
-  bn.foreArmL.rotation.x = bn.foreArmR.rotation.x = 0;
-}
 
 // The middle of a player's two hands in world space (out): where the keeper holds the ball.
 const handA = new THREE.Vector3(), handB = new THREE.Vector3();
