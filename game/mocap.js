@@ -78,7 +78,7 @@ function strideLength(ladder, speed) {
 //   off the toes, the other knee punches through high, his feet land under him instead of ahead, and his
 //   arms pump from the shoulder, hand to chin and elbow high behind (strideTrunk).
 const DRIVE = { rise: 9, fade: 1.3, from: 1.5, full: 6.5, cruise: 0.3 };   // 1/s, 1/s, m/s2 of eased push, share kept at full speed
-const X = new THREE.Vector3(1, 0, 0), qx = new THREE.Quaternion(), pt = new THREE.Vector3(), FLOOR = 0.085, SOLE = 0.085;
+const X = new THREE.Vector3(1, 0, 0), qx = new THREE.Quaternion(), pt = new THREE.Vector3(), SOLE = 0.085;
 const AV = { L: new THREE.Vector3(), R: new THREE.Vector3() }, AQ = { L: new THREE.Quaternion(), R: new THREE.Quaternion() };
 export function strideLegs(m, bn, g, dt = 0) {
   const w = m.mocapW = LADDER.length > 1 ? strideWeight(g) : 0;
