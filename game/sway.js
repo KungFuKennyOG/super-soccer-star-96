@@ -15,6 +15,8 @@ export const SWAY = {
   jolt: 3.2,                                       // the biggest change in speed felt in one frame (m/s): kick-off teleports
 };
 
+// cloth: m of trail per m/s (3 cm at most), m per rad of arm jolt, m per rad of footfall give, flutter (m standing, more per m/s)
+const CLOTH = { drag: 0.0045, jolt: 0.07, land: 0.18, flap: [0.0015, 0.0016] };
 const AX = ['tp', 'tr', 'ap', 'ar', 'ty', 'ld'];
 function stateOf(m) {
   if (!m.sway) { m.sway = { vx: 0, vz: 0, ax: 0, az: 0, ry: m.root.rotation.y, wy: 0, half: 0, on: false }; for (const k of AX) m.sway[k] = m.sway[k + 'v'] = 0; }
@@ -49,6 +51,13 @@ export function sway(m, bn, p, dt, g) {
       step(s, 'tp', SWAY.trunk, h); step(s, 'tr', SWAY.trunk, h); step(s, 'ap', SWAY.arms, h); step(s, 'ar', SWAY.arms, h);
       step(s, 'ty', SWAY.twist, h); step(s, 'ld', SWAY.land, h);
     }
+  }
+  if (m.cloth) {
+    // loose cloth (game/ps2/player.js): it trails his movement, is thrown by the same jolts as his arms, bounces as a boot lands and flutters more the faster he goes
+    const sp = Math.hypot(vx, vz), k = Math.min(1, 0.03 / (sp * CLOTH.drag + 1e-6));
+    m.cloth.uCloth.value.set(-vx * CLOTH.drag * k + s.ar * CLOTH.jolt, -s.ld * CLOTH.land, -vz * CLOTH.drag * k - s.ap * CLOTH.jolt);
+    s.flap = (s.flap || m.phase || 0) + dt * (7 + sp * 2.6);
+    m.cloth.uFlap.value.set(CLOTH.flap[0] + CLOTH.flap[1] * sp, s.flap);
   }
   // trunk: shared between the spine and the chest; the neck gives most of it back, so his head stays level
   bn.spine.rotateX(s.tp * 0.5); bn.spine.rotateZ(s.tr * 0.5); bn.chest.rotateX(s.tp * 0.5); bn.chest.rotateZ(s.tr * 0.5);
