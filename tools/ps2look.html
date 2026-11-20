@@ -24,6 +24,7 @@ import { strideRate } from '../rules/dribble.js';
 import { buildPlayer2, LIGHT_DIR } from '../game/ps2/player.js';
 import { buildPitch, buildLines, buildBall2 } from '../game/ps2/pitch.js';
 import { buildStand, buildSky } from '../game/ps2/stand.js';
+import { CLIPS, sampleStride, applyPose, newPose } from '../game/mocap.js';
 
 const q = new URLSearchParams(location.search);
 let shot = q.get('shot') || 'duel';
@@ -91,6 +92,7 @@ const REEL = [[0, 0], [1.5, 0], [2, 1.5], [4, 1.5], [4.6, 3.6], [6.6, 3.6], [7.4
 function reelV(t) { for (let i = 1; i < REEL.length; i++) if (t <= REEL[i][0]) { const [a, va] = REEL[i - 1], [b, vb] = REEL[i]; return va + (vb - va) * Math.max(0, (t - a) / (b - a)); } return 0; }
 function reelX(t) { let x = -20; for (let u = 0; u < t; u += 1 / 120) x += reelV(u) / 120; return x; }
 let time = +(q.get('t') || 0);
+const RAW = CLIPS[q.get('raw')], rawPose = newPose();
 function pose(t, dt) {
   const s = SHOTS[shot], set = s.set(t), b = val(s.ball, t);
   bp.x = b[0]; bp.z = b[1]; ball.position.set(bp.x, 0.11, bp.z); ball.rotation.set(t * 9, 0.4, t * 3);
@@ -102,6 +104,7 @@ function pose(t, dt) {
     if (p.stride === null) p.stride = d[4] + t * strideRate(d[3]); else p.stride += dt * strideRate(d[3]);   // his stride turns over with his speed
     placeModel(m, p);
     animate(m, p, dt, t + i, false, null, bp, false);
+    if (RAW) applyPose(m.bone, sampleStride(RAW, p.stride, rawPose));        // ?raw=clip: the captured stride alone, nothing over it
     m.shadow.position.set(p.x - LIGHT_DIR.x * 0.12, 0.01, p.z - LIGHT_DIR.z * 0.12);
   });
   for (const el of document.querySelectorAll('.bar')) el.style.display = shot === 'wide' ? 'block' : 'none';
