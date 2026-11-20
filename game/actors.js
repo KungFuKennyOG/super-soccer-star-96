@@ -11,6 +11,7 @@ import { strideRate } from '../rules/dribble.js';
 import { poseStrike, poseTouch, poseHold } from './strike.js';
 import { poseLegs, poseUpper } from './gait.js';
 import { strideLegs, strideTrunk, aimHead } from './mocap.js';
+import { sway } from './sway.js';
 
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
@@ -52,7 +53,7 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   // (game/gait.js; set before the boot is sent to the ball, so it lands on it)
   const g = poseLegs(m, bn, p, dt);
   // running and walking forward are motion capture (game/mocap.js), laid over that gait
-  const cap = strideLegs(m, bn, g);
+  const cap = strideLegs(m, bn, g, dt);
   if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
   const sp = m.special;
   if (sp && sp.kind === 'roulette' && sp.t < SPIN) bn.hips.rotation.y += Math.PI * 2 * sp.t / SPIN;   // the roulette spins you on the spot
@@ -66,8 +67,9 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
 
   // above the hips: lean, shoulders against the pelvis, arms, a head that watches the ball (game/gait.js)
   poseUpper(m, bn, p, dt, t, g, ball, kick);
-  if (cap > 0) { strideTrunk(m, bn); aimHead(bn, g.lookY, g.lookX * 0.6 + 0.05, cap); }   // the captured trunk and arms; the head still watches the ball
+  if (cap > 0) { strideTrunk(m, bn, g, 1 - kick); aimHead(bn, g.lookY, g.lookX * 0.6 + 0.05 + 0.22 * m.drive, cap); }   // the captured trunk and arms; the head still watches the ball
 
+  sway(m, bn, p, dt, g);                                  // weight: springs knocked by stops, cuts, turns and footfalls (game/sway.js)
   if (m.special && m.special.kind === 'header') specialPose(bn, m.special);
   if (guide && p.role === 'mate') { dancePose(bn, guide); return; }
   if (celebrate) {
