@@ -27,6 +27,7 @@ import { strideRate } from '../rules/dribble.js';
 import { buildPlayer2, LIGHT_DIR } from '../game/ps2/player.js';
 import { buildPitch, buildLines, buildBall2 } from '../game/ps2/pitch.js';
 import { buildStand, buildSky } from '../game/ps2/stand.js';
+import { CLIPS, sampleStride, applyPose, newPose } from '../game/mocap.js';
 
 const q = new URLSearchParams(location.search);
 let shot = q.get('shot') || 'duel';
@@ -83,6 +84,8 @@ const SHOTS = {
   ...Object.fromEntries(Object.entries({ walk: [1.5, 0], jog: [3.6, 0], sprint: [7.4, 0], strafe: [3, Math.PI / 2], backpedal: [2.6, Math.PI] }).map(([k, [v, off]]) => [k, { fov: 24, cam: t => [Math.sin(off) * v * t + 4.6 * Math.cos(off) * 1 + 0, 1.0, Math.cos(off) * v * t + (off ? 5 : 0.4)], at: t => [Math.sin(off) * v * t, 0.95, Math.cos(off) * v * t], ball: [30, 30],
     set: t => [[Math.sin(off) * v * t, Math.cos(off) * v * t, 0, v, 0, off], null, null, null, null, null] }])),
   // one player through the gears: stands, walks, jogs, sprints, pulls up, stands (the camera goes with him)
+  cuts: { fov: 30, cam: t => [cutsAt(t)[0] * 0.75 - 1, 1.4, cutsAt(t)[1] * 0.4 + 8.5], at: t => [cutsAt(t)[0], 0.95, cutsAt(t)[1]], ball: t => [cutsAt(t)[0] + 9, -3], set: t => [cutsAt(t), null, null, null, null, null] },
+  burst: { fov: 30, cam: t => [bX(t) + 1.6, 1.0, 5.6], at: t => [bX(t) + 0.3, 0.92, 0], ball: t => [bX(t) + 7, 2], set: t => [[bX(t), 0, Math.PI / 2, reelV(t, BURST), 0], null, null, null, null, null] },
   reel: { fov: 30, cam: t => [reelX(t) + 1.2, 1.05, 5.4], at: t => [reelX(t) + 0.2, 0.95, 0], ball: t => [reelX(t) + 6, 2], set: t => [[reelX(t), 0, Math.PI / 2, reelV(t), 0], null, null, null, null, null] },
   idle: { fov: 26, cam: [0.6, 1.25, 5.2], at: [0, 0.95, 0], ball: [5, 11], warm: 9, set: t => [[-1.5, 0, 0.2, 0, 0], [-0.5, 0.2, -0.1, 0, 0], [0.5, 0, 0.3, 0, 0], [1.5, 0.3, -0.3, 0, 0], null, null] },
   back: { fov: 28, cam: [0, 1.25, 3.6], at: [0, 1.0, 0], ball: [3, 3], set: t => [[-0.5, 0, Math.PI - 0.15, 0, 0], [0.5, 0, Math.PI + 0.15, 0, 0], off, off, off, off] },
@@ -118,10 +121,29 @@ Object.assign(SHOTS, {
   celebrate: { fov: 30, cam: [0.4, 1.3, 7], at: [0, 1.05, 0], ball: [30, 30], cheer: t => t > 0.4, set: t => [[-1.4, 0, 0.2, 0, 0], [0, -0.3, -0.1, 0, 0], [1.3, 0.2, -0.3, 0, 0], [-6 + 3.6 * t, -1.6, Math.PI / 2, 3.6, 0], [-7 + 3.6 * t, 1.4, Math.PI / 2, 3.6, 2], null] },
 });
 const val = (v, t) => (typeof v === 'function' ? v(t) : v);
-const REEL = [[0, 0], [1.5, 0], [2, 1.5], [4, 1.5], [4.6, 3.6], [6.6, 3.6], [7.4, 7.4], [9.4, 7.4], [10.3, 0], [13, 0]];   // [time, speed]
-function reelV(t) { for (let i = 1; i < REEL.length; i++) if (t <= REEL[i][0]) { const [a, va] = REEL[i - 1], [b, vb] = REEL[i]; return va + (vb - va) * Math.max(0, (t - a) / (b - a)); } return 0; }
-function reelX(t) { let x = -20; for (let u = 0; u < t; u += 1 / 120) x += reelV(u) / 120; return x; }
+// a man put through it: sprint, dead stop, off to the side, cut back, sprint, stop ([time, speed, heading in degrees])
+const CUTS = [[0, 0, 90], [0.8, 7.4, 90], [2.5, 0, 90], [3.3, 5.2, 0], [4.5, 5.2, 180], [5.7, 7.4, 90], [7.3, 0, 90]], cutLog = [];
+function cutsAt(t) {
+  if (!cutLog.length) {
+    let x = -9, z = 0, vx = 0, vz = 0, f = Math.PI / 2;
+    for (let i = 0, h = 1 / 120; i < 120 * 12; i++) {
+      let c = CUTS[0]; for (const k of CUTS) if (i * h >= k[0]) c = k;
+      const a = c[2] * Math.PI / 180, tx = Math.sin(a) * c[1], tz = Math.cos(a) * c[1], dx = tx - vx, dz = tz - vz, d = Math.hypot(dx, dz), st = Math.min(d, 16 * h);
+      if (d > 0) { vx += dx / d * st; vz += dz / d * st; }
+      const sp = Math.hypot(vx, vz);
+      if (sp > 0.6) { let e = Math.atan2(vx, vz) - f; e -= Math.round(e / (Math.PI * 2)) * Math.PI * 2; f += Math.max(-10 * h, Math.min(10 * h, e)); }
+      x += vx * h; z += vz * h; cutLog.push([x, z, f, sp, 0, sp > 0.05 ? Math.atan2(vx, vz) - f : 0]);
+    }
+  }
+  return cutLog[Math.max(0, Math.min(cutLog.length - 1, Math.round(t * 120)))];
+}
+const BURST = [[0, 0], [0.7, 0], [1.02, 7.6], [3.2, 7.6], [3.55, 0], [5, 0]];      // standing, flat out in a third of a second (the sim's 24 m/s2), stop
+const REEL0 = [[0, 0], [1.5, 0], [2, 1.5], [4, 1.5], [4.6, 3.6], [6.6, 3.6], [7.4, 7.4], [9.4, 7.4], [10.3, 0], [13, 0]];   // [time, speed]
+function reelV(t, REEL = REEL0) { for (let i = 1; i < REEL.length; i++) if (t <= REEL[i][0]) { const [a, va] = REEL[i - 1], [b, vb] = REEL[i]; return va + (vb - va) * Math.max(0, (t - a) / (b - a)); } return 0; }
+function reelX(t, T = REEL0, x = -20) { for (let u = 0; u < t; u += 1 / 120) x += reelV(u, T) / 120; return x; }
+const bX = t => reelX(t, BURST, -9);
 let time = +(q.get('t') || 0);
+const RAW = CLIPS[q.get('raw')], rawPose = newPose();
 function pose(t, dt) {
   const s = SHOTS[shot], set = s.set(t), b = val(s.ball, t);
   bp.x = b[0]; bp.z = b[1]; bp.y = b[2] ?? 0.11; ball.position.set(bp.x, bp.y, bp.z); ball.rotation.set(t * 9, 0.4, t * 3);
@@ -140,6 +162,7 @@ function pose(t, dt) {
     if (p.stride === null) p.stride = d[4] + t * strideRate(d[3]); else p.stride += dt * strideRate(d[3]);   // his stride turns over with his speed
     placeModel(m, p);
     animate(m, p, dt, t + i, !!(s.cheer && s.cheer(t)), null, bp, !!d[7]);
+    if (RAW) applyPose(m.bone, sampleStride(RAW, RAW.kind === 'loop' ? (t + i * 1.7) / RAW.period * Math.PI * 2 : p.stride, rawPose));        // ?raw=clip: the captured stride alone, nothing over it
     m.shadow.position.set(p.x - LIGHT_DIR.x * 0.12, 0.01, p.z - LIGHT_DIR.z * 0.12);
   });
   for (const el of document.querySelectorAll('.bar')) el.style.display = shot === 'wide' ? 'block' : 'none';
@@ -147,7 +170,7 @@ function pose(t, dt) {
   camera.position.set(...val(s.cam, t)); camera.lookAt(...val(s.at, t));
 }
 // poses ease in over time (speed, lean, the head's turn), so a still is run up to, not jumped to (a shot's `warm`: for how many seconds)
-function warm() { for (const pl of players) { pl.p.stride = null; pl.m.gait = pl.m.strike = pl.m.special = null; pl.m.kickK = pl.m.onBallK = pl.m.cheerK = 0; } for (let k = Math.round((SHOTS[shot].warm || 1.5) * 60); k > 0; k--) pose(time - k / 60, 1 / 60); }
+function warm() { for (const pl of players) { pl.p.stride = null; pl.m.gait = pl.m.strike = pl.m.special = null; pl.m.sway = null; pl.m.kickK = pl.m.onBallK = pl.m.cheerK = pl.m.driveT = 0; } for (let k = Math.round((SHOTS[shot].warm || 1.5) * 60); k > 0; k--) pose(time - k / 60, 1 / 60); }
 function frame(dt) {
   time += dt; pose(time, dt); renderer.render(scene, camera);
   document.getElementById('i').textContent = q.get('info') ? `${shot}  calls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}` : '';

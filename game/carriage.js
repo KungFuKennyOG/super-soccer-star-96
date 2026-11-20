@@ -62,10 +62,11 @@ export function poseUpper(m, bn, g, dt, t) {
   }
 }
 
-// The trunk tips forward with his speed (g.L; `speed` scales that part: 0 over a clip that has its own),
-// further as he drives off, back as he brakes, and into a turn. The pelvis has taken its share (poseLegs).
-export function layerLean(bn, g, speed = 1) {
-  const lean = 0.75 * (speed * g.L + clamp(g.acc * 0.02, -0.24, 0.3)), tilt = g.tilt;
+// The trunk tips forward with his speed (g.L), further as he drives off, back as he brakes, and into a
+// turn. fore scales the forward and back part: 1 over the procedural base, 0 over a pose that has its own
+// (a captured stride). The pelvis has taken its share (poseLegs).
+export function layerLean(bn, g, fore = 1) {
+  const lean = 0.75 * fore * (g.L + clamp(g.acc * 0.02, -0.24, 0.3)), tilt = g.tilt;
   pre(bn.spine, X, lean * 0.6); pre(bn.chest, X, lean * 0.4);
   pre(bn.spine, Z, -tilt * 0.12); pre(bn.chest, Z, -tilt * 0.08);
   pre(bn.neck, Z, tilt * 0.3); pre(bn.head, Z, tilt * 0.3);         // the eyes stay nearer level
@@ -115,7 +116,8 @@ export const strikeSwing = st => (!st ? 0 : st.t < st.wind ? st.t / st.wind - 1 
 // The head: on the ball if there is one (ball: { x, y, z } on the pitch, or null), else the way he goes;
 // level whatever the trunk under it is doing. The chest turns a little of the way when he is not running,
 // the neck and head share the rest. Eased, and kept inside what a neck can do: a ball behind him is let go.
-export function layerLook(m, bn, g, ball, dt) {
+// down: extra pitch (rad), for a head carried low (a sprinter driving off).
+export function layerLook(m, bn, g, ball, dt, down = 0) {
   let ly = 0, lx = 0;
   if (ball) {
     const ry = m.root.rotation.y, c = Math.cos(ry), sn = Math.sin(ry), dx = ball.x - m.root.position.x, dz = ball.z - m.root.position.z;
@@ -128,7 +130,7 @@ export function layerLook(m, bn, g, ball, dt) {
   // which way the head points now, in the model's space
   qa.copy(bn.hips.quaternion).multiply(bn.spine.quaternion).multiply(bn.chest.quaternion).multiply(bn.neck.quaternion).multiply(bn.head.quaternion);
   v.set(0, 0, 1).applyQuaternion(qa);
-  const yaw = clamp(wrap(g.lookY - Math.atan2(v.x, v.z)), -1.3, 1.3) / 2, pitch = clamp(g.lookX + Math.asin(clamp(v.y, -1, 1)), -0.8, 0.8) / 2;
+  const yaw = clamp(wrap(g.lookY - Math.atan2(v.x, v.z)), -1.3, 1.3) / 2, pitch = clamp(g.lookX + down + Math.asin(clamp(v.y, -1, 1)), -0.8, 0.8) / 2;
   pre(bn.neck, Y, yaw); post(bn.neck, X, pitch);
   pre(bn.head, Y, yaw); post(bn.head, X, pitch);
 }

@@ -17,7 +17,7 @@
 // over the legs afterwards.
 import * as THREE from 'three';
 import { P } from './body.js';
-import { reachLeg, aimFoot } from './legik.js';
+import { ankleOf, footOf, reachLeg, aimFoot } from './legik.js';
 import { strideRate } from '../rules/dribble.js';
 import { DRIBBLE } from '../rules/tuning.js';
 
@@ -37,7 +37,9 @@ const T = [new THREE.Vector3(), new THREE.Vector3()], PITCH = [0, 0], YAW = [0, 
 //   mv, run, sprint   0..1: moving at all, running rather than walking (forward only), flat out
 //   jk           0..1: moving, but not the way he faces (side-steps, backing off)
 //   acc, accX    eased acceleration, forward and to his left (m/s2): + speeding up, - braking; + turning left
+//   lean         the forward acceleration again, eased slower and without the spring (game/mocap.js's drive is tuned to it)
 //   tilt         how far he leans into a turn (rad, + to his left)
+//   cover        metres of ground one turn of his cycle carries him at the gait's cadence
 //   ph           the gait's own phase (rad): p.stride, except while walking or shuffling
 //   sw           -1..1, + while the left arm is the one coming forward (the right foot leads)
 //   rd           0..1: ready stance (the ball is near)
@@ -50,7 +52,7 @@ export function gaitOf(m) {
   if (!m.gait) {
     const seed = frac(0.37 + 0.618034 * made++);            // each player his own stance, timing and habits
     m.gait = { seed, a: frac(seed * 5.3), b: frac(seed * 11.7), c: frac(seed * 23.1), t: seed * 50, s: 0, ux: 0, uz: 1, fwd: 1, mv: 0, run: 0, sprint: 0, jk: 0, idle: 1, w: 0,
-      acc: 0, accX: 0, tilt: 0, py: 0, pz: 0, crouch: 0, hk: 0, br: seed * 6, da: 0, dx: 0, wx: null, wz: 0, ph: null, sw: 0, hipY: null, L: 0, rd: 0, near: 0, still: 0, puff: 0, lookY: 0, lookX: 0,
+      acc: 0, accX: 0, lean: 0, tilt: 0, cover: 0, py: 0, pz: 0, crouch: 0, hk: 0, br: seed * 6, da: 0, dx: 0, wx: null, wz: 0, ph: null, sw: 0, hipY: null, L: 0, rd: 0, near: 0, still: 0, puff: 0, lookY: 0, lookX: 0,
       yaw: null, dyaw: 0, jock: false, own: null, pd: [0, 0], p0: [0, 0], st: [-1, -1], calm: 0 };
   }
   return m.gait;
@@ -102,6 +104,7 @@ export function poseLegs(m, bn, p, dt) {
     const awx = (p.vx - g.wx) / dt, awz = (p.vz - g.wz) / dt, h = Math.min(dt, 0.04);
     g.da += (150 * (clamp(awx * sn + awz * c, -16, 16) - g.acc) - 16 * g.da) * h; g.acc += g.da * h;
     g.dx += (150 * (clamp(awx * c - awz * sn, -16, 16) - g.accX) - 16 * g.dx) * h; g.accX += g.dx * h;
+    g.lean += (clamp(awx * sn + awz * c, -9, 9) - g.lean) * Math.min(1, dt * 5);
     g.wx = p.vx; g.wz = p.vz;
     g.still = s < 0.3 ? g.still + dt : 0;
     g.rd += (g.near - g.rd) * Math.min(1, dt * 4);
@@ -131,7 +134,7 @@ export function poseLegs(m, bn, p, dt) {
 
   // a foot stays down for `duty` of the cycle and covers `travel` metres of ground in that time: as much
   // as the body does, so it doesn't slide, and no more than a leg can (then he is in the air between steps)
-  const cover = g.s * TAU / turn, reach = mix(mix(0.38 + 0.12 * bwd, 0.92, fk), 0.88, run);
+  const cover = g.cover = g.s * TAU / turn, reach = mix(mix(0.38 + 0.12 * bwd, 0.92, fk), 0.88, run);
   const duty = clamp(reach / Math.max(0.01, cover), 0.2, mix(mix(0.5, 0.6, fk), mix(0.34, 0.27, sprint), run)), travel = Math.min(reach * 1.1, cover * duty);
   // where it lands ahead of him (a braking step lands further out, a driving one under him), and how it flies
   const front = travel * clamp(mix(mix(0.5, 0.38, fk), mix(0.31, 0.27, sprint), run) + 0.14 * brake - 0.1 * drive - 0.07 * k, 0.1, 0.6), back = travel - front;
@@ -232,4 +235,24 @@ function steps(g, dt, idle) {
   if (g.st[0] >= 0 || g.st[1] >= 0) return;
   const a0 = Math.abs(g.pd[0]), a1 = Math.abs(g.pd[1]), i = Math.abs(a0 - a1) < 0.05 ? (g.pd[0] < 0 ? 0 : 1) : a0 > a1 ? 0 : 1, a = Math.max(a0, a1);
   if (a > 0.45 || (a > 0.1 && g.calm > 0.3)) { g.st[i] = 0; g.p0[i] = g.pd[i]; }
+}
+
+// The lean into a turn, put on a pelvis that some other pose has taken over (a captured stride: game/mocap.js
+// sets the hips, so the lean poseLegs gave them is gone): the hips tip and move inside the feet by k of it,
+// and the legs are bent again to the ankles they had, so the feet stay where that pose put them.
+const aL = new THREE.Vector3(), aR = new THREE.Vector3(), fL = new THREE.Quaternion(), fR = new THREE.Quaternion();
+export function leanHips(bn, g, k = 1) {
+  const tilt = g.tilt * k, h = bn.hips;
+  if (Math.abs(tilt) < 0.004) return;
+  ankleOf(bn, 'L', aL); ankleOf(bn, 'R', aR); footOf(bn, 'L', fL); footOf(bn, 'R', fR);
+  h.rotateZ(-tilt * 0.8); h.position.x += tilt * 0.7;
+  let low = 9;
+  for (let i = 0; i < 2; i++) {                         // and down, if a leg would otherwise come up short
+    const a = i ? aR : aL;
+    hj.set(i ? -P.hipX : P.hipX, -0.02, 0).applyQuaternion(h.quaternion);
+    const dx = a.x - h.position.x - hj.x, dz = a.z - h.position.z - hj.z;
+    low = Math.min(low, a.y - hj.y + Math.sqrt(Math.max(0.01, REACH * REACH - dx * dx - dz * dz)));
+  }
+  h.position.y = Math.min(h.position.y, low);
+  reachLeg(bn, 'L', aL); aimFoot(bn, 'L', fL); reachLeg(bn, 'R', aR); aimFoot(bn, 'R', fR);
 }

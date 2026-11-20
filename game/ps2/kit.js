@@ -28,8 +28,11 @@ export const R = {
   hair: { x: 0, y: 512, w: 512, h: 128 },
 };
 // What each region covers on the body (world heights in metres; arms are measured down from the shoulder).
+// The shirt is tucked in at the waist (1.01): the rows below that are inside the shorts. Of the seat's
+// rows only the waistband's are worn. The legs of the shorts are to this scale from the crotch to the hem
+// (figure.js has what they do above it).
 export const SPAN = {
-  shirt: [1.552, 0.878], pelvis: [1.0, 0.775], shorts: [0.92, 0.613], thigh: [0.69, 0.475], sock: [0.486, 0.06],
+  shirt: [1.552, 0.94], pelvis: [1.022, 0.7], shorts: [0.992, 0.6], thigh: [0.69, 0.475], sock: [0.486, 0.06],
   neck: [1.65, 1.5], arm: [-0.2, -0.74],   // (the sleeve's rows run seam to cuff)
 };
 const row = (span, y, h) => (span[0] - y) / (span[0] - span[1]) * h;
@@ -88,15 +91,15 @@ function badge(ctx, x, y, s, ink, field, star) {
 /* ---------- the flat kit ---------- */
 
 // What the kit is cut like, picked from its colors so every kit keeps its own look:
-// neck: 0 = a V, 1 = a round collar with a slit. cut: 0 = side panels edged with piping,
+// neck: 1 = a round collar with a slit (0 = a V: not used, Kenny, Nov 2026: the V made necks read long). cut: 0 = side panels edged with piping,
 // 1 = piping curving from the collar to the armhole, 2 = side panels in the trim color.
 function styleOf(k) {
   const h = hash(parseInt(k.shirt.slice(1), 16) & 0xffff, parseInt(k.trim.slice(1), 16) & 0xffff, 11), plain = k.pattern === 'solid' || k.pattern === 'sleeves';
-  return { plain, neck: h < 0.5 ? 0 : 1, cut: Math.floor(h * 977) % 3, hoops: Math.floor(h * 131) % 2 };
+  return { plain, neck: 1, cut: Math.floor(h * 977) % 3, hoops: Math.floor(h * 131) % 2 };
 }
 // The collar: how far below the top of the shirt its upper edge sits at x (it scoops at the throat), and how deep the band is.
 const BAND = 9;
-const scoop = (x, st) => (st.neck ? 13 * gauss(x, 128, 40) : 30 * Math.max(0, 1 - Math.abs(x - 128) / 40));
+const scoop = (x, st) => (st.neck ? 5 * gauss(x, 128, 46) : 30 * Math.max(0, 1 - Math.abs(x - 128) / 40));
 const CUFF = 10, TURN = 17;                            // rows: the sleeve's cuff, the sock's turnover
 // The side panels: half as wide as this at row y, from under the arm to the hem. 0 above them.
 const panel = y => (y < 80 ? 0 : 21 - 11 * ((y - 80) / 176) ** 0.7);

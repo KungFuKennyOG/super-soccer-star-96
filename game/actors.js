@@ -9,9 +9,11 @@ import { buildBody, restPose } from './body.js';
 import { animateKeeper } from './keeperpose.js';
 import { strideRate } from '../rules/dribble.js';
 import { poseStrike, poseTouch, poseHold } from './strike.js';
-import { faceBody, poseLegs } from './gait.js';
+import { faceBody, poseLegs, leanHips } from './gait.js';
 import { poseUpper, layerLean, layerReady, layerBreath, layerKick, layerLook, strikeSwing } from './carriage.js';
 import { specialPose, dancePose, celebratePose } from './poses.js';
+import { strideLegs, strideTrunk } from './mocap.js';
+import { sway } from './sway.js';
 
 const matCache = new Map();
 const mat = (key, make) => { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); };
@@ -38,8 +40,9 @@ export function buildYou(kit, boots = 0) {
 
 /* ---------- animation ---------- */
 
-// Standing, walking and running (game/gait.js for the hips and legs, game/carriage.js above them),
-// strikes and dribbling touches (game/strike.js), headers, the dance and celebrating (game/poses.js).
+// Standing, walking and running (game/gait.js for the hips and legs, game/carriage.js above them, captured
+// strides from game/mocap.js over both when he runs forward), strikes and dribbling touches
+// (game/strike.js), springs for weight (game/sway.js), headers, the dance and celebrating (game/poses.js).
 // p is the sim player (his p.stride drives the run cycle, so the sim's touches are the boot's); the keeper
 // has his own (game/keeperpose.js). Place the model (placeModel) before posing it: the boot is sent to the
 // ball, and the model's heading is eased from the one placeModel gave it.
@@ -55,6 +58,10 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   // ground and the legs are bent to them (set before the boot is sent to the ball, so it lands on it)
   if (!m.firstPerson) faceBody(m, p, dt, celebrate || guide ? null : ball, onBall || !!m.strike);
   const g = poseLegs(m, bn, p, dt);
+  // running and walking forward are motion capture (game/mocap.js), laid over that gait; the lean into a
+  // turn that the captured pelvis took the place of is put back, over the same footprints
+  const cap = strideLegs(m, bn, g, dt);
+  if (cap > 0 && !m.firstPerson) leanHips(bn, g, cap * (1 - (m.onBallK || 0)));
   if (m.special) { m.special.t += dt; if (m.special.t > 0.9) m.special = null; }
   const sp = m.special;
   if (sp && sp.kind === 'roulette' && sp.t < SPIN) bn.hips.rotation.y += Math.PI * 2 * sp.t / SPIN;   // the roulette spins you on the spot
@@ -67,14 +74,18 @@ export function animate(m, p, dt, t, celebrate, guide = null, ball = null, onBal
   if (sp && sp.kind === 'bicycle') { specialPose(bn, sp); if (m.firstPerson) bn.chest.scale.setScalar(0.001); return; }
   if (m.firstPerson) { bn.chest.scale.setScalar(0.001); return; }
 
-  // above the hips: how he carries himself, then what is laid over it: lean, the ready crouch, breath,
-  // a strike's arms (eased in: a teammate's strike starts on the ball), the head on the ball
+  // above the hips: how he carries himself, with the captured trunk and arms over that when he is running
+  // forward; then what is laid over either: lean (the capture has its own forward pitch), the ready crouch,
+  // breath, a strike's arms (eased in: a teammate's strike starts on the ball), the head on the ball (and
+  // down a little in a sprinter's drive), and weight: springs knocked by stops, cuts, turns and footfalls
   poseUpper(m, bn, g, dt, t);
-  layerLean(bn, g); layerReady(bn, g); layerBreath(bn, g, dt);
   m.kickK = (m.kickK || 0) + (kick - (m.kickK || 0)) * Math.min(1, dt * 22);
+  if (cap > 0) strideTrunk(m, bn, g, 1 - m.kickK);
+  layerLean(bn, g, 1 - cap); layerReady(bn, g); layerBreath(bn, g, dt);
   layerKick(bn, m.kickK, strikeSwing(st));
+  layerLook(m, bn, g, celebrate ? null : ball, dt, 0.22 * (m.drive || 0));
+  sway(m, bn, p, dt, g);
   if (guide && p.role === 'mate') { dancePose(bn, guide); return; }
-  layerLook(m, bn, g, celebrate ? null : ball, dt);
   if (sp && sp.kind === 'header') specialPose(bn, sp);
   m.cheerK = Math.min(1, Math.max(0, (m.cheerK || 0) + (celebrate ? dt : -dt) * 4));       // arms go up, and come down, in a quarter of a second
   if (m.cheerK > 0) celebratePose(bn, g, t, m.cheerK * m.cheerK * (3 - 2 * m.cheerK));
